@@ -47,7 +47,7 @@ cd dashboard-nextjs-and-fastapi
 ```
 cd backend
 pip install -r requirements.txt
-uvicorn main:app --reload
+python -m uvicorn main:app --reload
 ```
 Certifique-se de ter o python-multipart instalado:
 pip install python-multipart 
