@@ -40,7 +40,7 @@ Este projeto é um **dashboard analítico interativo** com frontend em **Next.js
 ### 1. Clonar o repositório
 
 ```
-git clone https://github.com/seu-usuario/dashboard-nextjs-and-fastapi.git
+git clone https://github.com/igormatheusf/dashboard-nextjs-and-fastapi.git
 cd dashboard-nextjs-and-fastapi
 ```
 ### 2. Iniciar o Backend (FastAPI)
