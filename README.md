@@ -93,7 +93,7 @@ pip freeze > requirements.txt
 
 - Adicionar testes automatizados
 - Melhorar autenticação e segurança
-- Adicionar badges e imagens demonstrativas
+- Adicionar filtros, exportações, badges e imagens demonstrativas
 
 
 ## 📄 Licença
