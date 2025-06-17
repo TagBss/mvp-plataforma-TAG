@@ -40,19 +40,20 @@ Este projeto é um **dashboard analítico interativo** com frontend em **Next.js
 
 ## 📁 Estrutura do Projeto
 
-dashboard-nextjs-and-fastapi/
-├── frontend/ # Projeto Next.js (app/)
-│ ├── components/
-│ │ ├── sidebar.tsx
-│ │ ├── chart-area-gradient.tsx
-│ │ ├── bar-charts.tsx
-│ │ ├── table-demo.tsx
-│ │ └── ...
-│ └── app/
-│ └── page.tsx
-├── backend/
-│ ├── main.py # FastAPI com rotas de upload e leitura de dados
-│ └── dados.xlsx # Arquivo atualizado via upload
+📁 dashboard-nextjs-and-fastapi/
+├── frontend/                 # Projeto Next.js (interface)
+│   ├── components/           # Componentes reutilizáveis
+│   │   ├── sidebar.tsx
+│   │   ├── chart-area-gradient.tsx
+│   │   ├── bar-charts.tsx
+│   │   ├── table-demo.tsx
+│   │   └── ...
+│   └── app/
+│       └── page.tsx          # Página principal do dashboard
+│
+├── backend/                  # Backend com FastAPI
+│   ├── main.py               # Rotas de upload e leitura de Excel
+│   └── dados.xlsx            # Arquivo de dados atualizado via upload
 
 
 ---
