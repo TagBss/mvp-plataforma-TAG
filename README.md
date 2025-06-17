@@ -42,7 +42,6 @@ Este projeto é um **dashboard analítico interativo** com frontend em **Next.js
 ```
 git clone https://github.com/seu-usuario/dashboard-nextjs-and-fastapi.git
 cd dashboard-nextjs-and-fastapi
-
 ```
 ### 2. Iniciar o Backend (FastAPI)
 ```
@@ -89,7 +88,6 @@ Navegador moderno (Chrome, Firefox, Edge, etc.)
 Você pode gerar um arquivo `requirements.txt` com:
 ```
 pip freeze > requirements.txt
-
 ```
 ## 📌 Próximos passos
 
@@ -103,5 +101,5 @@ Este projeto está licenciado sob a MIT License.
 
 ## 🙋‍♂️ Contato
 Desenvolvido por Igor Matheus
-📧 [igorm.fonseca@hotmail.com]
-🔗 LinkedIn [https://www.linkedin.com/in/igormatheus]
+- 📧 [igorm.fonseca@hotmail.com]
+- 🔗 LinkedIn [https://www.linkedin.com/in/igormatheus]
