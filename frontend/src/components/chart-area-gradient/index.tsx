@@ -21,7 +21,7 @@ function UploadExcelButton({ onSuccess }: { onSuccess: () => void }) {
     formData.append("file", file)
 
     setLoading(true)
-    await fetch("http://localhost:8000/upload", {
+    await fetch("https://dashboard-nextjs-and-fastapi.onrender.com/upload", {
       method: "POST",
       body: formData,
     })
@@ -42,7 +42,7 @@ export function ChartAreaGradient() {
   const [chartData, setChartData] = useState([])
 
   const fetchData = () => {
-    fetch("http://localhost:8000/chart-data")
+    fetch("https://dashboard-nextjs-and-fastapi.onrender.com/chart-data")
       .then(res => res.json())
       .then(data => setChartData(data))
       .catch(err => console.error("Erro ao buscar dados:", err))
