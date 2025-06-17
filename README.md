@@ -2,7 +2,6 @@
 
 Este projeto é um **dashboard analítico interativo** com frontend em **Next.js 14** e backend em **FastAPI**, incluindo **upload de arquivos Excel**, visualização de **gráficos dinâmicos**, componentes reutilizáveis e design responsivo.
 
----
 
 ## 🚀 Funcionalidades
 
@@ -17,7 +16,6 @@ Este projeto é um **dashboard analítico interativo** com frontend em **Next.js
 - CORS configurado para permitir comunicação entre frontend e backend local.
 - Atualização automática dos dados após upload.
 
----
 
 ## 🧱 Tecnologias Utilizadas
 
@@ -36,33 +34,12 @@ Este projeto é um **dashboard analítico interativo** com frontend em **Next.js
 - [Pandas](https://pandas.pydata.org/) – leitura e manipulação de arquivos `.xlsx`
 - `python-multipart` – para suporte a upload de arquivos
 
----
-
-## 📁 Estrutura do Projeto
-
-📁 dashboard-nextjs-and-fastapi/
-├── frontend/                 # Projeto Next.js (interface)
-│   ├── components/           # Componentes reutilizáveis
-│   │   ├── sidebar.tsx
-│   │   ├── chart-area-gradient.tsx
-│   │   ├── bar-charts.tsx
-│   │   ├── table-demo.tsx
-│   │   └── ...
-│   └── app/
-│       └── page.tsx          # Página principal do dashboard
-│
-├── backend/                  # Backend com FastAPI
-│   ├── main.py               # Rotas de upload e leitura de Excel
-│   └── dados.xlsx            # Arquivo de dados atualizado via upload
-
-
----
 
 ## ▶️ Como Rodar o Projeto
 
 ### 1. Clonar o repositório
 
-```bash
+```
 git clone https://github.com/seu-usuario/dashboard-nextjs-and-fastapi.git
 cd dashboard-nextjs-and-fastapi
 
@@ -72,14 +49,12 @@ cd dashboard-nextjs-and-fastapi
 cd backend
 pip install -r requirements.txt
 uvicorn main:app --reload
-
 ```
 Certifique-se de ter o python-multipart instalado:
 pip install python-multipart 
 
 ### 3. Iniciar o Frontend (Next.js)
 ```
-
 cd frontend
 npm install
 npm run dev
@@ -103,8 +78,8 @@ Após o upload, os gráficos serão atualizados automaticamente com os novos dad
 
 
 ## 📌 Requisitos
-Node.js >=18
-Python >=3.8
+- Node.js >=18
+- Python >=3.8
 
 Navegador moderno (Chrome, Firefox, Edge, etc.)
 
@@ -113,9 +88,7 @@ Navegador moderno (Chrome, Firefox, Edge, etc.)
 
 Você pode gerar um arquivo `requirements.txt` com:
 ```
-bash
 pip freeze > requirements.txt
-
 
 ```
 ## 📌 Próximos passos
