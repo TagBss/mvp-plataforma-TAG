@@ -24,17 +24,17 @@ def root():
 @app.get("/chart-data")
 def get_chart_data():
     if not os.path.exists("dados.xlsx"):
-        return {"error": "Arquivo dados.xlsx não encontrado."}
+        return []
 
     try:
         df = pd.read_excel("dados.xlsx")
         return df.to_dict(orient="records")
     except Exception as e:
-        return {"error": f"Erro ao ler o arquivo: {str(e)}"}
+        return []
 
 @app.post("/upload")
 def upload_excel(file: UploadFile = File(...)):
-    if not file.filename.endswith(".xlsx"):  # <- corrigido aqui
+    if not file.filename.endswith(".xlsx"):
         return {"error": "Somente arquivos .xlsx são permitidos."}
 
     try:

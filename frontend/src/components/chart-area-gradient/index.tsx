@@ -39,14 +39,30 @@ function UploadExcelButton({ onSuccess }: { onSuccess: () => void }) {
 }
 
 export function ChartAreaGradient() {
-  const [chartData, setChartData] = useState([])
+  const [chartData, setChartData] = useState<ChartDataItem[]>([])
 
-  const fetchData = () => {
-    fetch("https://dashboard-nextjs-and-fastapi.onrender.com/chart-data")
-      .then(res => res.json())
-      .then(data => setChartData(data))
-      .catch(err => console.error("Erro ao buscar dados:", err))
+type ChartDataItem = {
+  month: string
+  mobile: number
+  desktop: number
+}
+
+const fetchData = async () => {
+  try {
+    const res = await fetch("https://dashboard-nextjs-and-fastapi.onrender.com/chart-data")
+    const data: unknown = await res.json()
+
+    if (Array.isArray(data)) {
+      setChartData(data as ChartDataItem[])
+    } else {
+      console.error("Erro na API:", (data as any)?.error || data)
+      setChartData([])
+    }
+  } catch (err) {
+    console.error("Erro na requisição:", err)
+    setChartData([])
   }
+}
 
   useEffect(() => {
     fetchData()
