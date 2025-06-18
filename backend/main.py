@@ -23,22 +23,19 @@ def root():
 
 @app.get("/chart-data")
 def get_chart_data():
-    if not os.path.exists("dados.xlsx"):
-        return []
-
+    filename = "upload.xlsx" if os.path.exists("upload.xlsx") else "dados.xlsx"
     try:
-        df = pd.read_excel("dados.xlsx")
+        df = pd.read_excel(filename)
         return df.to_dict(orient="records")
     except Exception as e:
-        return []
+        return {"error": f"Erro ao ler o arquivo: {str(e)}"}
 
 @app.post("/upload")
 def upload_excel(file: UploadFile = File(...)):
     if not file.filename.endswith(".xlsx"):
         return {"error": "Somente arquivos .xlsx são permitidos."}
-
     try:
-        with open("dados.xlsx", "wb") as buffer:
+        with open("upload.xlsx", "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         return {"filename": file.filename, "status": "uploaded"}
     except Exception as e:

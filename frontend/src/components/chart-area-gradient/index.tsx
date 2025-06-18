@@ -50,14 +50,15 @@ type ChartDataItem = {
 const fetchData = async () => {
   try {
     const res = await fetch("https://dashboard-nextjs-and-fastapi.onrender.com/chart-data")
-    const data: unknown = await res.json()
+    const data = await res.json()
 
-    if (Array.isArray(data)) {
-      setChartData(data as ChartDataItem[])
-    } else {
-      console.error("Erro na API:", (data as any)?.error || data)
-      setChartData([])
+    if ("error" in data) {
+      console.warn("Nenhum dado disponível:", data.error)
+      setChartData([]) // Limpa dados
+      return
     }
+
+    setChartData(data)
   } catch (err) {
     console.error("Erro na requisição:", err)
     setChartData([])
