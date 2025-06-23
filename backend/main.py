@@ -89,7 +89,7 @@ def get_dre_data():
             for _, row in linhas.iterrows():
                 resultado.append({
                     "tipo": tipo,
-                    "nome": row["classificacao"],
+                    "nome": row["de [classificacao]"],
                     "valor": row["valor_original"]
                 })
 
