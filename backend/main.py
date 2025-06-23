@@ -46,14 +46,54 @@ def get_dre_data():
     filename = "upload.xlsx" if os.path.exists("upload.xlsx") else "financial-data-roriz.xlsx"
     try:
         df = pd.read_excel(filename)
-        if not all(col in df.columns for col in ["DRE_n1", "DRE_n2", "valor_original"]):
-            return {"error": "A planilha deve conter as colunas: DRE_n1, DRE_n2, valor_original"}
-        
-        df_grouped = (
-            df.groupby(["DRE_n1", "DRE_n2"], as_index=False)
-            .agg({"valor_original": "sum"})
-            .sort_values(by=["DRE_n1", "DRE_n2"])
-        )
-        return df_grouped.to_dict(orient="records")
+
+        estrutura_dre = [
+            ("+","Faturamento", "Receita Bruta"),
+            ("=","Receita Bruta", None),
+            ("-","Tributos e deduções sobre a receita", "Receita Líquida"),
+            ("=","Receita Líquida", None),
+            ("-","CMV", "Resultado Bruto"),
+            ("-","CSP", "Resultado Bruto"),
+            ("-","CPV", "Resultado Bruto"),
+            ("=","Resultado Bruto", None),
+            ("-","Despesas Administrativas", "EBITDA"),
+            ("-","Despesas com Pessoal", "EBITDA"),
+            ("-","Despesas com Ocupação", "EBITDA"),
+            ("-","Despesas Comerciais", "EBITDA"),
+            ("=","EBITDA", None),
+            ("-","Depreciação", "EBIT"),
+            ("-","Amortização", "EBIT"),
+            ("=","EBIT", None),
+            ("+","Receitas Financeiras", "Resultado Financeiro"),
+            ("-","Despesas Financeiras", "Resultado Financeiro"),
+            ("+ / -","Receitas / Despesas não operacionais", "Resultado Financeiro"),
+            ("=","Resultado Financeiro", None),
+            ("-","IRPJ", "Resultado Líquido"),
+            ("-","CSLL", "Resultado Líquido"),
+            ("=","Resultado Líquido", None)
+        ]
+
+        resultado = []
+
+        for tipo, nome, agrupador in estrutura_dre:
+            linhas = df[df["DRE_n2"] == nome]
+            valor_total = linhas["valor_original"].sum()
+
+            resultado.append({
+                "tipo": tipo,
+                "nome": nome,
+                "valor": valor_total
+            })
+
+            # Adiciona as classificações detalhadas logo após o grupo
+            for _, row in linhas.iterrows():
+                resultado.append({
+                    "tipo": tipo,
+                    "nome": row["classificacao"],
+                    "valor": row["valor_original"]
+                })
+
+        return resultado
+
     except Exception as e:
-        return {"error": f"Erro ao processar a DRE: {str(e)}"}
+        return {"error": f"Erro ao processar DRE: {str(e)}"}
