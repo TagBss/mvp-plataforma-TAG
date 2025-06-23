@@ -4,13 +4,17 @@ import { useEffect, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from "@/components/ui/table"
 
 type DreItem = {
   tipo: string
   nome: string
   valor: number
+  classificacoes?: {
+    nome: string
+    valor: number
+  }[]
 }
 
 export default function DreTable() {
@@ -18,7 +22,7 @@ export default function DreTable() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
-    fetch("https://dashboard-nextjs-and-fastapi.onrender.com/dre")
+    fetch("http://127.0.0.1:8000/dre")
       .then(res => res.json())
       .then(setData)
   }, [])
@@ -27,94 +31,68 @@ export default function DreTable() {
     setOpenSections(prev => ({ ...prev, [nome]: !prev[nome] }))
   }
 
-  const rows = []
-  let i = 0
-
-  while (i < data.length) {
-    const item = data[i]
-
-    // É um totalizador (=): mostra direto
-    if (item.tipo === "=") {
-      rows.push(
-        <TableRow key={i} className="bg-muted/40">
-          <TableCell className="font-semibold">{item.nome}</TableCell>
-          <TableCell className="text-right font-semibold">
-            {item.valor.toLocaleString("pt-BR", {
-              style: "currency",
-              currency: "BRL",
-            })}
-          </TableCell>
-        </TableRow>
-      )
-      i++
-      continue
-    }
-
-    // É um agrupador (+, -, +/-): pode ter filhos
-    const nomePai = item.nome
-    const tipo = item.tipo
-    const isOpen = openSections[nomePai] ?? true
-
-    // Puxa os filhos (com o mesmo tipo e nome diferente)
-    const children: DreItem[] = []
-    let j = i + 1
-    while (j < data.length && data[j].tipo === tipo && data[j].nome !== nomePai) {
-      children.push(data[j])
-      j++
-    }
-
-    rows.push(
-      <TableRow
-        key={i}
-        onClick={() => toggle(nomePai)}
-        className="cursor-pointer hover:bg-muted"
-      >
-        <TableCell className="font-bold flex items-center gap-2">
-          <ChevronDown
-            size={16}
-            className={`transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`}
-          />
-          {nomePai}
-        </TableCell>
-        <TableCell className="text-right font-bold">
-          {item.valor.toLocaleString("pt-BR", {
-            style: "currency",
-            currency: "BRL",
-          })}
-        </TableCell>
-      </TableRow>
-    )
-
-    if (isOpen) {
-      children.forEach((child, index) => {
-        rows.push(
-          <TableRow key={`${i}-child-${index}`}>
-            <TableCell className="pl-8 text-muted-foreground">{child.nome}</TableCell>
-            <TableCell className="text-right">
-              {child.valor.toLocaleString("pt-BR", {
-                style: "currency",
-                currency: "BRL",
-              })}
-            </TableCell>
-          </TableRow>
-        )
-      })
-    }
-
-    // Avança até depois dos filhos
-    i = j
-  }
-
   return (
     <Card className="p-4">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Descrição</TableHead>
-            <TableHead className="text-right">Valor</TableHead>
+            <TableHead className="pl-4">Valor</TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody>{rows}</TableBody>
+        <TableBody>
+          {data.map((item, idx) => {
+            const isExpandable = item.classificacoes && item.classificacoes.length > 0
+            const isOpen = openSections[item.nome] ?? true
+            const isTotalizador = item.tipo === "="
+
+            return (
+              <>
+                <TableRow
+                  key={idx}
+                  className={isExpandable ? "cursor-pointer hover:bg-muted" : ""}
+                  onClick={() => isExpandable && toggle(item.nome)}
+                >
+                  <TableCell
+                    className={`py-2 pr-16 ${isTotalizador ? "font-bold" : "text-foreground"} flex items-center gap-2`}
+                  >
+                    {isExpandable && (
+                      <ChevronDown
+                        className={`transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`}
+                        size={16}
+                      />
+                    )}
+                    <span className="text-muted-foreground">{item.tipo}</span>
+                    <span>{item.nome}</span>
+                  </TableCell>
+                  <TableCell
+                    className={`py-2 pl-4 ${isTotalizador ? "font-bold" : "text-foreground"}`}
+                  >
+                    {item.valor.toLocaleString("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    })}
+                  </TableCell>
+                </TableRow>
+
+                {isOpen && isExpandable &&
+                  item.classificacoes!.map((subItem, subIdx) => (
+                    <TableRow key={`${idx}-${subIdx}`}>
+                      <TableCell className="pl-10 text-muted-foreground">
+                        {subItem.nome}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {subItem.valor.toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        })}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </>
+            )
+          })}
+        </TableBody>
       </Table>
     </Card>
   )

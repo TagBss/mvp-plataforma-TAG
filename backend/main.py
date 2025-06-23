@@ -43,57 +43,87 @@ def upload_excel(file: UploadFile = File(...)):
 
 @app.get("/dre")
 def get_dre_data():
+    # Define o nome do arquivo a ser lido: se o upload existir, usa ele; senão, usa o padrão
     filename = "upload.xlsx" if os.path.exists("upload.xlsx") else "financial-data-roriz.xlsx"
+
     try:
+        # Lê o arquivo Excel
         df = pd.read_excel(filename)
 
-        estrutura_dre = [
-            ("+","Faturamento", "Receita Bruta"),
-            ("=","Receita Bruta", None),
-            ("-","Tributos e deduções sobre a receita", "Receita Líquida"),
-            ("=","Receita Líquida", None),
-            ("-","CMV", "Resultado Bruto"),
-            ("-","CSP", "Resultado Bruto"),
-            ("-","CPV", "Resultado Bruto"),
-            ("=","Resultado Bruto", None),
-            ("-","Despesas Administrativas", "EBITDA"),
-            ("-","Despesas com Pessoal", "EBITDA"),
-            ("-","Despesas com Ocupação", "EBITDA"),
-            ("-","Despesas Comerciais", "EBITDA"),
-            ("=","EBITDA", None),
-            ("-","Depreciação", "EBIT"),
-            ("-","Amortização", "EBIT"),
-            ("=","EBIT", None),
-            ("+","Receitas Financeiras", "Resultado Financeiro"),
-            ("-","Despesas Financeiras", "Resultado Financeiro"),
-            ("+ / -","Receitas / Despesas não operacionais", "Resultado Financeiro"),
-            ("=","Resultado Financeiro", None),
-            ("-","IRPJ", "Resultado Líquido"),
-            ("-","CSLL", "Resultado Líquido"),
-            ("=","Resultado Líquido", None)
-        ]
+        # Verifica se as colunas essenciais existem
+        if not all(col in df.columns for col in ["DRE_n2", "valor_original"]):
+            return {"error": "A planilha deve conter as colunas: DRE_n2,valor_original"}
 
-        resultado = []
+        # Agrupa os valores por DRE_n2 (contas intermediárias), somando os valores
+        dre_n2_sums = df.groupby("DRE_n2")["valor_original"].sum().to_dict()
 
-        for tipo, nome, agrupador in estrutura_dre:
-            linhas = df[df["DRE_n2"] == nome]
-            valor_total = linhas["valor_original"].sum()
+        # Função auxiliar segura para obter valores mesmo que não existam no dicionário
+        def get(nome):
+            return dre_n2_sums.get(nome, 0.0)
 
-            resultado.append({
-                "tipo": tipo,
-                "nome": nome,
-                "valor": valor_total
-            })
+        # Constrói a estrutura da DRE, passo a passo
+        result = []
 
-            # Adiciona as classificações detalhadas logo após o grupo
-            for _, row in linhas.iterrows():
-                resultado.append({
-                    "tipo": tipo,
-                    "nome": row["de [classificacao]"],
-                    "valor": row["valor_original"]
-                })
+        # Linhas base da DRE (serão somadas para calcular os totalizadores)
+        faturamento = get("Faturamento")
+        tributos = get("Tributos e deduções sobre a receita")
+        cmv = get("CMV")
+        csp = get("CSP")
+        cpv = get("CPV")
+        despesas_adm = get("Despesas Administrativas")
+        despesas_pessoal = get("Despesas com Pessoal")
+        despesas_ocupacao = get("Despesas com Ocupação")
+        despesas_comerciais = get("Despesas Comerciais")
+        depre = get("Depreciação")
+        amort = get("Amortização")
+        receitas_fin = get("Receitas Financeiras")
+        despesas_fin = get("Despesas Financeiras")
+        receitas_nop = get("Receitas não operacionais")
+        despesas_nop = get("Despesas não operacionais")
+        irpj = get("IRPJ")
+        csll = get("CSLL")
 
-        return resultado
+        # Começa a montar a estrutura da DRE com os cálculos intermediários
+        result.append({ "tipo": "+", "nome": "Faturamento", "valor": round(faturamento, 2) })
+        receita_bruta = faturamento
+        result.append({ "tipo": "=", "nome": "Receita Bruta", "valor": round(receita_bruta, 2) })
+
+        result.append({ "tipo": "-", "nome": "Tributos e deduções sobre a receita", "valor": round(tributos, 2) })
+        receita_liquida = receita_bruta - tributos
+        result.append({ "tipo": "=", "nome": "Receita Líquida", "valor": round(receita_liquida, 2) })
+
+        result.append({ "tipo": "-", "nome": "CMV", "valor": round(cmv, 2) })
+        result.append({ "tipo": "-", "nome": "CSP", "valor": round(csp, 2) })
+        result.append({ "tipo": "-", "nome": "CPV", "valor": round(cpv, 2) })
+        resultado_bruto = receita_liquida - cmv - csp - cpv
+        result.append({ "tipo": "=", "nome": "Resultado Bruto", "valor": round(resultado_bruto, 2) })
+
+        result.append({ "tipo": "-", "nome": "Despesas Administrativas", "valor": round(despesas_adm, 2) })
+        result.append({ "tipo": "-", "nome": "Despesas com Pessoal", "valor": round(despesas_pessoal, 2) })
+        result.append({ "tipo": "-", "nome": "Despesas com Ocupação", "valor": round(despesas_ocupacao, 2) })
+        result.append({ "tipo": "-", "nome": "Despesas Comerciais", "valor": round(despesas_comerciais, 2) })
+        ebitda = resultado_bruto - despesas_adm - despesas_pessoal - despesas_ocupacao - despesas_comerciais
+        result.append({ "tipo": "=", "nome": "EBITDA", "valor": round(ebitda, 2) })
+
+        result.append({ "tipo": "-", "nome": "Depreciação", "valor": round(depre, 2) })
+        result.append({ "tipo": "-", "nome": "Amortização", "valor": round(amort, 2) })
+        ebit = ebitda - depre - amort
+        result.append({ "tipo": "=", "nome": "EBIT", "valor": round(ebit, 2) })
+
+        result.append({ "tipo": "+", "nome": "Receitas Financeiras", "valor": round(receitas_fin, 2) })
+        result.append({ "tipo": "-", "nome": "Despesas Financeiras", "valor": round(despesas_fin, 2) })
+        result.append({ "tipo": "+", "nome": "Receitas não operacionais", "valor": round(receitas_nop, 2) })
+        result.append({ "tipo": "-", "nome": "Despesas não operacionais", "valor": round(despesas_nop, 2) })
+
+        resultado_financeiro = ebit + receitas_fin - despesas_fin + receitas_nop - despesas_nop
+        result.append({ "tipo": "=", "nome": "Resultado Financeiro", "valor": round(resultado_financeiro, 2) })
+
+        result.append({ "tipo": "-", "nome": "IRPJ", "valor": round(irpj, 2) })
+        result.append({ "tipo": "-", "nome": "CSLL", "valor": round(csll, 2) })
+        resultado_liquido = resultado_financeiro - irpj - csll
+        result.append({ "tipo": "=", "nome": "Resultado Líquido", "valor": round(resultado_liquido, 2) })
+
+        return result
 
     except Exception as e:
-        return {"error": f"Erro ao processar DRE: {str(e)}"}
+        return {"error": f"Erro ao processar a DRE: {str(e)}"}
