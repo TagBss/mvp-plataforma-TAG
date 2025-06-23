@@ -3,6 +3,7 @@ import { ChartBarInteractive } from "@/components/chart-bar-interactive";
 import ChartOverview from "@/components/charts";
 import Sales from "@/components/sales";
 import { TableDemo } from "@/components/table-demo";
+import DreTable from "@/components/table-dre-roriz";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, ListOrdered, Percent, Users } from "lucide-react";
 
@@ -98,6 +99,10 @@ export default function Home() {
 
       <section className="mt-4 flex flex-col md:flex-row gap-4">
         <TableDemo/>
+      </section>
+
+      <section className="mt-4 flex flex-col md:flex-row gap-4">
+        <DreTable/>
       </section>
     </main>
   );
