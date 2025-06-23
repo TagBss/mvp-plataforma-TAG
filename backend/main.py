@@ -40,3 +40,20 @@ def upload_excel(file: UploadFile = File(...)):
         return {"filename": file.filename, "status": "uploaded"}
     except Exception as e:
         return {"error": f"Erro ao salvar o arquivo: {str(e)}"}
+
+@app.get("/dre")
+def get_dre_data():
+    filename = "upload.xlsx" if os.path.exists("upload.xlsx") else "financial-data-roriz.xlsx"
+    try:
+        df = pd.read_excel(filename)
+        if not all(col in df.columns for col in ["DRE_n1", "DRE_n2", "valor_original"]):
+            return {"error": "A planilha deve conter as colunas: DRE_n1, DRE_n2, valor_original"}
+        
+        df_grouped = (
+            df.groupby(["DRE_n1", "DRE_n2"], as_index=False)
+            .agg({"valor_original": "sum"})
+            .sort_values(by=["DRE_n1", "DRE_n2"])
+        )
+        return df_grouped.to_dict(orient="records")
+    except Exception as e:
+        return {"error": f"Erro ao processar a DRE: {str(e)}"}
