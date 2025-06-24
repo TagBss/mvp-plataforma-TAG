@@ -15,6 +15,7 @@ type DreItem = {
   classificacoes?: {
     nome: string
     valor: number
+    valores_mensais?: Record<string, number>
   }[]
 }
 
@@ -159,15 +160,16 @@ export default function DreTable() {
                             {subItem.nome}
                           </span>
                         </TableCell>
-                        
-                        {/* Colunas mensais vazias para subitens */}
+
                         {meses.map(mes => (
                           <TableCell key={mes} className="py-2 text-right text-muted-foreground text-sm">
-                            -
+                            {(subItem.valores_mensais?.[mes] ?? 0).toLocaleString("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            })}
                           </TableCell>
                         ))}
-                        
-                        {/* Valor total do subitem */}
+
                         <TableCell className="py-2 text-right text-muted-foreground text-sm bg-muted/20">
                           {subItem.valor.toLocaleString("pt-BR", {
                             style: "currency",
@@ -175,7 +177,7 @@ export default function DreTable() {
                           })}
                         </TableCell>
                       </TableRow>
-                    ))}
+                  ))}
                 </>
               )
             })}
