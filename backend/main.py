@@ -55,8 +55,40 @@ def get_dre_data():
         if not all(col in df.columns for col in required_columns):
             return {"error": f"A planilha deve conter as colunas: {', '.join(required_columns)}"}
 
-        # Agrupa os valores por DRE_n2 (contas intermediárias), somando os valores
+        # Verifica se existe coluna de data/mês
+        date_column = None
+        possible_date_columns = ['data', 'mes', 'month', 'date', 'periodo', 'competencia', 'emissao']
+        for col in possible_date_columns:
+            if col in df.columns:
+                date_column = col
+                break
+
+        # Se não encontrou coluna de data, converte a primeira coluna que pareça ser data
+        if date_column is None:
+            for col in df.columns:
+                if df[col].dtype == 'datetime64[ns]' or 'data' in col.lower() or 'mes' in col.lower():
+                    date_column = col
+                    break
+
+        # Converte a coluna de data para datetime se necessário
+        if date_column:
+            df[date_column] = pd.to_datetime(df[date_column], errors='coerce')
+            # Cria coluna de mês/ano
+            df['mes_ano'] = df[date_column].dt.to_period('M').astype(str)
+            # Obtém lista de meses únicos ordenados
+            meses_unicos = sorted(df['mes_ano'].dropna().unique())
+        else:
+            meses_unicos = []
+
+        # Agrupa os valores por DRE_n2 (total geral)
         dre_n2_sums = df.groupby("DRE_n2")["valor_original"].sum().to_dict()
+
+        # Agrupa os valores por DRE_n2 e mês (se houver coluna de data)
+        monthly_data = {}
+        if date_column and meses_unicos:
+            for mes in meses_unicos:
+                df_mes = df[df['mes_ano'] == mes]
+                monthly_data[mes] = df_mes.groupby("DRE_n2")["valor_original"].sum().to_dict()
 
         # Função para obter detalhes das classificações por DRE_n2
         def get_classificacoes(dre_n2_name):
@@ -74,186 +106,133 @@ def get_dre_data():
                 for _, row in classificacoes.iterrows()
             ]
 
-        # Função auxiliar segura para obter valores mesmo que não existam no dicionário
+        # Função auxiliar segura para obter valores (total geral)
         def get(nome):
             return dre_n2_sums.get(nome, 0.0)
 
-        # Constrói a estrutura da DRE, passo a passo
+        # Função auxiliar para obter valores mensais
+        def get_monthly(nome, mes):
+            return monthly_data.get(mes, {}).get(nome, 0.0)
+
+        # Constrói a estrutura da DRE
         result = []
 
-        # Linhas base da DRE (serão somadas para calcular os totalizadores)
-        faturamento = get("Faturamento")
-        tributos = get("Tributos e deduções sobre a receita")
-        cmv = get("CMV")
-        csp = get("CSP")
-        cpv = get("CPV")
-        despesas_adm = get("Despesas Administrativas")
-        despesas_pessoal = get("Despesas com Pessoal")
-        despesas_ocupacao = get("Despesas com Ocupação")
-        despesas_comerciais = get("Despesas Comerciais")
-        depre = get("Depreciação")
-        amort = get("Amortização")
-        receitas_fin = get("Receitas Financeiras")
-        despesas_fin = get("Despesas Financeiras")
-        receitas_nop = get("Receitas não operacionais")
-        despesas_nop = get("Despesas não operacionais")
-        irpj = get("IRPJ")
-        csll = get("CSLL")
+        # Linhas base da DRE
+        contas_dre = [
+            ("Faturamento", "+"),
+            ("Tributos e deduções sobre a receita", "-"),
+            ("CMV", "-"),
+            ("CSP", "-"),
+            ("CPV", "-"),
+            ("Despesas Administrativas", "-"),
+            ("Despesas com Pessoal", "-"),
+            ("Despesas com Ocupação", "-"),
+            ("Despesas Comerciais", "-"),
+            ("Depreciação", "-"),
+            ("Amortização", "-"),
+            ("Receitas Financeiras", "+"),
+            ("Despesas Financeiras", "-"),
+            ("Receitas não operacionais", "+"),
+            ("Despesas não operacionais", "-"),
+            ("IRPJ", "-"),
+            ("CSLL", "-")
+        ]
 
-        # Começa a montar a estrutura da DRE com os cálculos intermediários
-        result.append({
-            "tipo": "+",
-            "nome": "Faturamento",
-            "valor": round(faturamento, 2),
-            "classificacoes": get_classificacoes("Faturamento")
-        })
-        receita_bruta = faturamento
-        result.append({
-            "tipo": "=",
-            "nome": "Receita Bruta",
-            "valor": round(receita_bruta, 2)
-        })
+        # Valores totais
+        valores_totais = {nome: get(nome) for nome, _ in contas_dre}
 
-        result.append({
-            "tipo": "-",
-            "nome": "Tributos e deduções sobre a receita",
-            "valor": round(tributos, 2),
-            "classificacoes": get_classificacoes("Tributos e deduções sobre a receita")
-        })
-        receita_liquida = receita_bruta - tributos
-        result.append({
-            "tipo": "=",
-            "nome": "Receita Líquida",
-            "valor": round(receita_liquida, 2)
-        })
+        # Valores mensais
+        valores_mensais = {}
+        for mes in meses_unicos:
+            valores_mensais[mes] = {nome: get_monthly(nome, mes) for nome, _ in contas_dre}
 
-        result.append({
-            "tipo": "-",
-            "nome": "CMV",
-            "valor": round(cmv, 2),
-            "classificacoes": get_classificacoes("CMV")
-        })
-        result.append({
-            "tipo": "-",
-            "nome": "CSP",
-            "valor": round(csp, 2),
-            "classificacoes": get_classificacoes("CSP")
-        })
-        result.append({
-            "tipo": "-",
-            "nome": "CPV",
-            "valor": round(cpv, 2),
-            "classificacoes": get_classificacoes("CPV")
-        })
-        resultado_bruto = receita_liquida - cmv - csp - cpv
-        result.append({
-            "tipo": "=",
-            "nome": "Resultado Bruto",
-            "valor": round(resultado_bruto, 2)
-        })
+        # Função para calcular linha de resultado
+        def calcular_linha_resultado(nome, formula_func, tipo="="):
+            item = {
+                "tipo": tipo,
+                "nome": nome,
+                "valor": round(formula_func(valores_totais), 2)
+            }
+            
+            # Adiciona valores mensais
+            if meses_unicos:
+                item["valores_mensais"] = {}
+                for mes in meses_unicos:
+                    item["valores_mensais"][mes] = round(formula_func(valores_mensais[mes]), 2)
+            
+            return item
 
-        result.append({
-            "tipo": "-",
-            "nome": "Despesas Administrativas",
-            "valor": round(despesas_adm, 2),
-            "classificacoes": get_classificacoes("Despesas Administrativas")
-        })
-        result.append({
-            "tipo": "-",
-            "nome": "Despesas com Pessoal",
-            "valor": round(despesas_pessoal, 2),
-            "classificacoes": get_classificacoes("Despesas com Pessoal")
-        })
-        result.append({
-            "tipo": "-",
-            "nome": "Despesas com Ocupação",
-            "valor": round(despesas_ocupacao, 2),
-            "classificacoes": get_classificacoes("Despesas com Ocupação")
-        })
-        result.append({
-            "tipo": "-",
-            "nome": "Despesas Comerciais",
-            "valor": round(despesas_comerciais, 2),
-            "classificacoes": get_classificacoes("Despesas Comerciais")
-        })
-        ebitda = resultado_bruto - despesas_adm - despesas_pessoal - despesas_ocupacao - despesas_comerciais
-        result.append({
-            "tipo": "=",
-            "nome": "EBITDA",
-            "valor": round(ebitda, 2)
-        })
+        # Função para criar linha de conta
+        def criar_linha_conta(nome, tipo):
+            item = {
+                "tipo": tipo,
+                "nome": nome,
+                "valor": round(valores_totais[nome], 2),
+                "classificacoes": get_classificacoes(nome)
+            }
+            
+            # Adiciona valores mensais
+            if meses_unicos:
+                item["valores_mensais"] = {}
+                for mes in meses_unicos:
+                    item["valores_mensais"][mes] = round(valores_mensais[mes][nome], 2)
+            
+            return item
 
-        result.append({
-            "tipo": "-",
-            "nome": "Depreciação",
-            "valor": round(depre, 2),
-            "classificacoes": get_classificacoes("Depreciação")
-        })
-        result.append({
-            "tipo": "-",
-            "nome": "Amortização",
-            "valor": round(amort, 2),
-            "classificacoes": get_classificacoes("Amortização")
-        })
-        ebit = ebitda - depre - amort
-        result.append({
-            "tipo": "=",
-            "nome": "EBIT",
-            "valor": round(ebit, 2)
-        })
+        # Monta a DRE
+        result.append(criar_linha_conta("Faturamento", "+"))
+        result.append(calcular_linha_resultado("Receita Bruta", lambda v: v["Faturamento"]))
 
-        result.append({
-            "tipo": "+",
-            "nome": "Receitas Financeiras",
-            "valor": round(receitas_fin, 2),
-            "classificacoes": get_classificacoes("Receitas Financeiras")
-        })
-        result.append({
-            "tipo": "-",
-            "nome": "Despesas Financeiras",
-            "valor": round(despesas_fin, 2),
-            "classificacoes": get_classificacoes("Despesas Financeiras")
-        })
-        result.append({
-            "tipo": "+",
-            "nome": "Receitas não operacionais",
-            "valor": round(receitas_nop, 2),
-            "classificacoes": get_classificacoes("Receitas não operacionais")
-        })
-        result.append({
-            "tipo": "-",
-            "nome": "Despesas não operacionais",
-            "valor": round(despesas_nop, 2),
-            "classificacoes": get_classificacoes("Despesas não operacionais")
-        })
+        result.append(criar_linha_conta("Tributos e deduções sobre a receita", "-"))
+        result.append(calcular_linha_resultado("Receita Líquida", 
+            lambda v: v["Faturamento"] - v["Tributos e deduções sobre a receita"]))
 
-        resultado_financeiro = ebit + receitas_fin - despesas_fin + receitas_nop - despesas_nop
-        result.append({
-            "tipo": "=",
-            "nome": "Resultado Financeiro",
-            "valor": round(resultado_financeiro, 2)
-        })
+        result.append(criar_linha_conta("CMV", "-"))
+        result.append(criar_linha_conta("CSP", "-"))
+        result.append(criar_linha_conta("CPV", "-"))
+        result.append(calcular_linha_resultado("Resultado Bruto",
+            lambda v: v["Faturamento"] - v["Tributos e deduções sobre a receita"] - v["CMV"] - v["CSP"] - v["CPV"]))
 
-        result.append({
-            "tipo": "-",
-            "nome": "IRPJ",
-            "valor": round(irpj, 2),
-            "classificacoes": get_classificacoes("IRPJ")
-        })
-        result.append({
-            "tipo": "-",
-            "nome": "CSLL",
-            "valor": round(csll, 2),
-            "classificacoes": get_classificacoes("CSLL")
-        })
-        resultado_liquido = resultado_financeiro - irpj - csll
-        result.append({
-            "tipo": "=",
-            "nome": "Resultado Líquido",
-            "valor": round(resultado_liquido, 2)
-        })
+        result.append(criar_linha_conta("Despesas Administrativas", "-"))
+        result.append(criar_linha_conta("Despesas com Pessoal", "-"))
+        result.append(criar_linha_conta("Despesas com Ocupação", "-"))
+        result.append(criar_linha_conta("Despesas Comerciais", "-"))
+        result.append(calcular_linha_resultado("EBITDA",
+            lambda v: v["Faturamento"] - v["Tributos e deduções sobre a receita"] - v["CMV"] - v["CSP"] - v["CPV"] - 
+                     v["Despesas Administrativas"] - v["Despesas com Pessoal"] - v["Despesas com Ocupação"] - v["Despesas Comerciais"]))
 
-        return result
+        result.append(criar_linha_conta("Depreciação", "-"))
+        result.append(criar_linha_conta("Amortização", "-"))
+        result.append(calcular_linha_resultado("EBIT",
+            lambda v: v["Faturamento"] - v["Tributos e deduções sobre a receita"] - v["CMV"] - v["CSP"] - v["CPV"] - 
+                     v["Despesas Administrativas"] - v["Despesas com Pessoal"] - v["Despesas com Ocupação"] - v["Despesas Comerciais"] -
+                     v["Depreciação"] - v["Amortização"]))
+
+        result.append(criar_linha_conta("Receitas Financeiras", "+"))
+        result.append(criar_linha_conta("Despesas Financeiras", "-"))
+        result.append(criar_linha_conta("Receitas não operacionais", "+"))
+        result.append(criar_linha_conta("Despesas não operacionais", "-"))
+        result.append(calcular_linha_resultado("Resultado Financeiro",
+            lambda v: v["Faturamento"] - v["Tributos e deduções sobre a receita"] - v["CMV"] - v["CSP"] - v["CPV"] - 
+                     v["Despesas Administrativas"] - v["Despesas com Pessoal"] - v["Despesas com Ocupação"] - v["Despesas Comerciais"] -
+                     v["Depreciação"] - v["Amortização"] + v["Receitas Financeiras"] - v["Despesas Financeiras"] +
+                     v["Receitas não operacionais"] - v["Despesas não operacionais"]))
+
+        result.append(criar_linha_conta("IRPJ", "-"))
+        result.append(criar_linha_conta("CSLL", "-"))
+        result.append(calcular_linha_resultado("Resultado Líquido",
+            lambda v: v["Faturamento"] - v["Tributos e deduções sobre a receita"] - v["CMV"] - v["CSP"] - v["CPV"] - 
+                     v["Despesas Administrativas"] - v["Despesas com Pessoal"] - v["Despesas com Ocupação"] - v["Despesas Comerciais"] -
+                     v["Depreciação"] - v["Amortização"] + v["Receitas Financeiras"] - v["Despesas Financeiras"] +
+                     v["Receitas não operacionais"] - v["Despesas não operacionais"] - v["IRPJ"] - v["CSLL"]))
+
+        # Adiciona informações sobre os meses na resposta
+        response = {
+            "meses": meses_unicos,
+            "data": result
+        }
+
+        return response
 
     except Exception as e:
         return {"error": f"Erro ao processar a DRE: {str(e)}"}
