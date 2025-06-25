@@ -22,6 +22,15 @@ app.add_middleware(
 def root():
     return {"message": "API está funcionando!"}
 
+@app.get("/chart-data")
+def get_chart_data():
+    filename = "upload.xlsx" if os.path.exists("upload.xlsx") else "dados.xlsx"
+    try:
+        df = pd.read_excel(filename)
+        return df.to_dict(orient="records")
+    except Exception as e:
+        return {"error": f"Erro ao ler o arquivo: {str(e)}"}
+
 @app.post("/upload")
 def upload_excel(file: UploadFile = File(...)):
     if not file.filename.endswith(".xlsx"):
