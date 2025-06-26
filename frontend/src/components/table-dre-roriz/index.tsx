@@ -35,7 +35,7 @@ export default function DreTable() {
   const [showHorizontal, setShowHorizontal] = useState(true)
 
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/dre")
+    fetch("https://dashboard-nextjs-and-fastapi.onrender.com/dre")
       .then(res => res.json())
       .then((result: DreResponse | { error: string }) => {
         if ("error" in result) {
