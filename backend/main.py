@@ -91,7 +91,7 @@ def get_dre_data():
                 total = grupo_validos["valor_original"].sum()
                 valores_mensais = grupo_validos.groupby("mes_ano")["valor_original"].sum().to_dict()
                 valores_mensais = {
-                    mes: round(valores_mensais.get(mes, 0.0), 2) for mes in meses_unicos
+                    mes: round(valores_mensais.get(mes, 0.0), 0) for mes in meses_unicos
                 }
                 classificacoes.append({
                     "nome": classificacao,
