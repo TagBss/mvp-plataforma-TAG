@@ -53,24 +53,33 @@ def get_dre_data():
         if not all(col in df.columns for col in required_columns):
             return {"error": f"A planilha deve conter as colunas: {', '.join(required_columns)}"}
 
-        # Detectar e processar coluna de data
-        date_column = next((col for col in df.columns if col.lower() in ["data", "mes", "competencia", "periodo"]), None)
+        # Tratar datas e valores corretamente
+        date_column = next((col for col in df.columns if col.lower() == "competencia"), None)
         if date_column:
             df[date_column] = pd.to_datetime(df[date_column], errors="coerce")
-            df = df.dropna(subset=[date_column])  # remove linhas com NaT
             df["mes_ano"] = df[date_column].dt.to_period("M").astype(str)
-            meses_unicos = sorted(df["mes_ano"].dropna().unique())
         else:
-            meses_unicos = []
+            df["mes_ano"] = None
 
-        # Total por DRE_n2 e por mês
-        total_geral = df.groupby("DRE_n2")["valor_original"].sum().to_dict()
+        # Converter valor_original para numérico e preservar NaNs
+        df["valor_original"] = pd.to_numeric(df["valor_original"], errors="coerce")
+
+        # Filtrar apenas linhas com competencia válida
+        df = df.dropna(subset=[date_column])
+
+        # Lista de meses únicos baseada em competencia
+        meses_unicos = sorted(df["mes_ano"].dropna().unique())
+
+        # Gerar totais ignorando apenas linhas com valor_original nulo
+        df_validos = df.dropna(subset=["valor_original"])
+
+        total_geral = df_validos.groupby("DRE_n2")["valor_original"].sum().to_dict()
+
         total_por_mes = {
-            mes: df[df["mes_ano"] == mes].groupby("DRE_n2")["valor_original"].sum().to_dict()
+            mes: df_validos[df_validos["mes_ano"] == mes].groupby("DRE_n2")["valor_original"].sum().to_dict()
             for mes in meses_unicos
         }
 
-        # Total por classificacao (subitens)
         def get_classificacoes(dre_n2_name):
             sub_df = df[df["DRE_n2"] == dre_n2_name]
             if sub_df.empty:
@@ -78,8 +87,9 @@ def get_dre_data():
 
             classificacoes = []
             for classificacao, grupo in sub_df.groupby("classificacao"):
-                total = grupo["valor_original"].sum()
-                valores_mensais = grupo.groupby("mes_ano")["valor_original"].sum().to_dict()
+                grupo_validos = grupo.dropna(subset=["valor_original"])
+                total = grupo_validos["valor_original"].sum()
+                valores_mensais = grupo_validos.groupby("mes_ano")["valor_original"].sum().to_dict()
                 valores_mensais = {
                     mes: round(valores_mensais.get(mes, 0.0), 2) for mes in meses_unicos
                 }
@@ -89,9 +99,6 @@ def get_dre_data():
                     "valores_mensais": valores_mensais
                 })
             return classificacoes
-
-        def get_total(nome): return total_geral.get(nome, 0.0)
-        def get_mensal(nome, mes): return total_por_mes.get(mes, {}).get(nome, 0.0)
 
         contas_dre = [
             ("Faturamento", "+"),
@@ -113,27 +120,27 @@ def get_dre_data():
             ("CSLL", "-")
         ]
 
-        valores_totais = {nome: get_total(nome) for nome, _ in contas_dre}
+        valores_totais = {nome: total_geral.get(nome, 0.0) for nome, _ in contas_dre}
         valores_mensais = {
-            mes: {nome: get_mensal(nome, mes) for nome, _ in contas_dre} for mes in meses_unicos
+            mes: {nome: total_por_mes[mes].get(nome, 0.0) for nome, _ in contas_dre}
+            for mes in meses_unicos
         }
 
         def criar_linha_conta(nome, tipo):
-            item = {
+            return {
                 "tipo": tipo,
                 "nome": nome,
-                "valor": round(valores_totais[nome], 2),
+                "valor": round(valores_totais[nome], 0),
                 "valores_mensais": {
-                    mes: round(valores_mensais[mes][nome], 2) for mes in meses_unicos
+                    mes: round(valores_mensais[mes][nome], 0) for mes in meses_unicos
                 },
                 "classificacoes": get_classificacoes(nome)
             }
-            return item
 
         def calcular_linha(nome, func, tipo="="):
-            total = round(func(valores_totais), 2)
+            total = round(func(valores_totais), 0)
             valores = {
-                mes: round(func(valores_mensais[mes]), 2) for mes in meses_unicos
+                mes: round(func(valores_mensais[mes]), 0) for mes in meses_unicos
             }
             return {
                 "tipo": tipo,
@@ -143,17 +150,17 @@ def get_dre_data():
             }
 
         result = []
-
         result.append(criar_linha_conta("Faturamento", "+"))
         result.append(calcular_linha("Receita Bruta", lambda v: v["Faturamento"]))
-
         result.append(criar_linha_conta("Tributos e deduções sobre a receita", "-"))
         result.append(calcular_linha("Receita Líquida", lambda v: v["Faturamento"] - v["Tributos e deduções sobre a receita"]))
 
         for nome in ["CMV", "CSP", "CPV"]:
             result.append(criar_linha_conta(nome, "-"))
 
-        result.append(calcular_linha("Resultado Bruto", lambda v: v["Faturamento"] - v["Tributos e deduções sobre a receita"] - v["CMV"] - v["CSP"] - v["CPV"]))
+        result.append(calcular_linha("Resultado Bruto", lambda v: (
+            v["Faturamento"] - v["Tributos e deduções sobre a receita"] - v["CMV"] - v["CSP"] - v["CPV"]
+        )))
 
         for nome in ["Despesas Administrativas", "Despesas com Pessoal", "Despesas com Ocupação", "Despesas Comerciais"]:
             result.append(criar_linha_conta(nome, "-"))
