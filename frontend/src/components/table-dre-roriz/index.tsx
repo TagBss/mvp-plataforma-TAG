@@ -11,11 +11,9 @@ import { saveAs } from "file-saver"
 type DreItem = {
   tipo: string
   nome: string
-  valor: number
   valores_mensais?: Record<string, number>
   classificacoes?: {
     nome: string
-    valor: number
     valores_mensais?: Record<string, number>
   }[]
 }
@@ -61,6 +59,9 @@ export default function DreTable() {
   const anosDisponiveis = Array.from(new Set(meses.map(m => m.split("-")[0])))
   const mesesFiltrados = filtroAno === "todos" ? meses : meses.filter(m => m.startsWith(filtroAno))
 
+  const calcularTotal = (valores: Record<string, number> | undefined): number =>
+    mesesFiltrados.reduce((total, mes) => total + (valores?.[mes] ?? 0), 0)
+
   const getPaiValorMensal = (nomePai: string, mes: string) => {
     const itemPai = data.find(d => d.nome === nomePai)
     return itemPai?.valores_mensais?.[mes] || 0
@@ -98,11 +99,13 @@ export default function DreTable() {
     ws.addRow(headerRow).font = { bold: true }
 
     data.forEach(item => {
-      const row = ws.addRow([item.nome, ...mesesFiltrados.map(m => item.valores_mensais?.[m] ?? 0), item.valor])
+      const total = calcularTotal(item.valores_mensais)
+      const row = ws.addRow([item.nome, ...mesesFiltrados.map(m => item.valores_mensais?.[m] ?? 0), total])
       row.font = { bold: true }
 
       item.classificacoes?.forEach(sub => {
-        ws.addRow(["  " + sub.nome, ...mesesFiltrados.map(m => sub.valores_mensais?.[m] ?? 0), sub.valor])
+        const subTotal = calcularTotal(sub.valores_mensais)
+        ws.addRow(["  " + sub.nome, ...mesesFiltrados.map(m => sub.valores_mensais?.[m] ?? 0), subTotal])
       })
     })
 
@@ -163,6 +166,7 @@ export default function DreTable() {
               const isExpandable = item.classificacoes && item.classificacoes.length > 0
               const isOpen = openSections[item.nome] ?? false
               const isTotalizador = item.tipo === "="
+              const total = calcularTotal(item.valores_mensais)
 
               return (
                 <>
@@ -183,7 +187,7 @@ export default function DreTable() {
                     {mesesFiltrados.map((mes, i) => {
                       const valor = item.valores_mensais?.[mes] || 0
                       const anterior = i > 0 ? item.valores_mensais?.[mesesFiltrados[i - 1]] || 0 : 0
-                      const verticalPct = getVerticalPercent(valor, item.valor, true)
+                      const verticalPct = getVerticalPercent(valor, total, true)
                       const horizontalPct = getHorizontalPercent(valor, anterior)
                       return (
                         <TableCell key={mes} className={`py-3 text-right ${isTotalizador ? "font-bold" : "text-foreground"}`}>
@@ -193,36 +197,39 @@ export default function DreTable() {
                     })}
 
                     <TableCell className={`py-3 text-right ${isTotalizador ? "font-bold" : "text-foreground"} bg-muted/20`}>
-                      {renderValor(item.valor, getVerticalPercent(item.valor, item.valor, true))}
+                      {renderValor(total, getVerticalPercent(total, total, true))}
                     </TableCell>
                   </TableRow>
 
-                  {isOpen && item.classificacoes?.map((sub, j) => (
-                    <TableRow key={`${idx}-${j}`} className="bg-muted/10">
-                      <TableCell className="md:sticky md:left-0 md:z-20 bg-muted pl-10 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
-                          {sub.nome}
-                        </div>
-                      </TableCell>
+                  {isOpen && item.classificacoes?.map((sub, j) => {
+                    const subTotal = calcularTotal(sub.valores_mensais)
+                    return (
+                      <TableRow key={`${idx}-${j}`} className="bg-muted/10">
+                        <TableCell className="md:sticky md:left-0 md:z-20 bg-muted pl-10 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
+                            {sub.nome}
+                          </div>
+                        </TableCell>
 
-                      {mesesFiltrados.map((mes, i) => {
-                        const valor = sub.valores_mensais?.[mes] || 0
-                        const anterior = i > 0 ? sub.valores_mensais?.[mesesFiltrados[i - 1]] || 0 : 0
-                        const verticalPct = getVerticalPercent(valor, getPaiValorMensal(item.nome, mes), false)
-                        const horizontalPct = getHorizontalPercent(valor, anterior)
-                        return (
-                          <TableCell key={mes}>
-                            {renderValor(valor, verticalPct, horizontalPct)}
-                          </TableCell>
-                        )
-                      })}
+                        {mesesFiltrados.map((mes, i) => {
+                          const valor = sub.valores_mensais?.[mes] || 0
+                          const anterior = i > 0 ? sub.valores_mensais?.[mesesFiltrados[i - 1]] || 0 : 0
+                          const verticalPct = getVerticalPercent(valor, getPaiValorMensal(item.nome, mes), false)
+                          const horizontalPct = getHorizontalPercent(valor, anterior)
+                          return (
+                            <TableCell key={mes}>
+                              {renderValor(valor, verticalPct, horizontalPct)}
+                            </TableCell>
+                          )
+                        })}
 
-                      <TableCell>
-                        {renderValor(sub.valor, getVerticalPercent(sub.valor, item.valor, false))}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        <TableCell>
+                          {renderValor(subTotal, getVerticalPercent(subTotal, total, false))}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </>
               )
             })}
