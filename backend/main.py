@@ -44,7 +44,7 @@ def upload_excel(file: UploadFile = File(...)):
 
 @app.get("/dre")
 def get_dre_data():
-    filename = "upload.xlsx" if os.path.exists("upload.xlsx") else "financial-data-roriz.xlsx"
+    filename = "financial-data-roriz.xlsx"
 
     try:
         df = pd.read_excel(filename)

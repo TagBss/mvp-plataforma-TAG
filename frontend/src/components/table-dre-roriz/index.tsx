@@ -5,7 +5,8 @@ import { ChevronDown } from "lucide-react"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
-import * as XLSX from "xlsx"
+import ExcelJS from "exceljs"
+import { saveAs } from "file-saver"
 
 type DreItem = {
   tipo: string
@@ -35,7 +36,7 @@ export default function DreTable() {
   const [showHorizontal, setShowHorizontal] = useState(true)
 
   useEffect(() => {
-    fetch("https://dashboard-nextjs-and-fastapi.onrender.com/dre")
+    fetch("http://127.0.0.1:8000/dre")
       .then(res => res.json())
       .then((result: DreResponse | { error: string }) => {
         if ("error" in result) {
@@ -65,7 +66,8 @@ export default function DreTable() {
     return itemPai?.valores_mensais?.[mes] || 0
   }
 
-  const getVerticalPercent = (valor: number, base: number) => {
+  const getVerticalPercent = (valor: number, base: number, isPai: boolean) => {
+    if (isPai) return "100.0%"
     if (!base || base === 0) return "–"
     return ((valor / base) * 100).toFixed(1) + "%"
   }
@@ -89,18 +91,25 @@ export default function DreTable() {
   )
 
   const exportExcel = () => {
-    const wsData: Array<(string | number)[]> = []
-    wsData.push(["Descrição", ...mesesFiltrados, "Total"])
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet("DRE")
+
+    const headerRow = ["Descrição", ...mesesFiltrados, "Total"]
+    ws.addRow(headerRow).font = { bold: true }
+
     data.forEach(item => {
-      wsData.push([item.nome, ...mesesFiltrados.map(m => item.valores_mensais?.[m] ?? 0), item.valor])
+      const row = ws.addRow([item.nome, ...mesesFiltrados.map(m => item.valores_mensais?.[m] ?? 0), item.valor])
+      row.font = { bold: true }
+
       item.classificacoes?.forEach(sub => {
-        wsData.push(["  " + sub.nome, ...mesesFiltrados.map(m => sub.valores_mensais?.[m] ?? 0), sub.valor])
+        ws.addRow(["  " + sub.nome, ...mesesFiltrados.map(m => sub.valores_mensais?.[m] ?? 0), sub.valor])
       })
     })
-    const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.aoa_to_sheet(wsData)
-    XLSX.utils.book_append_sheet(wb, ws, "DRE")
-    XLSX.writeFile(wb, "dre.xlsx")
+
+    wb.xlsx.writeBuffer().then(data => {
+      const blob = new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+      saveAs(blob, "dre.xlsx")
+    })
   }
 
   if (loading || !filtroAno)
@@ -136,7 +145,7 @@ export default function DreTable() {
           </div>
         </div>
       </CardHeader>
-      
+
       <div className="relative overflow-auto max-w-full max-h-[80vh] px-6">
         <Table>
           <TableHeader>
@@ -158,16 +167,10 @@ export default function DreTable() {
               return (
                 <>
                   <TableRow key={idx}
-                    className={`${isExpandable ? "cursor-pointer hover:bg-muted/50" : ""} ${
-                      isTotalizador ? "bg-muted/30" : ""
-                    }`}
+                    className={`${isExpandable ? "cursor-pointer hover:bg-muted/50" : ""} ${isTotalizador ? "bg-muted/30" : ""}`}
                     onClick={() => isExpandable && toggle(item.nome)}
                   >
-                    <TableCell
-                      className={`py-3 md:sticky md:left-0 z-20 ${
-                        isTotalizador ? "font-bold bg-muted" : "bg-background"
-                      }`}
-                    >
+                    <TableCell className={`py-3 md:sticky md:left-0 z-20 ${isTotalizador ? "font-bold bg-muted" : "bg-background"}`}>
                       <div className="flex items-center gap-2">
                         {isExpandable && (
                           <ChevronDown size={16} className={`transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`} />
@@ -180,19 +183,17 @@ export default function DreTable() {
                     {mesesFiltrados.map((mes, i) => {
                       const valor = item.valores_mensais?.[mes] || 0
                       const anterior = i > 0 ? item.valores_mensais?.[mesesFiltrados[i - 1]] || 0 : 0
-                      const verticalPct = getVerticalPercent(valor, item.valor)
+                      const verticalPct = getVerticalPercent(valor, item.valor, true)
                       const horizontalPct = getHorizontalPercent(valor, anterior)
                       return (
-                        <TableCell key={mes}
-                          className={`py-3 text-right ${isTotalizador ? "font-bold" : "text-foreground"}`}
-                        >
+                        <TableCell key={mes} className={`py-3 text-right ${isTotalizador ? "font-bold" : "text-foreground"}`}>
                           {renderValor(valor, verticalPct, horizontalPct)}
                         </TableCell>
                       )
                     })}
 
                     <TableCell className={`py-3 text-right ${isTotalizador ? "font-bold" : "text-foreground"} bg-muted/20`}>
-                      {renderValor(item.valor)}
+                      {renderValor(item.valor, getVerticalPercent(item.valor, item.valor, true))}
                     </TableCell>
                   </TableRow>
 
@@ -208,7 +209,7 @@ export default function DreTable() {
                       {mesesFiltrados.map((mes, i) => {
                         const valor = sub.valores_mensais?.[mes] || 0
                         const anterior = i > 0 ? sub.valores_mensais?.[mesesFiltrados[i - 1]] || 0 : 0
-                        const verticalPct = getVerticalPercent(valor, getPaiValorMensal(item.nome, mes))
+                        const verticalPct = getVerticalPercent(valor, getPaiValorMensal(item.nome, mes), false)
                         const horizontalPct = getHorizontalPercent(valor, anterior)
                         return (
                           <TableCell key={mes}>
@@ -218,7 +219,7 @@ export default function DreTable() {
                       })}
 
                       <TableCell>
-                        {renderValor(sub.valor, getVerticalPercent(sub.valor, item.valor))}
+                        {renderValor(sub.valor, getVerticalPercent(sub.valor, item.valor, false))}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -228,7 +229,6 @@ export default function DreTable() {
           </TableBody>
         </Table>
       </div>
-
     </Card>
   )
 }
