@@ -32,6 +32,7 @@ export default function DreTable() {
   const [filtroAno, setFiltroAno] = useState<string>("")
   const [showVertical, setShowVertical] = useState(true)
   const [showHorizontal, setShowHorizontal] = useState(true)
+  const [allExpanded, setAllExpanded] = useState(false) // NOVO estado
 
   useEffect(() => {
     fetch("http://127.0.0.1:8000/dre")
@@ -54,6 +55,18 @@ export default function DreTable() {
 
   const toggle = (nome: string) => {
     setOpenSections(prev => ({ ...prev, [nome]: !prev[nome] }))
+  }
+
+  const toggleAll = () => {
+    const novoEstado = !allExpanded
+    const novasSecoes: Record<string, boolean> = {}
+    data.forEach(item => {
+      if (item.classificacoes && item.classificacoes.length > 0) {
+        novasSecoes[item.nome] = novoEstado
+      }
+    })
+    setOpenSections(novasSecoes)
+    setAllExpanded(novoEstado)
   }
 
   const anosDisponiveis = Array.from(new Set(meses.map(m => m.split("-")[0])))
@@ -136,6 +149,12 @@ export default function DreTable() {
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox checked={showHorizontal} onCheckedChange={val => setShowHorizontal(!!val)} /> Horizontal %
             </label>
+            <button
+              onClick={toggleAll}
+              className="text-sm border px-2 py-1 rounded max-w-1/2 cursor-pointer"
+            >
+              {allExpanded ? "- Recolher todos" : "+ Expandir todos"}
+            </button>
             <button onClick={exportExcel} className="text-sm border px-2 py-1 rounded max-w-1/2 cursor-pointer">Exportar Excel</button>
             <select
               className="text-sm border rounded px-2 py-1 max-w-1/2 cursor-pointer"

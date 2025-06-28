@@ -3,6 +3,7 @@ import { Button } from "../ui/button"
 import Link from "next/link"
 import { Box, Home, LogOut, Package, PanelBottom, Settings2, ShoppingBag, Users } from "lucide-react"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip"
+import { ModeToggle } from "../mode-toggle"
 
 export function Sidebar(){
     return(
@@ -80,6 +81,8 @@ export function Sidebar(){
                             <TooltipContent side="right">Configurações</TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
+
+                    <ModeToggle/>
                 </nav>
 
                 <nav className="mt-auto flex flex-col items-center gap-4 px-2 py-5">
@@ -166,6 +169,8 @@ export function Sidebar(){
                                     <Settings2 className="h-5 w-5 transition-all"/>
                                     Configurações
                                 </Link>
+
+                                <ModeToggle/>
                             </nav>
 
                             <nav className="mt-auto flex flex-col items-left gap-4 px-2 py-5">

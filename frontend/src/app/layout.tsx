@@ -4,6 +4,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils"
 
 import { Sidebar } from "@/components/sidebar"
+import { ThemeProvider } from "@/components/theme-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,8 +33,15 @@ export default function RootLayout({
           "min-h-screen bg-background font-sans antialiased",
           geistSans.className
         )}>
-          <Sidebar/>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <Sidebar />
           {children}
+        </ThemeProvider>
       </body>
     </html>
   );

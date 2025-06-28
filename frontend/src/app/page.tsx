@@ -1,11 +1,13 @@
-import { ChartAreaGradient } from "@/components/chart-area-gradient";
-import { ChartBarInteractive } from "@/components/chart-bar-interactive";
+// import { ChartAreaGradient } from "@/components/chart-area-gradient";
+// import { ChartBarInteractive } from "@/components/chart-bar-interactive";
+import { ChartAreaGradientTwo } from "@/components/chart-area-gradient-2";
+import { ChartBarMixed } from "@/components/chart-bar-mixed";
 import ChartOverview from "@/components/charts";
-import Sales from "@/components/sales";
-import { TableDemo } from "@/components/table-demo";
+// import Sales from "@/components/sales";
+// import { TableDemo } from "@/components/table-demo";
 import DreTable from "@/components/table-dre-roriz";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, ListOrdered, Percent, Users } from "lucide-react";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowUpDown, Hourglass, MinusCircle, Package, PlusCircle, TrendingUp, Wallet } from "lucide-react";
 
 export default function Home() {
   return (
@@ -14,18 +16,20 @@ export default function Home() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-center">
-              <CardTitle className="text-lg sm:text-xl select-none">
-                Total vendas
+              <CardTitle className="text-chart-3 text-lg sm:text-xl select-none">
+                Contas recebidas
               </CardTitle>
-              <DollarSign className="ml-auto w-4 h-4"/>
+              <PlusCircle className="text-chart-3 ml-auto w-4 h-4"/>
             </div>
-            <CardDescription>
-              Total vendas em 90 dias
-            </CardDescription>
           </CardHeader>
 
           <CardContent>
-            <p>R$ 40 mil</p>
+            <div className="sm:flex sm:justify-between sm:items-center">
+              <p className="text-lg sm:text-2xl">R$ 342,1 Mil</p>
+              <CardDescription>
+                <p>vs abr/25 <br/>↙ 63,9%</p>
+              </CardDescription>
+            </div>
           </CardContent>
         </Card>
 
@@ -33,17 +37,22 @@ export default function Home() {
           <CardHeader>
             <div className="flex items-center justify-center">
               <CardTitle className="text-lg sm:text-xl select-none">
-                Novos clientes
+                PMR
               </CardTitle>
-              <Users className="ml-auto w-4 h-4"/>
+              <Hourglass className="ml-auto w-4 h-4"/>
             </div>
             <CardDescription>
-              Novos clientes em 90 dias
+              <p>prazo médio recebimento</p>
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            <p>190</p>
+            <div className="sm:flex sm:justify-between sm:items-center">
+              <p className="text-lg sm:text-2xl">6 dias</p>
+              <CardDescription>
+                <p>Últimos 12M</p>
+              </CardDescription>
+            </div>
           </CardContent>
         </Card>
 
@@ -51,17 +60,19 @@ export default function Home() {
           <CardHeader>
             <div className="flex items-center justify-center">
               <CardTitle className="text-lg sm:text-xl select-none">
-                Pedidos
+                Contas pagas
               </CardTitle>
-              <ListOrdered className="ml-auto w-4 h-4"/>
+              <MinusCircle className="ml-auto w-4 h-4"/>
             </div>
-            <CardDescription>
-              Total de pedidos em 90 dias
-            </CardDescription>
           </CardHeader>
 
           <CardContent>
-            <p>550</p>
+            <div className="sm:flex sm:justify-between sm:items-center">
+              <p className="text-lg sm:text-2xl">R$ -857,2 Mil</p>
+              <CardDescription>
+                <p>vs abr/25 <br/>↙ 21,4%</p>
+              </CardDescription>
+            </div>
           </CardContent>
         </Card>
 
@@ -69,27 +80,128 @@ export default function Home() {
           <CardHeader>
             <div className="flex items-center justify-center">
               <CardTitle className="text-lg sm:text-xl select-none">
-                Ticket médio
+                PMP
               </CardTitle>
-              <Percent className="ml-auto w-4 h-4"/>
+              <Hourglass className="ml-auto w-4 h-4"/>
             </div>
             <CardDescription>
-              Ticket médio em 90 dias (Total Vendas / Pedidos)
+              <p>prazo médio pagamento</p>
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            <p>R$ 72,7</p>
+            <div className="sm:flex sm:justify-between sm:items-center">
+              <p className="text-lg sm:text-2xl">8 dias</p>
+              <CardDescription>
+                <p>Últimos 12M</p>
+              </CardDescription>
+            </div>
           </CardContent>
         </Card>
       </section>
 
       <section className="mt-4 flex flex-col md:flex-row gap-4">
-        <ChartOverview/>
-        <Sales/>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-center">
+              <CardTitle className="text-chart-3 text-lg sm:text-xl select-none">
+                Movimentações
+              </CardTitle>
+              <ArrowUpDown className="text-chart-3 ml-auto w-4 h-4"/>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            <div className="sm:flex sm:justify-between sm:items-center">
+              <p className="text-lg sm:text-2xl">R$ -515,2 Mil</p>
+              <CardDescription>
+                <p>vs abr/25 <br/>↗ 261,9%</p>
+              </CardDescription>
+            </div>
+
+            <CardDescription className="py-4">
+              <p>Movimentações últimos 6M</p>
+            </CardDescription>
+
+            <ChartOverview/>
+          </CardContent>
+        </Card>
+        {/* <Sales/> */}
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-center">
+              <CardTitle className="text-lg sm:text-xl select-none">
+                Saldo Final
+              </CardTitle>
+              <Wallet className="ml-auto w-4 h-4"/>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            <div className="sm:flex sm:justify-between sm:items-center">
+              <p className="text-lg sm:text-2xl">R$ -467,7 Mil</p>
+              <CardDescription>
+                <p>vs abr/25 <br/>↗ 1085,3%</p>
+              </CardDescription>
+            </div>
+
+            <CardDescription className="py-4">
+              <p>Saldo últimos 6M</p>
+            </CardDescription>
+            
+            <ChartAreaGradientTwo/>
+          </CardContent>
+          <CardFooter>
+            <div className="flex w-full items-start gap-2 text-sm">
+              <div className="grid gap-2">
+                <div className="flex items-center gap-2 leading-none font-medium">
+                  Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
+                </div>
+                <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                  January - June 2024
+                </div>
+              </div>
+            </div>
+          </CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-center">
+              <CardTitle className="text-lg sm:text-xl select-none">
+                Custos
+              </CardTitle>
+              <Package className="ml-auto w-4 h-4"/>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            <div className="sm:flex sm:justify-between sm:items-center">
+              <p className="text-lg sm:text-2xl">R$ -214,8 Mil</p>
+              <CardDescription>
+                <p>vs abr/25 <br/>↙ 17,6%</p>
+              </CardDescription>
+            </div>
+
+            <CardDescription className="py-4">
+              <p>Saldo últimos 6M</p>
+            </CardDescription>
+            
+            <ChartBarMixed/>
+          </CardContent>
+          <CardFooter className="flex-col items-start gap-2 text-sm">
+            <div className="flex gap-2 leading-none font-medium">
+              Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
+            </div>
+            <div className="text-muted-foreground leading-none">
+              Showing total visitors for the last 6 months
+            </div>
+          </CardFooter>
+        </Card>
       </section>
 
-      <section className="mt-4">
+      {/* <section className="mt-4">
         <ChartBarInteractive/>
       </section>
 
@@ -99,7 +211,7 @@ export default function Home() {
 
       <section className="mt-4 flex flex-col md:flex-row gap-4">
         <TableDemo/>
-      </section>
+      </section> */}
 
       <section className="mt-4 flex flex-col md:flex-row gap-4">
         <DreTable/>
