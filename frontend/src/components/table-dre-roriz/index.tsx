@@ -12,9 +12,21 @@ type DreItem = {
   tipo: string
   nome: string
   valores_mensais?: Record<string, number>
+  valores_anuais?: Record<string, number>
+  vertical_mensais?: Record<string, string>
+  vertical_anuais?: Record<string, string>
+  vertical_total?: string
+  horizontal_mensais?: Record<string, string>
+  horizontal_anuais?: Record<string, string>
   classificacoes?: {
     nome: string
     valores_mensais?: Record<string, number>
+    valores_anuais?: Record<string, number>
+    vertical_mensais?: Record<string, string>
+    vertical_anuais?: Record<string, string>
+    vertical_total?: string
+    horizontal_mensais?: Record<string, string>
+    horizontal_anuais?: Record<string, string>
   }[]
 }
 
@@ -32,7 +44,7 @@ export default function DreTable() {
   const [filtroAno, setFiltroAno] = useState<string>("")
   const [showVertical, setShowVertical] = useState(true)
   const [showHorizontal, setShowHorizontal] = useState(true)
-  const [allExpanded, setAllExpanded] = useState(false) // NOVO estado
+  const [allExpanded, setAllExpanded] = useState(false)
 
   useEffect(() => {
     fetch("http://127.0.0.1:8000/dre")
@@ -43,7 +55,6 @@ export default function DreTable() {
         } else {
           setData(result.data)
           setMeses(result.meses || [])
-
           const anos = Array.from(new Set(result.meses.map(m => m.split("-")[0])))
           const ultimoAno = anos.sort((a, b) => parseInt(a) - parseInt(b)).pop()
           if (ultimoAno) setFiltroAno(ultimoAno)
@@ -75,23 +86,6 @@ export default function DreTable() {
   const calcularTotal = (valores: Record<string, number> | undefined): number =>
     mesesFiltrados.reduce((total, mes) => total + (valores?.[mes] ?? 0), 0)
 
-  const getPaiValorMensal = (nomePai: string, mes: string) => {
-    const itemPai = data.find(d => d.nome === nomePai)
-    return itemPai?.valores_mensais?.[mes] || 0
-  }
-
-  const getVerticalPercent = (valor: number, base: number, isPai: boolean) => {
-    if (isPai) return "100.0%"
-    if (!base || base === 0) return "–"
-    return ((valor / base) * 100).toFixed(1) + "%"
-  }
-
-  const getHorizontalPercent = (valorAtual: number, valorAnterior: number) => {
-    if (!valorAnterior || valorAnterior === 0) return "–"
-    const diff = ((valorAtual - valorAnterior) / valorAnterior) * 100
-    return `${diff.toFixed(1)}%`
-  }
-
   const renderValor = (valor: number, verticalPct?: string, horizontalPct?: string) => (
     <div className="flex flex-col text-right">
       <span>{valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 })}</span>
@@ -107,7 +101,6 @@ export default function DreTable() {
   const exportExcel = () => {
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet("DRE")
-
     const headerRow = ["Descrição", ...mesesFiltrados, "Total"]
     ws.addRow(headerRow).font = { bold: true }
 
@@ -149,18 +142,11 @@ export default function DreTable() {
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox checked={showHorizontal} onCheckedChange={val => setShowHorizontal(!!val)} /> Horizontal %
             </label>
-            <button
-              onClick={toggleAll}
-              className="text-sm border px-2 py-1 rounded max-w-1/2 cursor-pointer"
-            >
+            <button onClick={toggleAll} className="text-sm border px-2 py-1 rounded max-w-1/2 cursor-pointer">
               {allExpanded ? "- Recolher todos" : "+ Expandir todos"}
             </button>
             <button onClick={exportExcel} className="text-sm border px-2 py-1 rounded max-w-1/2 cursor-pointer">Exportar Excel</button>
-            <select
-              className="text-sm border rounded px-2 py-1 max-w-1/2 cursor-pointer"
-              value={filtroAno}
-              onChange={e => setFiltroAno(e.target.value)}
-            >
+            <select className="text-sm border rounded px-2 py-1 max-w-1/2 cursor-pointer" value={filtroAno} onChange={e => setFiltroAno(e.target.value)}>
               <option value="todos">Todos</option>
               {anosDisponiveis.map(ano => <option key={ano} value={ano}>{ano}</option>)}
             </select>
@@ -189,8 +175,7 @@ export default function DreTable() {
 
               return (
                 <>
-                  <TableRow key={idx}
-                    className={`${isExpandable ? "cursor-pointer hover:bg-muted/50" : ""} ${isTotalizador ? "bg-muted/30" : ""}`}
+                  <TableRow key={idx} className={`${isExpandable ? "cursor-pointer hover:bg-muted/50" : ""} ${isTotalizador ? "bg-muted/30" : ""}`}
                     onClick={() => isExpandable && toggle(item.nome)}
                   >
                     <TableCell className={`py-3 md:sticky md:left-0 z-20 ${isTotalizador ? "font-bold bg-muted" : "bg-background"}`}>
@@ -203,11 +188,10 @@ export default function DreTable() {
                       </div>
                     </TableCell>
 
-                    {mesesFiltrados.map((mes, i) => {
+                    {mesesFiltrados.map(mes => {
                       const valor = item.valores_mensais?.[mes] || 0
-                      const anterior = i > 0 ? item.valores_mensais?.[mesesFiltrados[i - 1]] || 0 : 0
-                      const verticalPct = getVerticalPercent(valor, total, true)
-                      const horizontalPct = getHorizontalPercent(valor, anterior)
+                      const verticalPct = item.vertical_mensais?.[mes] || "–"
+                      const horizontalPct = item.horizontal_mensais?.[mes] || "–"
                       return (
                         <TableCell key={mes} className={`py-3 text-right ${isTotalizador ? "font-bold" : "text-foreground"}`}>
                           {renderValor(valor, verticalPct, horizontalPct)}
@@ -216,7 +200,7 @@ export default function DreTable() {
                     })}
 
                     <TableCell className={`py-3 text-right ${isTotalizador ? "font-bold" : "text-foreground"} bg-muted/20`}>
-                      {renderValor(total, getVerticalPercent(total, total, true))}
+                      {renderValor(total, item.vertical_total || "–")}
                     </TableCell>
                   </TableRow>
 
@@ -231,11 +215,10 @@ export default function DreTable() {
                           </div>
                         </TableCell>
 
-                        {mesesFiltrados.map((mes, i) => {
+                        {mesesFiltrados.map(mes => {
                           const valor = sub.valores_mensais?.[mes] || 0
-                          const anterior = i > 0 ? sub.valores_mensais?.[mesesFiltrados[i - 1]] || 0 : 0
-                          const verticalPct = getVerticalPercent(valor, getPaiValorMensal(item.nome, mes), false)
-                          const horizontalPct = getHorizontalPercent(valor, anterior)
+                          const verticalPct = sub.vertical_mensais?.[mes] || "–"
+                          const horizontalPct = sub.horizontal_mensais?.[mes] || "–"
                           return (
                             <TableCell key={mes}>
                               {renderValor(valor, verticalPct, horizontalPct)}
@@ -244,7 +227,7 @@ export default function DreTable() {
                         })}
 
                         <TableCell>
-                          {renderValor(subTotal, getVerticalPercent(subTotal, total, false))}
+                          {renderValor(subTotal, sub.vertical_total || "–")}
                         </TableCell>
                       </TableRow>
                     )
