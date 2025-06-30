@@ -1,7 +1,7 @@
 import { Sheet, SheetTrigger, SheetContent } from "@/components/ui/sheet"
 import { Button } from "../ui/button"
 import Link from "next/link"
-import { Box, Home, LogOut, Package, PanelBottom, Settings2, ShoppingBag, Users } from "lucide-react"
+import { Home, LayoutDashboard, LogOut, Package, PanelBottom, Settings2, TvMinimal,  } from "lucide-react"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip"
 import { ModeToggle } from "../mode-toggle"
 
@@ -38,11 +38,11 @@ export function Sidebar(){
                                 <Link href="#"
                                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground"
                                 >
-                                    <ShoppingBag className="h-5 w-5"/>
-                                    <span className="sr-only">Pedidos</span>
+                                    <LayoutDashboard className="h-5 w-5"/>
+                                    <span className="sr-only">Dashboard</span>
                                 </Link>
                             </TooltipTrigger>
-                            <TooltipContent side="right">Pedidos</TooltipContent>
+                            <TooltipContent side="right">Dashboard</TooltipContent>
                         </Tooltip>
                         
                         <Tooltip>
@@ -50,23 +50,11 @@ export function Sidebar(){
                                 <Link href="#"
                                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground"
                                 >
-                                    <Box className="h-5 w-5"/>
-                                    <span className="sr-only">Produtos</span>
+                                    <TvMinimal className="h-5 w-5"/>
+                                    <span className="sr-only">Tag View</span>
                                 </Link>
                             </TooltipTrigger>
-                            <TooltipContent side="right">Produtos</TooltipContent>
-                        </Tooltip>
-
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Link href="#"
-                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground"
-                                >
-                                    <Users className="h-5 w-5"/>
-                                    <span className="sr-only">Clientes</span>
-                                </Link>
-                            </TooltipTrigger>
-                            <TooltipContent side="right">Clientes</TooltipContent>
+                            <TooltipContent side="right">Tag View</TooltipContent>
                         </Tooltip>
 
                         <Tooltip>
@@ -139,8 +127,8 @@ export function Sidebar(){
                                     className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
                                     prefetch={false}
                                 >
-                                    <ShoppingBag className="h-5 w-5 transition-all"/>
-                                    Pedidos
+                                    <LayoutDashboard className="h-5 w-5 transition-all"/>
+                                    Dashboard
                                 </Link>
 
                                 <Link 
@@ -148,17 +136,8 @@ export function Sidebar(){
                                     className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
                                     prefetch={false}
                                 >
-                                    <Box className="h-5 w-5 transition-all"/>
-                                    Produtos
-                                </Link>
-
-                                <Link 
-                                    href="#"
-                                    className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
-                                    prefetch={false}
-                                >
-                                    <Users className="h-5 w-5 transition-all"/>
-                                    Clientes
+                                    <TvMinimal className="h-5 w-5 transition-all"/>
+                                    TAG View
                                 </Link>
 
                                 <Link 

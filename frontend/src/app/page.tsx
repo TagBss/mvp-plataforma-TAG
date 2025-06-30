@@ -1,10 +1,6 @@
-// import { ChartAreaGradient } from "@/components/chart-area-gradient";
-// import { ChartBarInteractive } from "@/components/chart-bar-interactive";
 import { ChartAreaGradientTwo } from "@/components/chart-area-gradient-2";
 import { ChartBarMixed } from "@/components/chart-bar-mixed";
 import ChartOverview from "@/components/charts";
-// import Sales from "@/components/sales";
-// import { TableDemo } from "@/components/table-demo";
 import DreTable from "@/components/table-dre-roriz";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpDown, Hourglass, MinusCircle, Package, PlusCircle, TrendingUp, Wallet } from "lucide-react";
@@ -16,10 +12,10 @@ export default function Home() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-center">
-              <CardTitle className="text-chart-3 text-lg sm:text-xl select-none">
+              <CardTitle className="text-lg sm:text-xl select-none">
                 Contas recebidas
               </CardTitle>
-              <PlusCircle className="text-chart-3 ml-auto w-4 h-4"/>
+              <PlusCircle className="ml-auto w-4 h-4"/>
             </div>
           </CardHeader>
 
@@ -101,13 +97,13 @@ export default function Home() {
       </section>
 
       <section className="mt-4 flex flex-col md:flex-row gap-4">
-        <Card>
+        <Card className="w-full">
           <CardHeader>
             <div className="flex items-center justify-center">
-              <CardTitle className="text-chart-3 text-lg sm:text-xl select-none">
+              <CardTitle className="text-lg sm:text-xl select-none">
                 Movimentações
               </CardTitle>
-              <ArrowUpDown className="text-chart-3 ml-auto w-4 h-4"/>
+              <ArrowUpDown className="ml-auto w-4 h-4"/>
             </div>
           </CardHeader>
 
@@ -126,9 +122,8 @@ export default function Home() {
             <ChartOverview/>
           </CardContent>
         </Card>
-        {/* <Sales/> */}
 
-        <Card>
+        <Card className="w-full">
           <CardHeader>
             <div className="flex items-center justify-center">
               <CardTitle className="text-lg sm:text-xl select-none">
@@ -166,7 +161,7 @@ export default function Home() {
           </CardFooter>
         </Card>
 
-        <Card>
+        <Card className="w-full">
           <CardHeader>
             <div className="flex items-center justify-center">
               <CardTitle className="text-lg sm:text-xl select-none">
@@ -200,18 +195,6 @@ export default function Home() {
           </CardFooter>
         </Card>
       </section>
-
-      {/* <section className="mt-4">
-        <ChartBarInteractive/>
-      </section>
-
-      <section className="mt-4 flex flex-col md:flex-row gap-4">
-        <ChartAreaGradient/>
-      </section>
-
-      <section className="mt-4 flex flex-col md:flex-row gap-4">
-        <TableDemo/>
-      </section> */}
 
       <section className="mt-4 flex flex-col md:flex-row gap-4">
         <DreTable/>
