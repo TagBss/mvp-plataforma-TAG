@@ -96,7 +96,7 @@ export default function Home() {
         </Card>
       </section>
 
-      <section className="mt-4 flex flex-col md:flex-row gap-4">
+      <section className="mt-4 flex flex-col lg:flex-row gap-4">
         <Card className="w-full">
           <CardHeader>
             <div className="flex items-center justify-center">
