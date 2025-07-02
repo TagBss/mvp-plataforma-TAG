@@ -452,6 +452,7 @@ def get_dre_data():
         )))
 
         # Calcular análise vertical para as classificações
+        # Para cada classificação (subitem):
         for item in result:
             if "classificacoes" in item and item["classificacoes"]:
                 for classificacao in item["classificacoes"]:
@@ -460,21 +461,24 @@ def get_dre_data():
                     classificacao["vertical_anuais"] = {}
 
                     for mes in meses_unicos:
-                        pai_valor = item["valores_mensais"][mes]
+                        base_valor = valores_mensais[mes]["Faturamento"]
                         filho_valor = classificacao["valores_mensais"][mes]
-                        classificacao["vertical_mensais"][mes] = calcular_analise_vertical(filho_valor, pai_valor)
+                        classificacao["vertical_mensais"][mes] = calcular_analise_vertical(filho_valor, base_valor)
 
                     for tri in trimestres_unicos:
-                        pai_valor = item["valores_trimestrais"][tri]
+                        base_valor = valores_trimestrais[tri]["Faturamento"]
                         filho_valor = classificacao["valores_trimestrais"][tri]
-                        classificacao["vertical_trimestrais"][tri] = calcular_analise_vertical(filho_valor, pai_valor)
+                        classificacao["vertical_trimestrais"][tri] = calcular_analise_vertical(filho_valor, base_valor)
 
                     for ano in anos_unicos:
-                        pai_valor = item["valores_anuais"][str(ano)]
+                        base_valor = valores_anuais[str(ano)]["Faturamento"]
                         filho_valor = classificacao["valores_anuais"][str(ano)]
-                        classificacao["vertical_anuais"][str(ano)] = calcular_analise_vertical(filho_valor, pai_valor)
+                        classificacao["vertical_anuais"][str(ano)] = calcular_analise_vertical(filho_valor, base_valor)
 
-                    classificacao["vertical_total"] = calcular_analise_vertical(classificacao["valor"], item["valor"])
+                    classificacao["vertical_total"] = calcular_analise_vertical(
+                        classificacao["valor"],
+                        valores_totais["Faturamento"]
+                    )
 
         return {
             "meses": meses_unicos,
