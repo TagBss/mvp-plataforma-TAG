@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import ExcelJS from "exceljs"
 import { saveAs } from "file-saver"
+import React from "react"
 
 type DreItem = {
   tipo: string
@@ -21,6 +22,19 @@ type DreItem = {
   horizontal_mensais?: Record<string, string>
   horizontal_trimestrais?: Record<string, string>
   horizontal_anuais?: Record<string, string>
+
+  vertical_mensais_orcamento?: Record<string, string>
+  vertical_trimestrais_orcamento?: Record<string, string>
+  vertical_anuais_orcamento?: Record<string, string>
+  vertical_orcamentos_total?: string // ✅ CORRETO AQUI
+  horizontal_mensais_orcamento?: Record<string, string>
+  horizontal_trimestrais_orcamento?: Record<string, string>
+  horizontal_anuais_orcamento?: Record<string, string>
+
+  orcamentos_mensais?: Record<string, number>
+  orcamentos_trimestrais?: Record<string, number>
+  orcamentos_anuais?: Record<string, number>
+
   classificacoes?: DreItem[]
 }
 
@@ -42,6 +56,8 @@ export default function DreTable() {
   const [filtroAno, setFiltroAno] = useState<string>("")
   const [showVertical, setShowVertical] = useState(true)
   const [showHorizontal, setShowHorizontal] = useState(true)
+  const [showOrcamento, setShowOrcamento] = useState(false)
+  const [showDiffOrcamento, setShowDiffOrcamento] = useState(false)
   const [allExpanded, setAllExpanded] = useState(false)
   const [periodo, setPeriodo] = useState<"mes" | "trimestre" | "ano">("mes")
 
@@ -49,8 +65,6 @@ export default function DreTable() {
     fetch("http://127.0.0.1:8000/dre")
       .then(res => res.json())
       .then((result: DreResponse | { error: string }) => {
-        console.log("🚩 RESPOSTA DA API:", result)
-
         if ("error" in result) {
           setError(result.error)
         } else {
@@ -58,7 +72,6 @@ export default function DreTable() {
           setMeses(result.meses)
           setTrimestres(result.trimestres)
           setAnos(result.anos)
-
           const ultimoAno = Math.max(...result.anos)
           setFiltroAno(String(ultimoAno))
         }
@@ -74,7 +87,6 @@ export default function DreTable() {
   const toggleAll = () => {
     const novoEstado = !allExpanded
     const novasSecoes: Record<string, boolean> = {}
-
     const marcar = (itens: DreItem[]) => {
       itens.forEach(item => {
         if (item.classificacoes?.length) {
@@ -83,7 +95,6 @@ export default function DreTable() {
         }
       })
     }
-
     marcar(data)
     setOpenSections(novasSecoes)
     setAllExpanded(novoEstado)
@@ -105,51 +116,150 @@ export default function DreTable() {
     return 0
   }
 
+  const calcularOrcamento = (item: DreItem, periodoLabel: string): number => {
+    if (periodo === "mes") return item.orcamentos_mensais?.[periodoLabel] ?? 0
+    if (periodo === "trimestre") return item.orcamentos_trimestrais?.[periodoLabel] ?? 0
+    if (periodo === "ano") return item.orcamentos_anuais?.[periodoLabel] ?? item.orcamentos_anuais?.[`${periodoLabel}.0`] ?? 0
+    return 0
+  }
+
   const calcularTotal = (valores: Record<string, number> | undefined): number => {
     return periodosFiltrados.reduce((total, p) => total + (valores?.[p] ?? valores?.[`${p}.0`] ?? 0), 0)
   }
 
-  const renderValor = (valor: number, verticalPct?: string, horizontalPct?: string) => (
+  const calcularTotalOrcamento = (orcamentos: Record<string, number> | undefined): number => {
+    return periodosFiltrados.reduce((total, p) => total + (orcamentos?.[p] ?? orcamentos?.[`${p}.0`] ?? 0), 0)
+  }
+
+  const calcularDiffPct = (real: number, orcado: number): string | undefined => {
+    if (orcado === 0) return undefined
+    const diff = ((real - orcado) / orcado) * 100
+    return `${diff.toFixed(1)}%`
+  }
+
+  const renderValor = (
+    valor: number,
+    verticalPct?: string,
+    horizontalPct?: string,
+    diffPct?: string
+  ) => (
     <div className="flex flex-col text-right">
-      <span>{valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 })}</span>
-      {showVertical && verticalPct && <span className="text-xs text-muted-foreground">AV {verticalPct}</span>}
-      {showHorizontal && horizontalPct && <span className="text-xs text-muted-foreground">AH {horizontalPct}</span>}
+      <span>
+        {valor.toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+          minimumFractionDigits: 0,
+        })}
+      </span>
+      {showVertical && verticalPct && (
+        <span className="text-xs text-muted-foreground">AV {verticalPct}</span>
+      )}
+      {showHorizontal && horizontalPct && (
+        <span className="text-xs text-muted-foreground">AH {horizontalPct}</span>
+      )}
+      {showDiffOrcamento && diffPct && (
+        <span className="text-xs text-muted-foreground">Dif. {diffPct}</span>
+      )}
     </div>
-  )
+  );
+
+  // Nova função para renderizar valor orçamento com AV/AH do orçamento
+  const renderValorOrcamento = (
+    valor: number,
+    verticalPct?: string,
+    horizontalPct?: string
+  ) => (
+    <div className="flex flex-col text-right">
+      <span>
+        {valor.toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+          minimumFractionDigits: 0,
+        })}
+      </span>
+      {showVertical && verticalPct && (
+        <span className="text-xs text-muted-foreground">AV {verticalPct}</span>
+      )}
+      {showHorizontal && horizontalPct && (
+        <span className="text-xs text-muted-foreground">AH {horizontalPct}</span>
+      )}
+    </div>
+  );
 
   const exportExcel = () => {
-    const wb = new ExcelJS.Workbook()
-    const ws = wb.addWorksheet("DRE")
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet("DRE")
 
-    const headerRow = ["Descrição", ...periodosFiltrados, "Total"]
-    ws.addRow(headerRow).font = { bold: true }
+  // Cabeçalho
+  const headerRow = ["Descrição"]
+  periodosFiltrados.forEach(p => {
+    headerRow.push(p)
+    if (showOrcamento) headerRow.push(`Orç. ${p}`)
+  })
+  headerRow.push("Total")
+  if (showOrcamento) headerRow.push("Orçamento Total")
 
-    data.forEach(item => {
-      const total = calcularTotal(
-        periodo === "mes" ? item.valores_mensais :
-        periodo === "trimestre" ? item.valores_trimestrais :
-        item.valores_anuais
-      )
-      const row = ws.addRow([item.nome, ...periodosFiltrados.map(p => calcularValor(item, p)), total])
-      row.font = { bold: true }
+  const excelHeader = ws.addRow(headerRow)
+  excelHeader.font = { bold: true }
 
-      item.classificacoes?.forEach(sub => {
+  // Linhas principais
+  data.forEach(item => {
+    const total = calcularTotal(
+      periodo === "mes" ? item.valores_mensais :
+      periodo === "trimestre" ? item.valores_trimestrais :
+      item.valores_anuais
+    )
+    const totalOrc = calcularTotalOrcamento(
+      periodo === "mes" ? item.orcamentos_mensais :
+      periodo === "trimestre" ? item.orcamentos_trimestrais :
+      item.orcamentos_anuais
+    )
+
+    const row: (string | number)[] = [item.nome]
+    periodosFiltrados.forEach(p => {
+      row.push(calcularValor(item, p))
+      if (showOrcamento) row.push(calcularOrcamento(item, p))
+    })
+    row.push(total)
+    if (showOrcamento) row.push(totalOrc)
+
+    const excelRow = ws.addRow(row)
+    excelRow.font = { bold: true }
+
+    // Subitens
+    if (item.classificacoes?.length) {
+      item.classificacoes.forEach(sub => {
         const subTotal = calcularTotal(
           periodo === "mes" ? sub.valores_mensais :
           periodo === "trimestre" ? sub.valores_trimestrais :
           sub.valores_anuais
         )
-        ws.addRow(["  " + sub.nome, ...periodosFiltrados.map(p => calcularValor(sub, p)), subTotal])
+        const subTotalOrc = calcularTotalOrcamento(
+          periodo === "mes" ? sub.orcamentos_mensais :
+          periodo === "trimestre" ? sub.orcamentos_trimestrais :
+          sub.orcamentos_anuais
+        )
+
+        const subRow: (string | number)[] = ["  " + sub.nome]
+        periodosFiltrados.forEach(p => {
+          subRow.push(calcularValor(sub, p))
+          if (showOrcamento) subRow.push(calcularOrcamento(sub, p))
+        })
+        subRow.push(subTotal)
+        if (showOrcamento) subRow.push(subTotalOrc)
+
+        ws.addRow(subRow)
       })
-    })
+    }
+  })
 
-    wb.xlsx.writeBuffer().then(data => {
-      const blob = new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
-      saveAs(blob, "dre.xlsx")
-    })
-  }
+  wb.xlsx.writeBuffer().then(buffer => {
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+    saveAs(blob, "dre.xlsx")
+  })
+}
 
-  if (loading || !filtroAno) return <Card className="py-4"><CardHeader><CardTitle>Carregando...</CardTitle></CardHeader></Card>
+if (loading || !filtroAno) return <Card className="py-4"><CardHeader><CardTitle>Carregando...</CardTitle></CardHeader></Card>
   if (error) return <Card className="py-4"><CardHeader><CardTitle>{error}</CardTitle></CardHeader></Card>
 
   return (
@@ -160,13 +270,18 @@ export default function DreTable() {
             <CardTitle>DRE - Roriz Instrumentos</CardTitle>
             <CardDescription>{filtroAno === "todos" ? "Todo o período" : `Ano: ${filtroAno}`}</CardDescription>
           </div>
-
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox checked={showVertical} onCheckedChange={val => setShowVertical(!!val)} /> Vertical %
             </label>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox checked={showHorizontal} onCheckedChange={val => setShowHorizontal(!!val)} /> Horizontal %
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Checkbox checked={showOrcamento} onCheckedChange={val => setShowOrcamento(!!val)} /> Orçamento
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Checkbox checked={showDiffOrcamento} onCheckedChange={val => setShowDiffOrcamento(!!val)} /> Dif. % Real vs Orçado
             </label>
             <button onClick={toggleAll} className="text-sm border px-2 py-1 rounded">
               {allExpanded ? "- Recolher todos" : "+ Expandir todos"}
@@ -181,6 +296,7 @@ export default function DreTable() {
               <option value="trimestre">Trimestral</option>
               <option value="ano">Anual</option>
             </select>
+
             <select value={filtroAno} onChange={e => setFiltroAno(e.target.value)} className="text-sm border rounded px-2 py-1">
               <option value="todos">Todos</option>
               {anos.sort().map(ano => <option key={ano} value={ano}>{ano}</option>)}
@@ -190,104 +306,231 @@ export default function DreTable() {
       </CardHeader>
 
       <div className="relative overflow-auto max-w-full max-h-[80vh] px-6">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="min-w-[300px] sticky left-0 z-20 bg-muted">Descrição</TableHead>
-              {periodosFiltrados.map(p => (
-                <TableHead key={p} className="text-right min-w-[120px] bg-muted/20">{p}</TableHead>
-              ))}
-              <TableHead className="text-right min-w-[120px] bg-muted/20">Total</TableHead>
-            </TableRow>
-          </TableHeader>
-
-          <TableBody>
-            {data.map(item => {
-              const isExpandable = !!item.classificacoes?.length
-              const isOpen = openSections[item.nome] ?? false
-              const isTotal = item.tipo === "="
-
-              const total = calcularTotal(
-                periodo === "mes" ? item.valores_mensais :
-                periodo === "trimestre" ? item.valores_trimestrais :
-                item.valores_anuais
-              )
-
-              console.log("🚩 ITEM:", item)
-
-              return (
-                <>
-                  <TableRow key={item.nome}
-                    className={`${isExpandable ? "cursor-pointer hover:bg-muted/50" : ""} ${isTotal ? "bg-muted/30" : ""}`}
-                    onClick={() => isExpandable && toggle(item.nome)}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="min-w-[300px] sticky left-0 z-20 bg-muted">
+              Descrição
+            </TableHead>
+            {periodosFiltrados.map((p) => (
+              <React.Fragment key={p}>
+                <TableHead className="text-right min-w-[120px] bg-muted/20">
+                  {p}
+                </TableHead>
+                {showOrcamento && (
+                  <TableHead
+                    key={`${p}-orc`}
+                    className="text-right min-w-[120px] bg-blue-50"
                   >
-                    <TableCell className={`py-3 sticky left-0 z-20 ${isTotal ? "font-bold bg-muted" : ""}`}>
-                      <div className="flex items-center gap-2">
-                        {isExpandable && (
-                          <ChevronDown size={16} className={`transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`} />
-                        )}
-                        <span className="text-sm">{item.tipo}</span>
-                        <span>{item.nome}</span>
-                      </div>
-                    </TableCell>
+                    Orç. {p}
+                  </TableHead>
+                )}
+              </React.Fragment>
+            ))}
+            <TableHead className="text-right min-w-[120px] bg-muted/20">
+              Total
+            </TableHead>
+            {showOrcamento && (
+              <TableHead className="text-right min-w-[120px] bg-blue-50">
+                Orçamento Total
+              </TableHead>
+            )}
+          </TableRow>
+        </TableHeader>
 
-                    {periodosFiltrados.map(p => (
-                      <TableCell key={p} className="py-3 text-right">
-                        {renderValor(
-                          calcularValor(item, p),
-                          periodo === "mes" ? item.vertical_mensais?.[p] :
-                          periodo === "trimestre" ? item.vertical_trimestrais?.[p] :
-                          item.vertical_anuais?.[p],
-                          periodo === "mes" ? item.horizontal_mensais?.[p] :
-                          periodo === "trimestre" ? item.horizontal_trimestrais?.[p] :
-                          item.horizontal_anuais?.[p]
-                        )}
-                      </TableCell>
-                    ))}
+        <TableBody>
+          {data.map((item) => {
+            const isExpandable = !!item.classificacoes?.length;
+            const isOpen = openSections[item.nome] ?? false;
+            const isTotal = item.tipo === "=";
 
-                    <TableCell className="py-3 text-right">{renderValor(total, item.vertical_total)}</TableCell>
-                  </TableRow>
+            const total = calcularTotal(
+              periodo === "mes"
+                ? item.valores_mensais
+                : periodo === "trimestre"
+                ? item.valores_trimestrais
+                : item.valores_anuais
+            );
+            const totalOrc = calcularTotalOrcamento(
+              periodo === "mes"
+                ? item.orcamentos_mensais
+                : periodo === "trimestre"
+                ? item.orcamentos_trimestrais
+                : item.orcamentos_anuais
+            );
 
-                  {isOpen && item.classificacoes?.map(sub => {
-                    const subTotal = calcularTotal(
-                      periodo === "mes" ? sub.valores_mensais :
-                      periodo === "trimestre" ? sub.valores_trimestrais :
-                      sub.valores_anuais
-                    )
+            return (
+              <React.Fragment key={item.nome}>
+                <TableRow
+                  className={`${
+                    isExpandable ? "cursor-pointer hover:bg-muted/50" : ""
+                  } ${isTotal ? "bg-muted/30" : ""}`}
+                  onClick={() => isExpandable && toggle(item.nome)}
+                >
+                  <TableCell
+                    className={`py-3 sticky left-0 z-20 ${
+                      isTotal ? "font-bold bg-muted" : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {isExpandable && (
+                        <ChevronDown
+                          size={16}
+                          className={`transition-transform ${
+                            isOpen ? "rotate-0" : "-rotate-90"
+                          }`}
+                        />
+                      )}
+                      <span className="text-sm">{item.tipo}</span>
+                      <span>{item.nome}</span>
+                    </div>
+                  </TableCell>
 
-                    console.log("🚩 SUBITEM:", sub)
-
+                  {periodosFiltrados.map((p) => {
+                    const real = calcularValor(item, p);
+                    const orcado = calcularOrcamento(item, p);
+                    const diffPct = calcularDiffPct(real, orcado);
                     return (
-                      <TableRow key={item.nome + sub.nome} className="bg-muted/10">
+                      <React.Fragment key={p}>
+                        <TableCell>
+                          {renderValor(
+                            real,
+                            periodo === "mes"
+                              ? item.vertical_mensais?.[p]
+                              : periodo === "trimestre"
+                              ? item.vertical_trimestrais?.[p]
+                              : item.vertical_anuais?.[p],
+                            periodo === "mes"
+                              ? item.horizontal_mensais?.[p]
+                              : periodo === "trimestre"
+                              ? item.horizontal_trimestrais?.[p]
+                              : item.horizontal_anuais?.[p],
+                            diffPct
+                          )}
+                        </TableCell>
+                        {showOrcamento && (
+                          <TableCell key={`${p}-orc`}>
+                            {renderValorOrcamento(
+                              orcado,
+                              periodo === "mes"
+                                ? item.vertical_mensais_orcamento?.[p]
+                                : periodo === "trimestre"
+                                ? item.vertical_trimestrais_orcamento?.[p]
+                                : item.vertical_anuais_orcamento?.[p],
+                              periodo === "mes"
+                                ? item.horizontal_mensais_orcamento?.[p]
+                                : periodo === "trimestre"
+                                ? item.horizontal_trimestrais_orcamento?.[p]
+                                : item.horizontal_anuais_orcamento?.[p]
+                            )}
+                          </TableCell>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+
+                  <TableCell className="py-3 text-right">
+                    {renderValor(total, item.vertical_total)}
+                  </TableCell>
+                  {showOrcamento && (
+                    <TableCell className="py-3 text-right bg-blue-50/50">
+                      {renderValorOrcamento(
+                        totalOrc,
+                        item.vertical_orcamentos_total,
+                        undefined
+                      )}
+                    </TableCell>
+                  )}
+                </TableRow>
+
+                {isOpen &&
+                  item.classificacoes?.map((sub) => {
+                    const subTotal = calcularTotal(
+                      periodo === "mes"
+                        ? sub.valores_mensais
+                        : periodo === "trimestre"
+                        ? sub.valores_trimestrais
+                        : sub.valores_anuais
+                    );
+                    const subTotalOrc = calcularTotalOrcamento(
+                      periodo === "mes"
+                        ? sub.orcamentos_mensais
+                        : periodo === "trimestre"
+                        ? sub.orcamentos_trimestrais
+                        : sub.orcamentos_anuais
+                    );
+                    return (
+                      <TableRow key={`${item.nome}-${sub.nome}`} className="bg-muted/10">
                         <TableCell className="sticky left-0 z-10 bg-muted pl-10 text-sm">
                           <div className="flex items-center gap-2">
                             <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
                             {sub.nome}
                           </div>
                         </TableCell>
-                        {periodosFiltrados.map(p => (
-                          <TableCell key={p} className="text-right">
-                            {renderValor(
-                              calcularValor(sub, p),
-                              periodo === "mes" ? sub.vertical_mensais?.[p] :
-                              periodo === "trimestre" ? sub.vertical_trimestrais?.[p] :
-                              sub.vertical_anuais?.[p],
-                              periodo === "mes" ? sub.horizontal_mensais?.[p] :
-                              periodo === "trimestre" ? sub.horizontal_trimestrais?.[p] :
-                              sub.horizontal_anuais?.[p]
+
+                        {periodosFiltrados.map((p) => {
+                          const real = calcularValor(sub, p);
+                          const orcado = calcularOrcamento(sub, p);
+                          const diffPct = calcularDiffPct(real, orcado);
+                          return (
+                            <React.Fragment key={`${p}-${sub.nome}`}>
+                              <TableCell>
+                                {renderValor(
+                                  real,
+                                  periodo === "mes"
+                                    ? sub.vertical_mensais?.[p]
+                                    : periodo === "trimestre"
+                                    ? sub.vertical_trimestrais?.[p]
+                                    : sub.vertical_anuais?.[p],
+                                  periodo === "mes"
+                                    ? sub.horizontal_mensais?.[p]
+                                    : periodo === "trimestre"
+                                    ? sub.horizontal_trimestrais?.[p]
+                                    : sub.horizontal_anuais?.[p],
+                                  diffPct
+                                )}
+                              </TableCell>
+                              {showOrcamento && (
+                                <TableCell key={`${p}-orc-${sub.nome}`}>
+                                  {renderValorOrcamento(
+                                    orcado,
+                                    periodo === "mes"
+                                      ? sub.vertical_mensais_orcamento?.[p]
+                                      : periodo === "trimestre"
+                                      ? sub.vertical_trimestrais_orcamento?.[p]
+                                      : sub.vertical_anuais_orcamento?.[p],
+                                    periodo === "mes"
+                                      ? sub.horizontal_mensais_orcamento?.[p]
+                                      : periodo === "trimestre"
+                                      ? sub.horizontal_trimestrais_orcamento?.[p]
+                                      : sub.horizontal_anuais_orcamento?.[p]
+                                  )}
+                                </TableCell>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                        <TableCell className="text-right">
+                          {renderValor(subTotal, sub.vertical_total)}
+                        </TableCell>
+                        {showOrcamento && (
+                          <TableCell className="text-right bg-blue-50/50">
+                            {renderValorOrcamento(
+                              subTotalOrc,
+                              sub.vertical_orcamentos_total,
+                              undefined
                             )}
                           </TableCell>
-                        ))}
-                        <TableCell className="text-right">{renderValor(subTotal, sub.vertical_total)}</TableCell>
+                        )}
                       </TableRow>
-                    )
+                    );
                   })}
-                </>
-              )
-            })}
-          </TableBody>
-        </Table>
-      </div>
+              </React.Fragment>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
     </Card>
   )
 }
