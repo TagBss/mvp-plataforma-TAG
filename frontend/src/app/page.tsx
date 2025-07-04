@@ -1,6 +1,7 @@
 import { ChartAreaGradientTwo } from "@/components/chart-area-gradient-2";
 import { ChartBarMixed } from "@/components/chart-bar-mixed";
 import ChartOverview from "@/components/charts";
+import DfcTable from "@/components/table-dfc-roriz";
 import DreTable from "@/components/table-dre-roriz";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpDown, Hourglass, MinusCircle, Package, PlusCircle, TrendingUp, Wallet } from "lucide-react";
@@ -198,6 +199,10 @@ export default function Home() {
 
       <section className="mt-4 flex flex-col md:flex-row gap-4">
         <DreTable/>
+      </section>
+
+      <section className="mt-4 flex flex-col md:flex-row gap-4">
+        <DfcTable/>
       </section>
     </main>
   );
