@@ -127,11 +127,6 @@ def get_dre_data():
                 for k, v in total_orc_por_mes[mes].items():
                     total_geral_orc[k] = total_geral_orc.get(k, 0) + v
 
-        print("Meses únicos:", meses_unicos)
-        print("Anos únicos:", anos_unicos)
-        print("Total por mês:", total_real_por_mes)
-        print("Total por ano:", total_real_por_ano)
-
         contas_dre = [
             ("Faturamento", "+"),
             ("Tributos e deduções sobre a receita", "-"),
@@ -196,8 +191,6 @@ def get_dre_data():
         }
 
         orcamento_total = {nome: total_geral_orc.get(nome, 0.0) for nome, _ in contas_dre}
-
-        print("Valores anuais corrigidos:", valores_anuais)
 
         import math
 

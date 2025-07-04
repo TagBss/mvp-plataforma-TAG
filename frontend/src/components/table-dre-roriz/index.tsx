@@ -146,8 +146,6 @@ export default function DreTable() {
     <div className="flex flex-col text-right">
       <span>
         {valor.toLocaleString("pt-BR", {
-          style: "currency",
-          currency: "BRL",
           minimumFractionDigits: 0,
         })}
       </span>
@@ -172,8 +170,6 @@ export default function DreTable() {
     <div className="flex flex-col text-right">
       <span>
         {valor.toLocaleString("pt-BR", {
-          style: "currency",
-          currency: "BRL",
           minimumFractionDigits: 0,
         })}
       </span>
@@ -263,14 +259,14 @@ if (loading || !filtroAno) return <Card className="py-4"><CardHeader><CardTitle>
   if (error) return <Card className="py-4"><CardHeader><CardTitle>{error}</CardTitle></CardHeader></Card>
 
   return (
-    <Card>
+    <Card className="max-w-full">
       <CardHeader>
-        <div className="flex flex-wrap justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:flex-wrap lg:justify-between gap-2 lg:gap-4 overflow-x-auto">
           <div>
             <CardTitle>DRE - Roriz Instrumentos</CardTitle>
             <CardDescription>{filtroAno === "todos" ? "Todo o período" : `Ano: ${filtroAno}`}</CardDescription>
           </div>
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
+          <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 sm:gap-4">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox checked={showVertical} onCheckedChange={val => setShowVertical(!!val)} /> Vertical %
             </label>
@@ -283,21 +279,21 @@ if (loading || !filtroAno) return <Card className="py-4"><CardHeader><CardTitle>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox checked={showDiffOrcamento} onCheckedChange={val => setShowDiffOrcamento(!!val)} /> Dif. % Real vs Orçado
             </label>
-            <button onClick={toggleAll} className="text-sm border px-2 py-1 rounded">
+            <button onClick={toggleAll} className="text-sm border px-2 py-1 rounded cursor-pointer">
               {allExpanded ? "- Recolher todos" : "+ Expandir todos"}
             </button>
-            <button onClick={exportExcel} className="text-sm border px-2 py-1 rounded">Exportar Excel</button>
+            <button onClick={exportExcel} className="text-sm border px-2 py-1 rounded cursor-pointer">Exportar Excel</button>
             <select
               value={periodo}
               onChange={(e) => setPeriodo(e.target.value as "mes" | "trimestre" | "ano")}
-              className="text-sm border rounded px-2 py-1"
+              className="text-sm border rounded px-2 py-1 bg-card text-foreground cursor-pointer"
             >
               <option value="mes">Mensal</option>
               <option value="trimestre">Trimestral</option>
               <option value="ano">Anual</option>
             </select>
 
-            <select value={filtroAno} onChange={e => setFiltroAno(e.target.value)} className="text-sm border rounded px-2 py-1">
+            <select value={filtroAno} onChange={e => setFiltroAno(e.target.value)} className="text-sm border rounded px-2 py-1 bg-card text-foreground cursor-pointer">
               <option value="todos">Todos</option>
               {anos.sort().map(ano => <option key={ano} value={ano}>{ano}</option>)}
             </select>
@@ -305,11 +301,11 @@ if (loading || !filtroAno) return <Card className="py-4"><CardHeader><CardTitle>
         </div>
       </CardHeader>
 
-      <div className="relative overflow-auto max-w-full max-h-[80vh] px-6">
+      <div className="relative overflow-auto max-h-[80vh] px-6">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="min-w-[300px] sticky left-0 z-20 bg-muted">
+            <TableHead className="min-w-[300px] md:sticky md:left-0 md:z-20 bg-card">
               Descrição
             </TableHead>
             {periodosFiltrados.map((p) => (
@@ -320,7 +316,7 @@ if (loading || !filtroAno) return <Card className="py-4"><CardHeader><CardTitle>
                 {showOrcamento && (
                   <TableHead
                     key={`${p}-orc`}
-                    className="text-right min-w-[120px] bg-blue-50"
+                    className="text-right min-w-[120px] bg-secondary/40"
                   >
                     Orç. {p}
                   </TableHead>
@@ -331,7 +327,7 @@ if (loading || !filtroAno) return <Card className="py-4"><CardHeader><CardTitle>
               Total
             </TableHead>
             {showOrcamento && (
-              <TableHead className="text-right min-w-[120px] bg-blue-50">
+              <TableHead className="text-right min-w-[120px] bg-secondary/40">
                 Orçamento Total
               </TableHead>
             )}
@@ -364,11 +360,11 @@ if (loading || !filtroAno) return <Card className="py-4"><CardHeader><CardTitle>
                 <TableRow
                   className={`${
                     isExpandable ? "cursor-pointer hover:bg-muted/50" : ""
-                  } ${isTotal ? "bg-muted/30" : ""}`}
+                  } ${isTotal ? "bg-muted" : "even:bg-muted/20"}`}
                   onClick={() => isExpandable && toggle(item.nome)}
                 >
                   <TableCell
-                    className={`py-3 sticky left-0 z-20 ${
+                    className={`py-3 md:sticky md:left-0 md:z-20 bg-card ${
                       isTotal ? "font-bold bg-muted" : ""
                     }`}
                   >
@@ -433,7 +429,7 @@ if (loading || !filtroAno) return <Card className="py-4"><CardHeader><CardTitle>
                     {renderValor(total, item.vertical_total)}
                   </TableCell>
                   {showOrcamento && (
-                    <TableCell className="py-3 text-right bg-blue-50/50">
+                    <TableCell className="py-3 text-right bg-secondary/40">
                       {renderValorOrcamento(
                         totalOrc,
                         item.vertical_orcamentos_total,
@@ -514,7 +510,7 @@ if (loading || !filtroAno) return <Card className="py-4"><CardHeader><CardTitle>
                           {renderValor(subTotal, sub.vertical_total)}
                         </TableCell>
                         {showOrcamento && (
-                          <TableCell className="text-right bg-blue-50/50">
+                          <TableCell className="text-right bg-muted">
                             {renderValorOrcamento(
                               subTotalOrc,
                               sub.vertical_orcamentos_total,
