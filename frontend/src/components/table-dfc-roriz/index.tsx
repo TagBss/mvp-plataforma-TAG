@@ -26,7 +26,7 @@ type DfcItem = {
   vertical_mensais_orcamento?: Record<string, string>
   vertical_trimestrais_orcamento?: Record<string, string>
   vertical_anuais_orcamento?: Record<string, string>
-  vertical_orcamentos_total?: string // ✅ CORRETO AQUI
+  vertical_orcamentos_total?: string // CORRETO AQUI
   horizontal_mensais_orcamento?: Record<string, string>
   horizontal_trimestrais_orcamento?: Record<string, string>
   horizontal_anuais_orcamento?: Record<string, string>
@@ -256,7 +256,7 @@ export default function DfcTable() {
 }
 
 if (loading || !filtroAno) return <Card className="py-4"><CardHeader><CardTitle>Carregando...</CardTitle></CardHeader></Card>
-  if (error) return <Card className="py-4"><CardHeader><CardTitle>{error}</CardTitle></CardHeader></Card>
+if (error) return <Card className="py-4"><CardHeader><CardTitle>{error}</CardTitle></CardHeader></Card>
 
   return (
     <Card className="max-w-full">

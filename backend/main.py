@@ -1387,3 +1387,140 @@ def get_dfc_data():
 
     except Exception as e:
         return {"error": f"Erro ao processar a DFC: {str(e)}"}
+
+def calcular_mom(df_filtrado, date_column, origem):
+    """
+    Calcula variação Month over Month (MoM)
+    """
+    try:
+        # Agrupar por mês e somar valores
+        df_mensal = df_filtrado.groupby(
+            df_filtrado[date_column].dt.to_period('M')
+        )['valor'].sum().reset_index()
+        
+        # Ordenar por data
+        df_mensal = df_mensal.sort_values(date_column)
+        
+        # Calcular variação MoM
+        df_mensal['valor_anterior'] = df_mensal['valor'].shift(1)
+        df_mensal['variacao_absoluta'] = df_mensal['valor'] - df_mensal['valor_anterior']
+        df_mensal['variacao_percentual'] = (
+            (df_mensal['valor'] - df_mensal['valor_anterior']) / 
+            df_mensal['valor_anterior'] * 100
+        ).round(2)
+        
+        # Preparar dados para retorno
+        mom_data = []
+        for _, row in df_mensal.iterrows():
+            mom_data.append({
+                "mes": str(row[date_column]),
+                "valor_atual": round(row['valor'], 2),
+                "valor_anterior": round(row['valor_anterior'], 2) if pd.notna(row['valor_anterior']) else None,
+                "variacao_absoluta": round(row['variacao_absoluta'], 2) if pd.notna(row['variacao_absoluta']) else None,
+                "variacao_percentual": row['variacao_percentual'] if pd.notna(row['variacao_percentual']) else None
+            })
+        
+        return mom_data
+        
+    except Exception as e:
+        return []
+
+def calcular_saldo(origem: str, mes_filtro: str = None):
+    """
+    Calcula saldo genérico baseado na origem:
+    - Se origem == 'CAR': Contas a Receber
+    - Se origem == 'CAP': Contas a Pagar
+    """
+    filename = "financial-data-roriz.xlsx"
+    
+    try:
+        df = pd.read_excel(filename)
+        
+        # Validação das colunas obrigatórias
+        required_columns = ["valor", "origem", "DFC_n1"]
+        if not all(col in df.columns for col in required_columns):
+            return {"error": f"A planilha deve conter as colunas: {', '.join(required_columns)}"}
+        
+        # Identificar coluna de data
+        date_column = next((col for col in df.columns if col.lower() == "data"), None)
+        if not date_column:
+            return {"error": "Coluna de data não encontrada"}
+        
+        # Processar dados
+        df[date_column] = pd.to_datetime(df[date_column], errors="coerce")
+        df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
+        
+        df = df.dropna(subset=[date_column, "valor"])
+        
+        # Filtrar apenas contas diferentes de DFC_n1 "Movimentação entre Contas"
+        df_con = df[
+            (df["DFC_n1"] != "Movimentação entre Contas") & 
+            (df["DFC_n1"].notna())
+        ].copy()
+        
+        # Filtrar pela origem dinâmica para MoM (NÃO filtra por mês)
+        df_mom = df_con[df_con["origem"] == origem].copy()
+
+        # Calcular MoM SEM filtro de mês (sempre retorna todos os meses)
+        mom_data = calcular_mom(df_mom, date_column, origem)
+
+        # Filtrar pela origem dinâmica para saldo (pode filtrar por mês)
+        df_filtrado = df_con[df_con["origem"] == origem].copy()
+        if mes_filtro:
+            df_filtrado = df_filtrado[
+                df_filtrado[date_column].dt.strftime("%Y-%m") == mes_filtro
+            ]
+
+        if df_filtrado.empty:
+            return {
+                "error": f"Não foram encontrados registros com origem '{origem}'",
+                "total_passado": 0,
+                "total_futuro": 0,
+                "saldo_total": 0,
+                "anos_disponiveis": [],
+                "meses_disponiveis": []
+            }
+
+        hoje = pd.Timestamp.now().normalize()
+
+        # Soma dos valores
+        total_passado = df_filtrado[df_filtrado[date_column] < hoje]["valor"].sum()
+        total_futuro = df_filtrado[df_filtrado[date_column] >= hoje]["valor"].sum()
+        saldo_total = total_passado + total_futuro
+
+        total_registros = len(df_filtrado)
+        registros_passados = len(df_filtrado[df_filtrado[date_column] < hoje])
+        registros_futuros = len(df_filtrado[df_filtrado[date_column] >= hoje])
+
+        # Anos e meses disponíveis
+        anos_disponiveis = sorted(df_filtrado[date_column].dt.year.unique().tolist())
+        meses_disponiveis = sorted(df_filtrado[date_column].dt.strftime("%Y-%m").unique().tolist())
+
+        return {
+            "success": True,
+            "data": {
+                "total_passado": round(total_passado, 2),
+                "total_futuro": round(total_futuro, 2),
+                "saldo_total": round(saldo_total, 2),
+                "data_calculo": hoje.strftime("%Y-%m-%d"),
+                "estatisticas": {
+                    "total_registros": total_registros,
+                    "registros_passados": registros_passados,
+                    "registros_futuros": registros_futuros
+                },
+                "anos_disponiveis": anos_disponiveis,
+                "meses_disponiveis": meses_disponiveis,
+                "mom_analysis": mom_data
+            }
+        }
+        
+    except Exception as e:
+        return {"error": f"Erro ao calcular saldo: {str(e)}"}
+
+@app.get("/receber")
+def get_caixa_saldo(mes: str = None):
+    return calcular_saldo("CAR", mes)
+
+@app.get("/pagar")
+def get_pagar_saldo(mes: str = None):
+    return calcular_saldo("CAP", mes)
