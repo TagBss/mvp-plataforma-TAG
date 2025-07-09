@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { ChevronDown } from "lucide-react"
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import ExcelJS from "exceljs"
@@ -255,7 +256,21 @@ export default function DfcTable() {
   })
 }
 
-if (loading || !filtroAno) return <Card className="m-4"><CardHeader><CardTitle>Carregando...</CardTitle></CardHeader></Card>
+
+if (loading || !filtroAno) return (
+  <Card className="m-4">
+    <CardHeader>
+      <CardTitle>
+        <Skeleton className="h-6 w-40 mb-2" />
+      </CardTitle>
+    </CardHeader>
+    <CardContent>
+      <Skeleton className="h-8 w-full mb-2" />
+      <Skeleton className="h-8 w-3/4 mb-2" />
+      <Skeleton className="h-8 w-1/2" />
+    </CardContent>
+  </Card>
+)
 if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitle></CardHeader></Card>
 
   return (

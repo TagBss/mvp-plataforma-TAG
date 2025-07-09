@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {  
   ArrowUpDown,
   Hourglass,
@@ -124,8 +125,9 @@ export default function DashFinanceiro() {
   };
 
   useEffect(() => {
+    if (!mesSelecionado) return; // Só busca se já tiver mês selecionado
     setLoading(true);
-    const queryString = mesSelecionado ? `?mes=${mesSelecionado}` : "";
+    const queryString = `?mes=${mesSelecionado}`;
     Promise.all([
       fetch(`http://localhost:8000/receber${queryString}`).then(r => r.json()),
       fetch(`http://localhost:8000/pagar${queryString}`).then(r => r.json())
@@ -171,11 +173,11 @@ export default function DashFinanceiro() {
             <div className="sm:flex sm:justify-between sm:items-center">
               <p className="text-lg sm:text-2xl">
                 {loading ? (
-                  <span className="inline-block h-6 w-32 rounded bg-muted animate-pulse"></span>
+                  <Skeleton className="h-6 w-32" />
                 ) : saldoReceber !== null ? (
                   formatCurrencyShort(saldoReceber)
                 ) : (
-                  <span className="inline-block h-6 w-32 rounded bg-muted animate-pulse"></span>
+                  <Skeleton className="h-6 w-32" />
                 )}
               </p>
               <CardDescription>
@@ -236,11 +238,11 @@ export default function DashFinanceiro() {
             <div className="sm:flex sm:justify-between sm:items-center">
               <p className="text-lg sm:text-2xl">
                 {loading ? (
-                  <span className="inline-block h-6 w-32 rounded bg-muted animate-pulse"></span>
+                  <Skeleton className="h-6 w-32" />
                 ) : saldoPagar !== null ? (
                   formatCurrencyShort(saldoPagar)
                 ) : (
-                  <span className="inline-block h-6 w-32 rounded bg-muted animate-pulse"></span>
+                  <Skeleton className="h-6 w-32" />
                 )}
               </p>
               <CardDescription>

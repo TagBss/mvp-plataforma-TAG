@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {  
   ArrowUpDown,
   Hourglass,
@@ -171,11 +172,11 @@ export default function DashCompetencia() {
             <div className="sm:flex sm:justify-between sm:items-center">
               <p className="text-lg sm:text-2xl">
                 {loading ? (
-                  <span className="inline-block h-6 w-32 rounded bg-muted animate-pulse"></span>
+                  <Skeleton className="h-6 w-32" />
                 ) : saldoReceber !== null ? (
                   formatCurrencyShort(saldoReceber)
                 ) : (
-                  <span className="inline-block h-6 w-32 rounded bg-muted animate-pulse"></span>
+                  <Skeleton className="h-6 w-32" />
                 )}
               </p>
               <CardDescription>
@@ -236,11 +237,11 @@ export default function DashCompetencia() {
             <div className="sm:flex sm:justify-between sm:items-center">
               <p className="text-lg sm:text-2xl">
                 {loading ? (
-                  <span className="inline-block h-6 w-32 rounded bg-muted animate-pulse"></span>
+                  <Skeleton className="h-6 w-32" />
                 ) : saldoPagar !== null ? (
                   formatCurrencyShort(saldoPagar)
                 ) : (
-                  <span className="inline-block h-6 w-32 rounded bg-muted animate-pulse"></span>
+                  <Skeleton className="h-6 w-32" />
                 )}
               </p>
               <CardDescription>
