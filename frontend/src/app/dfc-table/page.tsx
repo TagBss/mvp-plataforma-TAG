@@ -1,7 +1,6 @@
 "use client"
 
 import { AppSidebar } from "@/components/app-sidebar"
-import DashFinanceiro from "@/components/kpis-financeiro"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -16,8 +15,9 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+import DfcTable from "@/components/table-dfc-roriz"
 
-export default function Page() {
+export default function DfcPage() {
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -33,19 +33,19 @@ export default function Page() {
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
                   <BreadcrumbLink href="#">
-                    Dashboard
+                    Demonstrativos
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden md:block" />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>Financeiro</BreadcrumbPage>
+                  <BreadcrumbPage>DFC</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
           </div>
         </header>
         <div>
-          <DashFinanceiro />
+          <DfcTable />
         </div>
       </SidebarInset>
     </SidebarProvider>

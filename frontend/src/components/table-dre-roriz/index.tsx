@@ -255,11 +255,11 @@ export default function DreTable() {
   })
 }
 
-if (loading || !filtroAno) return <Card className="py-4"><CardHeader><CardTitle>Carregando...</CardTitle></CardHeader></Card>
-  if (error) return <Card className="py-4"><CardHeader><CardTitle>{error}</CardTitle></CardHeader></Card>
+if (loading || !filtroAno) return <Card className="m-4"><CardHeader><CardTitle>Carregando...</CardTitle></CardHeader></Card>
+  if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitle></CardHeader></Card>
 
   return (
-    <Card className="max-w-full">
+    <Card className="max-w-full m-4">
       <CardHeader>
         <div className="flex flex-col lg:flex-row lg:flex-wrap lg:justify-between gap-2 lg:gap-4 overflow-x-auto">
           <div>

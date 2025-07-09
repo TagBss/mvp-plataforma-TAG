@@ -1,7 +1,6 @@
 "use client"
 
 import { AppSidebar } from "@/components/app-sidebar"
-import DashFinanceiro from "@/components/kpis-financeiro"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -16,6 +15,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+import DashCompetencia from "@/components/kpis-competencia"
 
 export default function Page() {
   return (
@@ -38,14 +38,14 @@ export default function Page() {
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden md:block" />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>Financeiro</BreadcrumbPage>
+                  <BreadcrumbPage>Competência</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
           </div>
         </header>
         <div>
-          <DashFinanceiro />
+          <DashCompetencia />
         </div>
       </SidebarInset>
     </SidebarProvider>

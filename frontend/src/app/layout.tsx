@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils"
-
-import { Sidebar } from "@/components/sidebar"
 import { ThemeProvider } from "@/components/theme-provider";
 
 const geistSans = Geist({
@@ -39,7 +37,6 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <Sidebar />
           {children}
         </ThemeProvider>
       </body>
