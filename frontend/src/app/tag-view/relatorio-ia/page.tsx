@@ -15,9 +15,8 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import DreTable from "@/components/table-dre-roriz"
 
-export default function DfcPage() {
+export default function TagView() {
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -33,19 +32,19 @@ export default function DfcPage() {
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
                   <BreadcrumbLink href="#">
-                    Demonstrativos
+                    TAG View
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden md:block" />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>DRE</BreadcrumbPage>
+                  <BreadcrumbPage>Relatório IA</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
           </div>
         </header>
         <div>
-          <DreTable />
+          <h1 className="pl-4">Gerar relatório personalizado com IA</h1>
         </div>
       </SidebarInset>
     </SidebarProvider>

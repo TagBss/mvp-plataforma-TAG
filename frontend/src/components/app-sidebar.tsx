@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   AudioWaveform,
   BookOpen,
+  BotMessageSquare,
   Command,
   Frame,
   GalleryVerticalEnd,
@@ -54,32 +55,43 @@ const data = {
   navMain: [
     {
       title: "Dashboard",
-      url: "/",
+      url: "#",
       icon: Gauge,
       isActive: true,
       items: [
         {
           title: "Financeiro",
-          url: "/dashboard-financeiro",
+          url: "/dashboard/financeiro",
         },
         {
           title: "Competência",
-          url: "/dashboard-competencia  ",
+          url: "/dashboard/competencia  ",
         },
       ],
     },
     {
       title: "Demonstrativos",
-      url: "/dfc-table",
+      url: "#",
       icon: LayoutList,
       items: [
         {
           title: "DFC",
-          url: "/dfc-table",
+          url: "/demonstrativos/dfc",
         },
         {
           title: "DRE",
-          url: "/dre-table",
+          url: "/demonstrativos/dre",
+        },
+      ],
+    },
+    {
+      title: "TAG View",
+      url: "#",
+      icon: BotMessageSquare,
+      items: [
+        {
+          title: "Relatório IA",
+          url: "/tag-view/relatorio-ia",
         },
       ],
     },

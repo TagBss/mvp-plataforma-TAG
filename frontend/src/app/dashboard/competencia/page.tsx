@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/sidebar"
 import DashCompetencia from "@/components/kpis-competencia"
 
-export default function Page() {
+export default function Competencia() {
   return (
     <SidebarProvider>
       <AppSidebar />
