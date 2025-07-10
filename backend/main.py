@@ -1435,29 +1435,29 @@ def calcular_saldo(origem: str, mes_filtro: str = None):
     
     try:
         df = pd.read_excel(filename)
-        
+
         # Validação das colunas obrigatórias
         required_columns = ["valor", "origem", "DFC_n1"]
         if not all(col in df.columns for col in required_columns):
             return {"error": f"A planilha deve conter as colunas: {', '.join(required_columns)}"}
-        
+
         # Identificar coluna de data
         date_column = next((col for col in df.columns if col.lower() == "data"), None)
         if not date_column:
             return {"error": "Coluna de data não encontrada"}
-        
+
         # Processar dados
         df[date_column] = pd.to_datetime(df[date_column], errors="coerce")
         df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
-        
+
         df = df.dropna(subset=[date_column, "valor"])
-        
+
         # Filtrar apenas contas diferentes de DFC_n1 "Movimentação entre Contas"
         df_con = df[
             (df["DFC_n1"] != "Movimentação entre Contas") & 
             (df["DFC_n1"].notna())
         ].copy()
-        
+
         # Filtrar pela origem dinâmica para MoM (NÃO filtra por mês)
         df_mom = df_con[df_con["origem"] == origem].copy()
 
@@ -1496,6 +1496,60 @@ def calcular_saldo(origem: str, mes_filtro: str = None):
         anos_disponiveis = sorted(df_filtrado[date_column].dt.year.unique().tolist())
         meses_disponiveis = sorted(df_filtrado[date_column].dt.strftime("%Y-%m").unique().tolist())
 
+        # Calcular PMR (Prazo Médio de Recebimento)
+        # data_caixa = se data existe, usa data, senão usa vencimento
+        data_caixa_col = None
+        if "data" in df_con.columns and "vencimento" in df_con.columns:
+            data_caixa_col = df_con["data"].combine_first(df_con["vencimento"])
+        elif "data" in df_con.columns:
+            data_caixa_col = df_con["data"]
+        elif "vencimento" in df_con.columns:
+            data_caixa_col = df_con["vencimento"]
+
+        pmr = None
+        pmp = None
+        # Calcular PMR (Prazo Médio de Recebimento)
+        if origem == "CAR" and data_caixa_col is not None and "competencia" in df_con.columns:
+            mask = (
+                df_con["origem"] == "CAR"
+                ) & (
+                (df_con["DFC_n2"].fillna("") == "Recebimentos Operacionais")
+                ) & (
+                data_caixa_col.notna()
+                ) & (
+                df_con["competencia"].notna()
+                )
+            df_pmr = df_con[mask].copy()
+            if not df_pmr.empty:
+                data_caixa = pd.to_datetime(data_caixa_col[mask], errors="coerce")
+                competencia = pd.to_datetime(df_pmr["competencia"], errors="coerce")
+                dias = (data_caixa - competencia).dt.days
+                ponderado = (dias * df_pmr["valor"]).sum()
+                soma_pesos = df_pmr["valor"].sum()
+                if soma_pesos != 0:
+                    pmr = round(ponderado / soma_pesos, 0)
+
+        # Calcular PMP (Prazo Médio de Pagamento)
+        if origem == "CAP" and data_caixa_col is not None and "competencia" in df_con.columns:
+            mask = (
+                df_con["origem"] == "CAP"
+                ) & (
+                (df_con["DFC_n1"].fillna("") != "Movimentação entre Contas")
+                ) & (
+                data_caixa_col.notna()
+                ) & (
+                df_con["competencia"].notna()
+                )
+            df_pmp = df_con[mask].copy()
+            if not df_pmp.empty:
+                data_caixa = pd.to_datetime(data_caixa_col[mask], errors="coerce")
+                competencia = pd.to_datetime(df_pmp["competencia"], errors="coerce")
+                dias = (data_caixa - competencia).dt.days
+                ponderado = (dias * df_pmp["valor"]).sum()
+                soma_pesos = df_pmp["valor"].sum()
+                if soma_pesos != 0:
+                    pmp = round(ponderado / soma_pesos, 0)
+
         return {
             "success": True,
             "data": {
@@ -1510,7 +1564,9 @@ def calcular_saldo(origem: str, mes_filtro: str = None):
                 },
                 "anos_disponiveis": anos_disponiveis,
                 "meses_disponiveis": meses_disponiveis,
-                "mom_analysis": mom_data
+                "mom_analysis": mom_data,
+                "pmr": f"{int(pmr)} dias" if pmr is not None else None,
+                "pmp": f"{int(pmp)} dias" if pmp is not None else None
             }
         }
         

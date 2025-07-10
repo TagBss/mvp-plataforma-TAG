@@ -108,6 +108,8 @@ export default function DashFinanceiro() {
   const [loading, setLoading] = useState(false);
   const [momReceber, setMomReceber] = useState<MoMData[]>([]);
   const [momPagar, setMomPagar] = useState<MoMData[]>([]);
+  const [pmr, setPmr] = useState<string | null>(null);
+  const [pmp, setPmp] = useState<string | null>(null);
 
   // Carregar o último mês mais recente ao abrir a tela
   useEffect(() => {
@@ -116,6 +118,14 @@ export default function DashFinanceiro() {
         const meses = data.data.meses_disponiveis;
         const mesPadrao = meses[meses.length - 1];
         setMesSelecionado(mesPadrao);
+      }
+      if (data.success && data.data?.pmr) {
+        setPmr(data.data.pmr);
+      }
+    });
+    fetch(`http://localhost:8000/pagar`).then(res => res.json()).then(data => {
+      if (data.success && data.data?.pmp) {
+        setPmp(data.data.pmp);
       }
     });
   }, []);
@@ -199,30 +209,6 @@ export default function DashFinanceiro() {
           </CardContent>
         </Card>
 
-        {/* PMR */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-center">
-              <CardTitle className="text-lg sm:text-xl select-none">
-                PMR
-              </CardTitle>
-              <Hourglass className="ml-auto w-4 h-4" />
-            </div>
-            <CardDescription>
-              <p>prazo médio recebimento</p>
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent>
-            <div className="sm:flex sm:justify-between sm:items-center">
-              <p className="text-lg sm:text-2xl">6 dias</p>
-              <CardDescription>
-                <p>Últimos 12M</p>
-              </CardDescription>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Contas Pagas */}
         <Card>
           <CardHeader>
@@ -264,6 +250,28 @@ export default function DashFinanceiro() {
           </CardContent>
         </Card>
 
+        {/* PMR */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-center">
+              <CardTitle className="text-lg sm:text-xl select-none">
+                PMR
+              </CardTitle>
+              <Hourglass className="ml-auto w-4 h-4" />
+            </div>
+            <CardDescription>
+              <p>prazo médio recebimento</p>
+              <p className="text-muted-foreground/50">Todo o período</p>
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent>
+            <div>
+              <p className="text-lg sm:text-2xl">{pmr ?? <Skeleton className="h-6 w-20" />}</p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* PMP */}
         <Card>
           <CardHeader>
@@ -275,15 +283,13 @@ export default function DashFinanceiro() {
             </div>
             <CardDescription>
               <p>prazo médio pagamento</p>
+              <p className="text-muted-foreground/50">Todo o período</p>
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            <div className="sm:flex sm:justify-between sm:items-center">
-              <p className="text-lg sm:text-2xl">8 dias</p>
-              <CardDescription>
-                <p>Últimos 12M</p>
-              </CardDescription>
+            <div>
+              <p className="text-lg sm:text-2xl">{pmp ?? <Skeleton className="h-6 w-20" />}</p>
             </div>
           </CardContent>
         </Card>
