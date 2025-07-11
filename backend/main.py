@@ -1585,3 +1585,63 @@ def get_caixa_saldo(mes: str = None):
 @app.get("/pagar")
 def get_pagar_saldo(mes: str = None):
     return calcular_saldo("CAP", mes)
+
+# Novo cálculo e endpoint para movimentações (CAP + CAR)
+@app.get("/movimentacoes")
+def get_movimentacoes(mes: str = None):
+    """
+    Retorna a soma dos saldos de CAP e CAR, incluindo saldo_total, mom_analysis e meses_disponiveis.
+    """
+    try:
+        # Calcula CAP e CAR separadamente
+        cap = calcular_saldo("CAP", mes)
+        car = calcular_saldo("CAR", mes)
+
+        # Se algum dos dois retornou erro, retorna erro
+        if not cap.get("success") or not car.get("success"):
+            return {"error": "Erro ao calcular movimentações", "cap": cap, "car": car}
+
+        # Soma os saldos
+        saldo_total = (cap["data"].get("saldo_total", 0) or 0) + (car["data"].get("saldo_total", 0) or 0)
+        total_passado = (cap["data"].get("total_passado", 0) or 0) + (car["data"].get("total_passado", 0) or 0)
+        total_futuro = (cap["data"].get("total_futuro", 0) or 0) + (car["data"].get("total_futuro", 0) or 0)
+
+        # Unir meses disponíveis
+        meses_disponiveis = sorted(list(set(cap["data"].get("meses_disponiveis", [])) | set(car["data"].get("meses_disponiveis", []))))
+        anos_disponiveis = sorted(list(set(cap["data"].get("anos_disponiveis", [])) | set(car["data"].get("anos_disponiveis", []))))
+
+        # Unir mom_analysis por mês (soma dos valores de cada mês)
+        mom_cap = {item["mes"]: item for item in cap["data"].get("mom_analysis", [])}
+        mom_car = {item["mes"]: item for item in car["data"].get("mom_analysis", [])}
+        all_meses = sorted(set(mom_cap.keys()) | set(mom_car.keys()))
+        mom_analysis = []
+        for mes in all_meses:
+            valor_atual = (mom_cap.get(mes, {}).get("valor_atual", 0) or 0) + (mom_car.get(mes, {}).get("valor_atual", 0) or 0)
+            valor_anterior = (mom_cap.get(mes, {}).get("valor_anterior", 0) or 0) + (mom_car.get(mes, {}).get("valor_anterior", 0) or 0)
+            variacao_absoluta = (mom_cap.get(mes, {}).get("variacao_absoluta", 0) or 0) + (mom_car.get(mes, {}).get("variacao_absoluta", 0) or 0)
+            # Calcular variação percentual da soma
+            if valor_anterior != 0:
+                variacao_percentual = round((valor_atual - valor_anterior) / valor_anterior * 100, 2)
+            else:
+                variacao_percentual = None
+            mom_analysis.append({
+                "mes": mes,
+                "valor_atual": round(valor_atual, 2),
+                "valor_anterior": round(valor_anterior, 2) if valor_anterior != 0 else None,
+                "variacao_absoluta": round(variacao_absoluta, 2) if variacao_absoluta != 0 else None,
+                "variacao_percentual": variacao_percentual
+            })
+
+        return {
+            "success": True,
+            "data": {
+                "saldo_total": round(saldo_total, 2),
+                "total_passado": round(total_passado, 2),
+                "total_futuro": round(total_futuro, 2),
+                "meses_disponiveis": meses_disponiveis,
+                "anos_disponiveis": anos_disponiveis,
+                "mom_analysis": mom_analysis
+            }
+        }
+    except Exception as e:
+        return {"error": f"Erro ao calcular movimentações: {str(e)}"}

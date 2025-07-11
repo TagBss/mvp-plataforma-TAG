@@ -25,7 +25,7 @@ import { useEffect, useState } from "react";
 import { FiltroMes } from "@/components/filtro-mes"
 
 // Função para formatar no estilo curto (Mil / Mi)
-function formatCurrencyShort(value: number): string {
+export function formatCurrencyShort(value: number): string {
   const absValue = Math.abs(value);
   let formatted = "";
 
@@ -100,17 +100,19 @@ function getMoMIndicator(momData: MoMData[], mesSelecionado: string) {
   };
 }
 
+
 export default function DashFinanceiro() {
   // ✅ Estados declarados apenas uma vez
   const [saldoReceber, setSaldoReceber] = useState<number | null>(null);
   const [saldoPagar, setSaldoPagar] = useState<number | null>(null);
+  const [saldoMovimentacoes, setSaldoMovimentacoes] = useState<number | null>(null);
   const [mesSelecionado, setMesSelecionado] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [momReceber, setMomReceber] = useState<MoMData[]>([]);
   const [momPagar, setMomPagar] = useState<MoMData[]>([]);
+  const [momMovimentacoes, setMomMovimentacoes] = useState<MoMData[]>([]);
   const [pmr, setPmr] = useState<string | null>(null);
   const [pmp, setPmp] = useState<string | null>(null);
-  // const [filtroKey, setFiltroKey] = useState(0);
 
   // Carregar o último mês mais recente ao abrir a tela
   useEffect(() => {
@@ -132,12 +134,10 @@ export default function DashFinanceiro() {
   }, []);
 
   const handleMesSelecionado = (mes: string) => {
-  console.log("Selecionando mês:", mes); // Debug
-  setSaldoReceber(null);
-  setSaldoPagar(null);
-  setMesSelecionado(mes);
-  // Remover o filtroKey temporariamente para testar
-  // setFiltroKey((k) => k + 1);
+    setSaldoReceber(null);
+    setSaldoPagar(null);
+    setSaldoMovimentacoes(null);
+    setMesSelecionado(mes);
   };
 
   useEffect(() => {
@@ -148,8 +148,9 @@ export default function DashFinanceiro() {
     const queryString = mesSelecionado ? `?mes=${mesSelecionado}` : "";
     Promise.all([
       fetch(`http://localhost:8000/receber${queryString}`).then(r => r.json()),
-      fetch(`http://localhost:8000/pagar${queryString}`).then(r => r.json())
-    ]).then(([dataReceber, dataPagar]) => {
+      fetch(`http://localhost:8000/pagar${queryString}`).then(r => r.json()),
+      fetch(`http://localhost:8000/movimentacoes${queryString}`).then(r => r.json())
+    ]).then(([dataReceber, dataPagar, dataMovimentacoes]) => {
       if (dataReceber.success) {
         setSaldoReceber(dataReceber.data.saldo_total);
         setMomReceber(dataReceber.data.mom_analysis || []);
@@ -157,6 +158,10 @@ export default function DashFinanceiro() {
       if (dataPagar.success) {
         setSaldoPagar(dataPagar.data.saldo_total);
         setMomPagar(dataPagar.data.mom_analysis || []);
+      }
+      if (dataMovimentacoes.success) {
+        setSaldoMovimentacoes(dataMovimentacoes.data.saldo_total);
+        setMomMovimentacoes(dataMovimentacoes.data.mom_analysis || []);
       }
     }).catch(error => {
       console.error("Erro ao buscar saldos:", error);
@@ -308,6 +313,7 @@ export default function DashFinanceiro() {
       </section>
 
       <section className="mt-4 flex flex-col lg:flex-row gap-4">
+        {/* Card Movimentações Dinâmico */}
         <Card className="w-full">
           <CardHeader>
             <div className="flex items-center justify-center">
@@ -320,11 +326,31 @@ export default function DashFinanceiro() {
 
           <CardContent>
             <div className="sm:flex sm:justify-between sm:items-center">
-              <p className="text-lg sm:text-2xl">R$ -515,2 Mil</p>
+              <p className="text-lg sm:text-2xl">
+                {loading ? (
+                  <Skeleton className="h-6 w-32" />
+                ) : saldoMovimentacoes !== null ? (
+                  formatCurrencyShort(saldoMovimentacoes)
+                ) : (
+                  "--"
+                )}
+              </p>
               <CardDescription>
-                <p>
-                  vs abr/25 <br />↗ 261,9%
-                </p>
+                {mesSelecionado === "" ? (
+                  <p>vs período anterior <br />-- --</p>
+                ) : (() => {
+                  const mom = getMoMIndicator(momMovimentacoes, mesSelecionado);
+                  return mom && mom.hasValue ? (
+                    <p>
+                      vs {mom.mesAnterior} <br />
+                      <span>
+                        {mom.arrow} {mom.percentage?.toFixed(1)}%
+                      </span>
+                    </p>
+                  ) : (
+                    <p>vs mês anterior <br />-- --</p>
+                  );
+                })()}
               </CardDescription>
             </div>
 
