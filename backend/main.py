@@ -1645,3 +1645,54 @@ def get_movimentacoes(mes: str = None):
         }
     except Exception as e:
         return {"error": f"Erro ao calcular movimentações: {str(e)}"}
+
+# Novo endpoint para evolução de saldos (saldo inicial, movimentação, saldo final mês a mês)
+@app.get("/saldos-evolucao")
+def get_saldos_evolucao():
+    """
+    Retorna a evolução de saldos mês a mês: saldo inicial, movimentação (CAP + CAR), saldo final.
+    O saldo inicial do primeiro mês é zero, saldo final = saldo inicial + movimentação.
+    O saldo inicial do mês seguinte é o saldo final do mês anterior.
+    """
+    try:
+        cap = calcular_saldo("CAP")
+        car = calcular_saldo("CAR")
+        if not cap.get("success") or not car.get("success"):
+            return {"error": "Erro ao calcular movimentações", "cap": cap, "car": car}
+
+        mom_cap = {item["mes"]: item for item in cap["data"].get("mom_analysis", [])}
+        mom_car = {item["mes"]: item for item in car["data"].get("mom_analysis", [])}
+        all_meses = sorted(set(mom_cap.keys()) | set(mom_car.keys()))
+
+        evolucao = []
+        saldo_inicial = 0.0
+        for idx, mes in enumerate(all_meses):
+            movimentacao = (mom_cap.get(mes, {}).get("valor_atual", 0) or 0) + (mom_car.get(mes, {}).get("valor_atual", 0) or 0)
+            saldo_final = round(saldo_inicial + movimentacao, 2)
+            # Calcular MoM para saldo_final
+            variacao_absoluta = None
+            variacao_percentual = None
+            if idx > 0:
+                saldo_final_anterior = evolucao[idx-1]["saldo_final"]
+                variacao_absoluta = round(saldo_final - saldo_final_anterior, 2)
+                if saldo_final_anterior != 0:
+                    variacao_percentual = round((saldo_final - saldo_final_anterior) / saldo_final_anterior * 100, 2)
+            evolucao.append({
+                "mes": mes,
+                "saldo_inicial": round(saldo_inicial, 2),
+                "movimentacao": round(movimentacao, 2),
+                "saldo_final": saldo_final,
+                "variacao_absoluta": variacao_absoluta,
+                "variacao_percentual": variacao_percentual
+            })
+            saldo_inicial = saldo_final
+
+        return {
+            "success": True,
+            "data": {
+                "evolucao": evolucao,
+                "meses_disponiveis": all_meses
+            }
+        }
+    except Exception as e:
+        return {"error": f"Erro ao calcular evolução de saldos: {str(e)}"}

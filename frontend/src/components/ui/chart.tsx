@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
+import { formatCurrencyShort } from "@/components/kpis-financeiro";
 
 import { cn } from "@/lib/utils"
 
@@ -179,7 +180,12 @@ function ChartTooltipContent({
     >
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
-        {payload.map((item, index) => {
+        {[...payload].sort((a, b) => {
+          // saldo_final em cima, saldo_inicial embaixo
+          if (a.dataKey === "saldo_final") return -1;
+          if (b.dataKey === "saldo_final") return 1;
+          return 0;
+        }).map((item, index) => {
           const key = `${nameKey || item.name || item.dataKey || "value"}`
           const itemConfig = getPayloadConfigFromPayload(config, item, key)
           const indicatorColor = color || item.payload.fill || item.color
@@ -232,9 +238,9 @@ function ChartTooltipContent({
                         {itemConfig?.label || item.name}
                       </span>
                     </div>
-                    {item.value && (
+                    {typeof item.value === "number" && (
                       <span className="text-foreground font-mono font-medium tabular-nums">
-                        {item.value.toLocaleString()}
+                        {formatCurrencyShort(item.value)}
                       </span>
                     )}
                   </div>

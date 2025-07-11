@@ -123,7 +123,7 @@ export default function ChartOverview() {
             tickMargin={10}
             axisLine={false}
           />
-          <YAxis tickLine={false} axisLine={false} />
+          <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => formatCurrencyShort(v, { noPrefix: true })} />
           <Tooltip content={<CustomTooltip />} />
           <Legend />
           <Bar dataKey="CAR" fill={chartConfig.CAR.color} radius={4} name={chartConfig.CAR.label} />

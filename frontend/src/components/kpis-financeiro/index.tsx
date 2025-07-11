@@ -1,6 +1,6 @@
 "use client";
 
-import { ChartAreaGradientTwo } from "@/components/chart-area-gradient-2";
+import { ChartAreaSaldoFinal } from "@/components/chart-area-gradient-2";
 import { ChartBarMixed } from "@/components/chart-bar-mixed";
 import ChartOverview from "@/components/charts";
 import {
@@ -19,13 +19,14 @@ import {
   Package,
   PlusCircle,
   TrendingUp,
+  TrendingDown,
   Wallet,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { FiltroMes } from "@/components/filtro-mes"
 
 // Função para formatar no estilo curto (Mil / Mi)
-export function formatCurrencyShort(value: number): string {
+export function formatCurrencyShort(value: number, opts?: { noPrefix?: boolean }): string {
   const absValue = Math.abs(value);
   let formatted = "";
 
@@ -37,7 +38,8 @@ export function formatCurrencyShort(value: number): string {
     formatted = absValue.toFixed(0);
   }
 
-  return `R$ ${value < 0 ? "-" : ""}${formatted.replace(".", ",")}`;
+  const prefix = opts?.noPrefix ? "" : "R$ ";
+  return `${prefix}${value < 0 ? "-" : ""}${formatted.replace(".", ",")}`;
 }
 
 
@@ -101,18 +103,24 @@ function getMoMIndicator(momData: MoMData[], mesSelecionado: string) {
 }
 
 
+
 export default function DashFinanceiro() {
   // ✅ Estados declarados apenas uma vez
   const [saldoReceber, setSaldoReceber] = useState<number | null>(null);
   const [saldoPagar, setSaldoPagar] = useState<number | null>(null);
   const [saldoMovimentacoes, setSaldoMovimentacoes] = useState<number | null>(null);
+  const [saldoFinal, setSaldoFinal] = useState<number | null>(null);
+  const [saldoFinalMoM, setSaldoFinalMoM] = useState<{ variacao_absoluta: number | null, variacao_percentual: number | null } | null>(null);
   const [mesSelecionado, setMesSelecionado] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [loadingSaldoFinal, setLoadingSaldoFinal] = useState(false);
   const [momReceber, setMomReceber] = useState<MoMData[]>([]);
   const [momPagar, setMomPagar] = useState<MoMData[]>([]);
   const [momMovimentacoes, setMomMovimentacoes] = useState<MoMData[]>([]);
   const [pmr, setPmr] = useState<string | null>(null);
   const [pmp, setPmp] = useState<string | null>(null);
+  const [saldosEvolucao, setSaldosEvolucao] = useState<Array<{ mes: string; saldo_inicial: number; saldo_final: number }>>([]);
+
 
   // Carregar o último mês mais recente ao abrir a tela
   useEffect(() => {
@@ -133,6 +141,7 @@ export default function DashFinanceiro() {
     });
   }, []);
 
+
   const handleMesSelecionado = (mes: string) => {
     setSaldoReceber(null);
     setSaldoPagar(null);
@@ -140,17 +149,21 @@ export default function DashFinanceiro() {
     setMesSelecionado(mes);
   };
 
+
+
   useEffect(() => {
     // Permitir busca mesmo quando mesSelecionado for string vazia (""),
     // só não busca se for null ou undefined
     if (mesSelecionado === null || mesSelecionado === undefined) return;
     setLoading(true);
+    setLoadingSaldoFinal(true);
     const queryString = mesSelecionado ? `?mes=${mesSelecionado}` : "";
     Promise.all([
       fetch(`http://localhost:8000/receber${queryString}`).then(r => r.json()),
       fetch(`http://localhost:8000/pagar${queryString}`).then(r => r.json()),
-      fetch(`http://localhost:8000/movimentacoes${queryString}`).then(r => r.json())
-    ]).then(([dataReceber, dataPagar, dataMovimentacoes]) => {
+      fetch(`http://localhost:8000/movimentacoes${queryString}`).then(r => r.json()),
+      fetch(`http://localhost:8000/saldos-evolucao`).then(r => r.json())
+    ]).then(([dataReceber, dataPagar, dataMovimentacoes, dataSaldosEvolucao]) => {
       if (dataReceber.success) {
         setSaldoReceber(dataReceber.data.saldo_total);
         setMomReceber(dataReceber.data.mom_analysis || []);
@@ -163,10 +176,40 @@ export default function DashFinanceiro() {
         setSaldoMovimentacoes(dataMovimentacoes.data.saldo_total);
         setMomMovimentacoes(dataMovimentacoes.data.mom_analysis || []);
       }
+      // Buscar saldo final do mês selecionado e MoM
+      if (dataSaldosEvolucao.success && dataSaldosEvolucao.data?.evolucao?.length > 0) {
+        let saldoFinal = null;
+        let variacao_absoluta = null;
+        let variacao_percentual = null;
+        type SaldosEvolucaoItem = { mes: string; saldo_inicial: number; movimentacao: number; saldo_final: number; variacao_absoluta?: number | null; variacao_percentual?: number | null };
+        const evolucaoArr = dataSaldosEvolucao.data.evolucao as SaldosEvolucaoItem[];
+        // Salvar para o gráfico (últimos 12 meses)
+        setSaldosEvolucao(evolucaoArr.slice(-12).map(({ mes, saldo_inicial, saldo_final }) => ({ mes, saldo_inicial, saldo_final })));
+        if (mesSelecionado) {
+          const found = evolucaoArr.find((item) => item.mes === mesSelecionado);
+          saldoFinal = found ? found.saldo_final : null;
+          variacao_absoluta = found ? found.variacao_absoluta ?? null : null;
+          variacao_percentual = found ? found.variacao_percentual ?? null : null;
+        } else {
+          // Se não houver mês selecionado, pega o último
+          const last = evolucaoArr[evolucaoArr.length - 1];
+          saldoFinal = last.saldo_final;
+          variacao_absoluta = last.variacao_absoluta ?? null;
+          variacao_percentual = last.variacao_percentual ?? null;
+        }
+        setSaldoFinal(saldoFinal);
+        setSaldoFinalMoM({ variacao_absoluta, variacao_percentual });
+      } else {
+        setSaldoFinal(null);
+        setSaldoFinalMoM(null);
+        setSaldosEvolucao([]);
+      }
     }).catch(error => {
       console.error("Erro ao buscar saldos:", error);
+      setSaldoFinal(null);
     }).finally(() => {
       setLoading(false);
+      setLoadingSaldoFinal(false);
     });
   }, [mesSelecionado]);
 
@@ -221,7 +264,7 @@ export default function DashFinanceiro() {
                 })()}
               </CardDescription>
             </div>
-          </CardContent>
+        </CardContent>
         </Card>
 
         {/* Contas Pagas */}
@@ -360,6 +403,54 @@ export default function DashFinanceiro() {
 
             <ChartOverview />
           </CardContent>
+          <CardFooter>
+            <div className="flex w-full items-start gap-2 text-sm">
+              <div className="grid gap-2">
+                <div className="flex items-center gap-2 leading-none font-medium">
+                  {/* Footer dinâmico: mostra variação e período do gráfico */}
+                  {mesSelecionado === "" ? (
+                    <>Sem variação</>
+                  ) : (() => {
+                    const mom = getMoMIndicator(momMovimentacoes, mesSelecionado);
+                    return mom && mom.hasValue ? (
+                      <>
+                        {mom.isPositive === null ? "Sem variação" : mom.isPositive ? "Aumento" : "Queda"} de {mom.percentage?.toFixed(1)}% neste mês
+                        {mom.isPositive === false ? (
+                          <TrendingDown className="h-4 w-4" />
+                        ) : (
+                          <TrendingUp className="h-4 w-4" />
+                        )}
+                      </>
+                    ) : (
+                      <>Sem variação</>
+                    );
+                  })()}
+                </div>
+                <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                  {/* Período exibido no gráfico */}
+                  {saldosEvolucao.length > 0 ? (
+                    <>
+                      {(() => {
+                        const primeiro = saldosEvolucao[0].mes;
+                        const ultimo = saldosEvolucao[saldosEvolucao.length - 1].mes;
+                        // Formatar para "abr/25"
+                        const formatar = (mes: string) => {
+                          if (!mes.match(/^\d{4}-\d{2}$/)) return mes;
+                          const [ano, m] = mes.split("-");
+                          const meses = ["", "jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+                          const mesNum = parseInt(m, 10);
+                          return `${meses[mesNum]}/${ano.slice(-2)}`;
+                        };
+                        return `${formatar(primeiro)} - ${formatar(ultimo)}`;
+                      })()}
+                    </>
+                  ) : (
+                    <>--</>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardFooter>
         </Card>
 
         <Card className="w-full">
@@ -374,11 +465,28 @@ export default function DashFinanceiro() {
 
           <CardContent>
             <div className="sm:flex sm:justify-between sm:items-center">
-              <p className="text-lg sm:text-2xl">R$ -467,7 Mil</p>
+              <p className="text-lg sm:text-2xl">
+                {loadingSaldoFinal ? (
+                  <Skeleton className="h-6 w-32" />
+                ) : saldoFinal !== null ? (
+                  formatCurrencyShort(saldoFinal)
+                ) : (
+                  "--"
+                )}
+              </p>
               <CardDescription>
-                <p>
-                  vs abr/25 <br />↗ 1085,3%
-                </p>
+                {mesSelecionado === "" ? (
+                  <p>vs período anterior <br />-- --</p>
+                ) : saldoFinalMoM && saldoFinalMoM.variacao_percentual !== null ? (
+                  <p>
+                    vs mês anterior <br />
+                    <span>
+                      {saldoFinalMoM.variacao_percentual > 0 ? "↗" : saldoFinalMoM.variacao_percentual < 0 ? "↙" : ""} {Math.abs(saldoFinalMoM.variacao_percentual).toFixed(1)}%
+                    </span>
+                  </p>
+                ) : (
+                  <p>vs mês anterior <br />-- --</p>
+                )}
               </CardDescription>
             </div>
 
@@ -386,16 +494,49 @@ export default function DashFinanceiro() {
               <p>Saldo últimos 6M</p>
             </CardDescription>
 
-            <ChartAreaGradientTwo />
+            <ChartAreaSaldoFinal data={saldosEvolucao} />
           </CardContent>
           <CardFooter>
             <div className="flex w-full items-start gap-2 text-sm">
               <div className="grid gap-2">
                 <div className="flex items-center gap-2 leading-none font-medium">
-                  Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
+                  {/* Footer dinâmico: mostra variação e período do gráfico */}
+                  {mesSelecionado === "" ? (
+                    <>Sem variação</>
+                  ) : saldoFinalMoM && saldoFinalMoM.variacao_percentual !== null ? (
+                    <>
+                      {saldoFinalMoM.variacao_percentual > 0 ? "Aumento" : saldoFinalMoM.variacao_percentual < 0 ? "Queda" : "Sem variação"} de {Math.abs(saldoFinalMoM.variacao_percentual).toFixed(1)}% neste mês
+                      {saldoFinalMoM.variacao_percentual < 0 ? (
+                        <TrendingDown className="h-4 w-4" />
+                      ) : (
+                        <TrendingUp className="h-4 w-4" />
+                      )}
+                    </>
+                  ) : (
+                    <>Sem variação</>
+                  )}
                 </div>
                 <div className="text-muted-foreground flex items-center gap-2 leading-none">
-                  January - June 2024
+                  {/* Período exibido no gráfico */}
+                  {saldosEvolucao.length > 0 ? (
+                    <>
+                      {(() => {
+                        const primeiro = saldosEvolucao[0].mes;
+                        const ultimo = saldosEvolucao[saldosEvolucao.length - 1].mes;
+                        // Formatar para "abr/25"
+                        const formatar = (mes: string) => {
+                          if (!mes.match(/^\d{4}-\d{2}$/)) return mes;
+                          const [ano, m] = mes.split("-");
+                          const meses = ["", "jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+                          const mesNum = parseInt(m, 10);
+                          return `${meses[mesNum]}/${ano.slice(-2)}`;
+                        };
+                        return `${formatar(primeiro)} - ${formatar(ultimo)}`;
+                      })()}
+                    </>
+                  ) : (
+                    <>--</>
+                  )}
                 </div>
               </div>
             </div>
