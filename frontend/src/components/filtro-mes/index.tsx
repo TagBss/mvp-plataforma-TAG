@@ -58,26 +58,26 @@ export function FiltroMes({ onSelect, endpoint, value }: FiltroMesProps) {
     setMesesAgrupados(agrupados)
   }, [mesesDisponiveis])
 
+
   const handleSelect = (mes: { value: string, label: string } | null) => {
+    // Atualiza imediatamente o filtro para 'Todo o período' ao clicar
     if (!mes) {
-      onSelect(""); // string vazia para todo o período
+      onSelect("");
     } else {
-      onSelect(mes.value)
+      onSelect(mes.value);
     }
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline">{
-          !value
-            ? "Todo o período"
-            : (() => {
-                const [ano, mesNum] = value.split("-");
-                if (!ano || !mesNum) return value;
-                return `${mesesNomes[parseInt(mesNum)]}/${ano}`;
-              })()
-        }</Button>
+        <Button variant="outline">
+          {value === "" ? "Todo o período" : (() => {
+            const [ano, mesNum] = value.split("-");
+            if (!ano || !mesNum) return value;
+            return `${mesesNomes[parseInt(mesNum)]}/${ano}`;
+          })()}
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56 max-h-64 overflow-y-auto">
         <DropdownMenuItem onClick={() => handleSelect(null)}>
@@ -100,5 +100,5 @@ export function FiltroMes({ onSelect, endpoint, value }: FiltroMesProps) {
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  );
 }

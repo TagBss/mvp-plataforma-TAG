@@ -1493,8 +1493,13 @@ def calcular_saldo(origem: str, mes_filtro: str = None):
         registros_futuros = len(df_filtrado[df_filtrado[date_column] >= hoje])
 
         # Anos e meses disponíveis
-        anos_disponiveis = sorted(df_filtrado[date_column].dt.year.unique().tolist())
-        meses_disponiveis = sorted(df_filtrado[date_column].dt.strftime("%Y-%m").unique().tolist())
+        if not mes_filtro:
+            # Se for todo o período, pegue todos os meses/anos disponíveis do df_con (toda a origem)
+            anos_disponiveis = sorted(df_con[date_column].dt.year.unique().tolist())
+            meses_disponiveis = sorted(df_con[date_column].dt.strftime("%Y-%m").unique().tolist())
+        else:
+            anos_disponiveis = sorted(df_filtrado[date_column].dt.year.unique().tolist())
+            meses_disponiveis = sorted(df_filtrado[date_column].dt.strftime("%Y-%m").unique().tolist())
 
         # Calcular PMR (Prazo Médio de Recebimento)
         # data_caixa = se data existe, usa data, senão usa vencimento

@@ -110,6 +110,7 @@ export default function DashFinanceiro() {
   const [momPagar, setMomPagar] = useState<MoMData[]>([]);
   const [pmr, setPmr] = useState<string | null>(null);
   const [pmp, setPmp] = useState<string | null>(null);
+  // const [filtroKey, setFiltroKey] = useState(0);
 
   // Carregar o último mês mais recente ao abrir a tela
   useEffect(() => {
@@ -131,13 +132,20 @@ export default function DashFinanceiro() {
   }, []);
 
   const handleMesSelecionado = (mes: string) => {
-    setMesSelecionado(mes);
+  console.log("Selecionando mês:", mes); // Debug
+  setSaldoReceber(null);
+  setSaldoPagar(null);
+  setMesSelecionado(mes);
+  // Remover o filtroKey temporariamente para testar
+  // setFiltroKey((k) => k + 1);
   };
 
   useEffect(() => {
-    if (!mesSelecionado) return; // Só busca se já tiver mês selecionado
+    // Permitir busca mesmo quando mesSelecionado for string vazia (""),
+    // só não busca se for null ou undefined
+    if (mesSelecionado === null || mesSelecionado === undefined) return;
     setLoading(true);
-    const queryString = `?mes=${mesSelecionado}`;
+    const queryString = mesSelecionado ? `?mes=${mesSelecionado}` : "";
     Promise.all([
       fetch(`http://localhost:8000/receber${queryString}`).then(r => r.json()),
       fetch(`http://localhost:8000/pagar${queryString}`).then(r => r.json())
@@ -187,11 +195,13 @@ export default function DashFinanceiro() {
                 ) : saldoReceber !== null ? (
                   formatCurrencyShort(saldoReceber)
                 ) : (
-                  <Skeleton className="h-6 w-32" />
+                  "--"
                 )}
               </p>
               <CardDescription>
-                {(() => {
+                {mesSelecionado === "" ? (
+                  <p>vs período anterior <br />-- --</p>
+                ) : (() => {
                   const mom = getMoMIndicator(momReceber, mesSelecionado);
                   return mom && mom.hasValue ? (
                     <p>
@@ -228,11 +238,13 @@ export default function DashFinanceiro() {
                 ) : saldoPagar !== null ? (
                   formatCurrencyShort(saldoPagar)
                 ) : (
-                  <Skeleton className="h-6 w-32" />
+                  "--"
                 )}
               </p>
               <CardDescription>
-                {(() => {
+                {mesSelecionado === "" ? (
+                  <p>vs período anterior <br />-- --</p>
+                ) : (() => {
                   const mom = getMoMIndicator(momPagar, mesSelecionado);
                   return mom && mom.hasValue ? (
                     <p>
