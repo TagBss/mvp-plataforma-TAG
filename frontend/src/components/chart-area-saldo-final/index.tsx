@@ -12,11 +12,9 @@ import { formatCurrencyShort } from "../kpis-financeiro"
 export interface AreaChartSaldoProps {
   data: Array<{
     mes: string
-    saldo_inicial: number
     saldo_final: number
   }>
   config?: {
-    saldo_inicial?: { label: string; color: string }
     saldo_final?: { label: string; color: string }
   }
 }
@@ -24,10 +22,6 @@ export interface AreaChartSaldoProps {
 export function ChartAreaSaldoFinal({ data, config }: AreaChartSaldoProps) {
   // Cores e labels padrão, pode sobrescrever via config
   const chartConfig = {
-    saldo_inicial: {
-      label: config?.saldo_inicial?.label || "Saldo Inicial",
-      color: config?.saldo_inicial?.color || "var(--chart-2)",
-    },
     saldo_final: {
       label: config?.saldo_final?.label || "Saldo Final",
       color: config?.saldo_final?.color || "var(--chart-5)",
@@ -68,18 +62,6 @@ export function ChartAreaSaldoFinal({ data, config }: AreaChartSaldoProps) {
         />
         <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
         <defs>
-          <linearGradient id="fillSaldoInicial" x1="0" y1="0" x2="0" y2="1">
-            <stop
-              offset="5%"
-              stopColor={chartConfig.saldo_inicial.color}
-              stopOpacity={0.8}
-            />
-            <stop
-              offset="95%"
-              stopColor={chartConfig.saldo_inicial.color}
-              stopOpacity={0.1}
-            />
-          </linearGradient>
           <linearGradient id="fillSaldoFinal" x1="0" y1="0" x2="0" y2="1">
             <stop
               offset="5%"
@@ -93,15 +75,6 @@ export function ChartAreaSaldoFinal({ data, config }: AreaChartSaldoProps) {
             />
           </linearGradient>
         </defs>
-        <Area
-          dataKey="saldo_inicial"
-          name={chartConfig.saldo_inicial.label}
-          type="natural"
-          fill="url(#fillSaldoInicial)"
-          fillOpacity={0.4}
-          stroke={chartConfig.saldo_inicial.color}
-          stackId="a"
-        />
         <Area
           dataKey="saldo_final"
           name={chartConfig.saldo_final.label}

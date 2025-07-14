@@ -1,8 +1,6 @@
 "use client";
 
-import { ChartAreaGradientTwo } from "@/components/chart-area-gradient-2";
 import { ChartBarMixed } from "@/components/chart-bar-mixed";
-import ChartOverview from "@/components/charts";
 import {
   Card,
   CardContent,
@@ -23,6 +21,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { FiltroMes } from "@/components/filtro-mes"
+import ChartMovimentacoes from "@/components/chart-movimentacoes";
 
 // Função para formatar no estilo curto (Mil / Mi)
 function formatCurrencyShort(value: number): string {
@@ -313,7 +312,7 @@ export default function DashCompetencia() {
               <p>Movimentações últimos 6M</p>
             </CardDescription>
 
-            <ChartOverview />
+            <ChartMovimentacoes />
           </CardContent>
         </Card>
 
@@ -341,7 +340,6 @@ export default function DashCompetencia() {
               <p>Saldo últimos 6M</p>
             </CardDescription>
 
-            <ChartAreaGradientTwo />
           </CardContent>
           <CardFooter>
             <div className="flex w-full items-start gap-2 text-sm">

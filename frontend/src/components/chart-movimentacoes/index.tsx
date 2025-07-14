@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChartConfig, ChartContainer } from "../ui/chart";
-import { Bar, ComposedChart, CartesianGrid, XAxis, YAxis, Line, Legend, ResponsiveContainer, Tooltip } from "recharts";
+import { Bar, ComposedChart, CartesianGrid, XAxis, YAxis, Line, ResponsiveContainer, Tooltip } from "recharts";
 import { TooltipProps } from 'recharts';
 import { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { formatCurrencyShort } from "@/components/kpis-financeiro";
@@ -50,7 +50,7 @@ type ChartDataItem = {
   Movimentacoes: number;
 };
 
-export default function ChartOverview() {
+export default function ChartMovimentacoes() {
   const [chartData, setChartData] = useState<ChartDataItem[]>([]);
 
   useEffect(() => {
@@ -125,7 +125,7 @@ export default function ChartOverview() {
           />
           <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => formatCurrencyShort(v, { noPrefix: true })} />
           <Tooltip content={<CustomTooltip />} />
-          <Legend />
+          {/* <Legend /> */}
           <Bar dataKey="CAR" fill={chartConfig.CAR.color} radius={4} name={chartConfig.CAR.label} />
           <Bar dataKey="CAP" fill={chartConfig.CAP.color} radius={4} name={chartConfig.CAP.label} />
           <Line type="monotone" dataKey="Movimentacoes" stroke={chartConfig.Movimentacoes.color} strokeWidth={3} dot={false} name={chartConfig.Movimentacoes.label} />

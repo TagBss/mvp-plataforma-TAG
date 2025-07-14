@@ -1,8 +1,41 @@
+
+import os
+import time
+import pandas as pd
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-import pandas as pd
 import shutil
-import os
+
+
+# --- CACHE GLOBAL PARA O DATAFRAME ---
+_df_cache = {
+    "df": None,
+    "last_loaded": 0,
+    "last_mtime": 0,
+}
+CACHE_TIMEOUT = 60  # segundos
+
+def get_cached_df(filename="financial-data-roriz.xlsx"):
+    global _df_cache
+    try:
+        mtime = os.path.getmtime(filename)
+    except Exception:
+        return None
+    now = time.time()
+    # Recarrega se: nunca carregado, arquivo mudou, ou timeout
+    if (
+        _df_cache["df"] is None
+        or _df_cache["last_mtime"] != mtime
+        or now - _df_cache["last_loaded"] > CACHE_TIMEOUT
+    ):
+        try:
+            df = pd.read_excel(filename)
+            _df_cache["df"] = df
+            _df_cache["last_loaded"] = now
+            _df_cache["last_mtime"] = mtime
+        except Exception:
+            _df_cache["df"] = None
+    return _df_cache["df"]
 
 app = FastAPI()
 
@@ -48,7 +81,9 @@ def get_dre_data():
     filename = "financial-data-roriz.xlsx"
 
     try:
-        df = pd.read_excel(filename)
+        df = get_cached_df(filename)
+        if df is None:
+            return {"error": "Erro ao ler o arquivo Excel."}
 
         # Validação das colunas obrigatórias (incluindo 'origem')
         required_columns = ["DRE_n2", "valor_original", "classificacao", "origem"]
@@ -660,7 +695,9 @@ def get_dfc_data():
     filename = "financial-data-roriz.xlsx"
 
     try:
-        df = pd.read_excel(filename)
+        df = get_cached_df(filename)
+        if df is None:
+            return {"error": "Erro ao ler o arquivo Excel."}
 
         # Validação das colunas obrigatórias (incluindo 'origem')
         required_columns = ["DFC_n2", "valor", "classificacao", "origem"]
@@ -1434,7 +1471,9 @@ def calcular_saldo(origem: str, mes_filtro: str = None):
     filename = "financial-data-roriz.xlsx"
     
     try:
-        df = pd.read_excel(filename)
+        df = get_cached_df(filename)
+        if df is None:
+            return {"error": "Erro ao ler o arquivo Excel."}
 
         # Validação das colunas obrigatórias
         required_columns = ["valor", "origem", "DFC_n1"]
