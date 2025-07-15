@@ -63,8 +63,8 @@ export default function DreTable() {
   const [filtroAno, setFiltroAno] = useState<string>("")
   const [showVertical, setShowVertical] = useState(true)
   const [showHorizontal, setShowHorizontal] = useState(true)
-  const [showOrcamento, setShowOrcamento] = useState(false)
-  const [showDiffOrcamento, setShowDiffOrcamento] = useState(false)
+  const [showOrcado, setShowOrcado] = useState(false)
+  const [showDiferenca, setShowDiferenca] = useState(false)
   const [allExpanded, setAllExpanded] = useState(false)
   const [periodo, setPeriodo] = useState<"mes" | "trimestre" | "ano">("mes")
 
@@ -144,14 +144,55 @@ export default function DreTable() {
     return `${diff.toFixed(1)}%`
   }
 
+  // Função para calcular análise vertical dinâmica do total
+  const calcularVerticalTotalDinamica = (): number => {
+    // Soma todos os totais dos itens principais para o período filtrado
+    return data.reduce((somaGeral, item) => {
+      const totalItem = calcularTotal(
+        periodo === "mes" ? item.valores_mensais :
+        periodo === "trimestre" ? item.valores_trimestrais :
+        item.valores_anuais
+      )
+      return somaGeral + Math.abs(totalItem) // Usa valor absoluto para o denominador
+    }, 0)
+  }
+
+  // Função para calcular AV% dinâmica do total
+  const calcularAVTotalDinamica = (valorTotal: number): string | undefined => {
+    const totalGeral = calcularVerticalTotalDinamica()
+    if (totalGeral === 0) return undefined
+    const percentual = (Math.abs(valorTotal) / totalGeral) * 100
+    return `${percentual.toFixed(1)}%`
+  }
+
+  // Nova função para renderizar valor da diferença
+  const renderValorDiferenca = (real: number, orcado: number) => {
+    const diff = real - orcado
+    const diffPct = calcularDiffPct(real, orcado)
+    
+    return (
+      <div className="flex flex-col text-right">
+        <span className={diff < 0 ? "text-red-500" : ""}>
+          {diff.toLocaleString("pt-BR", {
+            minimumFractionDigits: 0,
+          })}
+        </span>
+        {diffPct && (
+          <span className="text-xs text-muted-foreground">
+            {diffPct}
+          </span>
+        )}
+      </div>
+    )
+  }
+
   const renderValor = (
     valor: number,
     verticalPct?: string,
-    horizontalPct?: string,
-    diffPct?: string
+    horizontalPct?: string
   ) => (
     <div className="flex flex-col text-right">
-      <span>
+      <span className={valor < 0 ? "text-red-500" : ""}>
         {valor.toLocaleString("pt-BR", {
           minimumFractionDigits: 0,
         })}
@@ -161,9 +202,6 @@ export default function DreTable() {
       )}
       {showHorizontal && horizontalPct && (
         <span className="text-xs text-muted-foreground">AH {horizontalPct}</span>
-      )}
-      {showDiffOrcamento && diffPct && (
-        <span className="text-xs text-muted-foreground">Dif. {diffPct}</span>
       )}
     </div>
   );
@@ -175,7 +213,7 @@ export default function DreTable() {
     horizontalPct?: string
   ) => (
     <div className="flex flex-col text-right">
-      <span>
+      <span className={valor < 0 ? "text-red-500" : ""}>
         {valor.toLocaleString("pt-BR", {
           minimumFractionDigits: 0,
         })}
@@ -190,77 +228,121 @@ export default function DreTable() {
   );
 
   const exportExcel = () => {
-  const wb = new ExcelJS.Workbook()
-  const ws = wb.addWorksheet("DRE")
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet("DRE")
 
-  // Cabeçalho
-  const headerRow = ["Descrição"]
-  periodosFiltrados.forEach(p => {
-    headerRow.push(p)
-    if (showOrcamento) headerRow.push(`Orç. ${p}`)
-  })
-  headerRow.push("Total")
-  if (showOrcamento) headerRow.push("Orçamento Total")
-
-  const excelHeader = ws.addRow(headerRow)
-  excelHeader.font = { bold: true }
-
-  // Linhas principais
-  data.forEach(item => {
-    const total = calcularTotal(
-      periodo === "mes" ? item.valores_mensais :
-      periodo === "trimestre" ? item.valores_trimestrais :
-      item.valores_anuais
-    )
-    const totalOrc = calcularTotalOrcamento(
-      periodo === "mes" ? item.orcamentos_mensais :
-      periodo === "trimestre" ? item.orcamentos_trimestrais :
-      item.orcamentos_anuais
-    )
-
-    const row: (string | number)[] = [item.nome]
+    // Primeira linha do cabeçalho - períodos
+    const headerRow1 = ["Descrição"]
     periodosFiltrados.forEach(p => {
-      row.push(calcularValor(item, p))
-      if (showOrcamento) row.push(calcularOrcamento(item, p))
+      headerRow1.push(p)
+      if (showOrcado) headerRow1.push("")
+      if (showDiferenca) headerRow1.push("")
     })
-    row.push(total)
-    if (showOrcamento) row.push(totalOrc)
+    headerRow1.push("Total")
+    if (showOrcado) headerRow1.push("")
+    if (showDiferenca) headerRow1.push("")
 
-    const excelRow = ws.addRow(row)
-    excelRow.font = { bold: true }
+    const excelHeader1 = ws.addRow(headerRow1)
+    excelHeader1.font = { bold: true }
 
-    // Subitens
-    if (item.classificacoes?.length) {
-      item.classificacoes.forEach(sub => {
-        const subTotal = calcularTotal(
-          periodo === "mes" ? sub.valores_mensais :
-          periodo === "trimestre" ? sub.valores_trimestrais :
-          sub.valores_anuais
-        )
-        const subTotalOrc = calcularTotalOrcamento(
-          periodo === "mes" ? sub.orcamentos_mensais :
-          periodo === "trimestre" ? sub.orcamentos_trimestrais :
-          sub.orcamentos_anuais
-        )
-
-        const subRow: (string | number)[] = ["  " + sub.nome]
-        periodosFiltrados.forEach(p => {
-          subRow.push(calcularValor(sub, p))
-          if (showOrcamento) subRow.push(calcularOrcamento(sub, p))
-        })
-        subRow.push(subTotal)
-        if (showOrcamento) subRow.push(subTotalOrc)
-
-        ws.addRow(subRow)
+    // Segunda linha do cabeçalho - só adiciona se houver mais de uma coluna
+    if (showOrcado || showDiferenca) {
+      const headerRow2 = [""]
+      periodosFiltrados.forEach(() => {
+        headerRow2.push("Real")
+        if (showOrcado) headerRow2.push("Orçado")
+        if (showDiferenca) headerRow2.push("Dif.")
       })
-    }
-  })
+      headerRow2.push("Real")
+      if (showOrcado) headerRow2.push("Orçado")
+      if (showDiferenca) headerRow2.push("Dif.")
 
-  wb.xlsx.writeBuffer().then(buffer => {
-    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
-    saveAs(blob, "dre.xlsx")
-  })
-}
+      const excelHeader2 = ws.addRow(headerRow2)
+      excelHeader2.font = { bold: true }
+    }
+
+    // Mesclar células da primeira linha - só se houver segunda linha
+    if (showOrcado || showDiferenca) {
+      ws.mergeCells(1, 1, 2, 1) // Coluna Descrição
+      let colIndex = 2
+      periodosFiltrados.forEach(() => {
+        const colSpan = 1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)
+        if (colSpan > 1) {
+          ws.mergeCells(1, colIndex, 1, colIndex + colSpan - 1)
+        }
+        colIndex += colSpan
+      })
+      // Mesclar colunas do total
+      const totalColSpan = 1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)
+      if (totalColSpan > 1) {
+        ws.mergeCells(1, colIndex, 1, colIndex + totalColSpan - 1)
+      }
+    }
+
+    // Linhas principais
+    data.forEach(item => {
+      const total = calcularTotal(
+        periodo === "mes" ? item.valores_mensais :
+        periodo === "trimestre" ? item.valores_trimestrais :
+        item.valores_anuais
+      )
+      const totalOrc = calcularTotalOrcamento(
+        periodo === "mes" ? item.orcamentos_mensais :
+        periodo === "trimestre" ? item.orcamentos_trimestrais :
+        item.orcamentos_anuais
+      )
+
+      const row: (string | number)[] = [item.nome]
+      periodosFiltrados.forEach(p => {
+        const real = calcularValor(item, p)
+        const orcado = calcularOrcamento(item, p)
+        row.push(real)
+        if (showOrcado) row.push(orcado)
+        if (showDiferenca) row.push(real - orcado)
+      })
+      row.push(total)
+      if (showOrcado) row.push(totalOrc)
+      if (showDiferenca) row.push(total - totalOrc)
+
+      const excelRow = ws.addRow(row)
+      excelRow.font = { bold: true }
+
+      // Subitens
+      if (item.classificacoes?.length) {
+        item.classificacoes.forEach(sub => {
+          const subTotal = calcularTotal(
+            periodo === "mes" ? sub.valores_mensais :
+            periodo === "trimestre" ? sub.valores_trimestrais :
+            sub.valores_anuais
+          )
+          const subTotalOrc = calcularTotalOrcamento(
+            periodo === "mes" ? sub.orcamentos_mensais :
+            periodo === "trimestre" ? sub.orcamentos_trimestrais :
+            sub.orcamentos_anuais
+          )
+
+          const subRow: (string | number)[] = ["  " + sub.nome]
+          periodosFiltrados.forEach(p => {
+            const real = calcularValor(sub, p)
+            const orcado = calcularOrcamento(sub, p)
+            subRow.push(real)
+            if (showOrcado) subRow.push(orcado)
+            if (showDiferenca) subRow.push(real - orcado)
+          })
+          subRow.push(subTotal)
+          if (showOrcado) subRow.push(subTotalOrc)
+          if (showDiferenca) subRow.push(subTotal - subTotalOrc)
+
+          ws.addRow(subRow)
+        })
+      }
+    })
+
+    wb.xlsx.writeBuffer().then(buffer => {
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+      saveAs(blob, "dre.xlsx")
+    })
+  }
 
 
 if (loading || !filtroAno) return (
@@ -280,7 +362,7 @@ if (loading || !filtroAno) return (
   if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitle></CardHeader></Card>
 
   return (
-    <Card className="max-w-full m-4">
+    <Card className="max-w-fit m-4">
       <CardHeader>
         <div className="flex flex-col lg:flex-row lg:flex-wrap lg:justify-between gap-2 lg:gap-4 overflow-x-auto">
           <div>
@@ -309,12 +391,12 @@ if (loading || !filtroAno) return (
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <label className="flex items-center gap-2 text-sm cursor-pointer w-full">
-                    <Checkbox checked={showOrcamento} onCheckedChange={val => setShowOrcamento(!!val)} /> Orçamento
+                    <Checkbox checked={showOrcado} onCheckedChange={val => setShowOrcado(!!val)} /> Orçado
                   </label>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <label className="flex items-center gap-2 text-sm cursor-pointer w-full">
-                    <Checkbox checked={showDiffOrcamento} onCheckedChange={val => setShowDiffOrcamento(!!val)} /> Dif. % Real vs Orçado
+                    <Checkbox checked={showDiferenca} onCheckedChange={val => setShowDiferenca(!!val)} /> Diferença
                   </label>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -360,34 +442,68 @@ if (loading || !filtroAno) return (
       <div className="relative overflow-auto max-h-[80vh] px-6">
       <Table>
         <TableHeader>
+          {/* Primeira linha do cabeçalho - períodos */}
           <TableRow>
-            <TableHead className="min-w-[300px] md:sticky md:left-0 md:z-20 bg-card">
+            <TableHead 
+              rowSpan={showOrcado || showDiferenca ? 2 : 1} 
+              className="min-w-[300px] md:sticky md:left-0 md:z-20 bg-card border-r"
+            >
               Descrição
             </TableHead>
             {periodosFiltrados.map((p) => (
-              <React.Fragment key={p}>
-                <TableHead className="text-right min-w-[120px] bg-muted/20">
-                  {p}
-                </TableHead>
-                {showOrcamento && (
-                  <TableHead
-                    key={`${p}-orc`}
-                    className="text-right min-w-[120px] bg-secondary/40"
-                  >
-                    Orç. {p}
-                  </TableHead>
-                )}
-              </React.Fragment>
+              <TableHead 
+                key={p} 
+                colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)} 
+                rowSpan={showOrcado || showDiferenca ? 1 : 1}
+                className="text-center min-w-[120px] bg-muted/20 border-r"
+              >
+                {p}
+              </TableHead>
             ))}
-            <TableHead className="text-right min-w-[120px] bg-muted/20">
+            <TableHead 
+              colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)} 
+              rowSpan={showOrcado || showDiferenca ? 1 : 1}
+              className="text-center min-w-[120px] bg-muted/20"
+            >
               Total
             </TableHead>
-            {showOrcamento && (
-              <TableHead className="text-right min-w-[120px] bg-secondary/40">
-                Orçamento Total
-              </TableHead>
-            )}
           </TableRow>
+          {/* Segunda linha do cabeçalho - Real, Orçado, Dif. - só aparece se houver mais de uma coluna */}
+          {(showOrcado || showDiferenca) && (
+            <TableRow>
+              {periodosFiltrados.map((p) => (
+                <React.Fragment key={`${p}-sub`}>
+                  <TableHead className="text-right min-w-[120px] bg-muted/20">
+                    Real
+                  </TableHead>
+                  {showOrcado && (
+                    <TableHead className="text-right min-w-[120px] bg-secondary/40">
+                      Orçado
+                    </TableHead>
+                  )}
+                  {showDiferenca && (
+                    <TableHead className="text-right min-w-[120px] bg-accent/20">
+                      Dif.
+                    </TableHead>
+                  )}
+                </React.Fragment>
+              ))}
+              {/* Colunas do Total */}
+              <TableHead className="text-right min-w-[120px] bg-muted/20">
+                Real
+              </TableHead>
+              {showOrcado && (
+                <TableHead className="text-right min-w-[120px] bg-secondary/40">
+                  Orçado
+                </TableHead>
+              )}
+              {showDiferenca && (
+                <TableHead className="text-right min-w-[120px] bg-accent/20">
+                  Dif.
+                </TableHead>
+              )}
+            </TableRow>
+          )}
         </TableHeader>
 
         <TableBody>
@@ -441,9 +557,9 @@ if (loading || !filtroAno) return (
                   {periodosFiltrados.map((p) => {
                     const real = calcularValor(item, p);
                     const orcado = calcularOrcamento(item, p);
-                    const diffPct = calcularDiffPct(real, orcado);
                     return (
                       <React.Fragment key={p}>
+                        {/* Coluna Real */}
                         <TableCell>
                           {renderValor(
                             real,
@@ -456,12 +572,12 @@ if (loading || !filtroAno) return (
                               ? item.horizontal_mensais?.[p]
                               : periodo === "trimestre"
                               ? item.horizontal_trimestrais?.[p]
-                              : item.horizontal_anuais?.[p],
-                            diffPct
+                              : item.horizontal_anuais?.[p]
                           )}
                         </TableCell>
-                        {showOrcamento && (
-                          <TableCell key={`${p}-orc`}>
+                        {/* Coluna Orçado */}
+                        {showOrcado && (
+                          <TableCell>
                             {renderValorOrcamento(
                               orcado,
                               periodo === "mes"
@@ -477,20 +593,32 @@ if (loading || !filtroAno) return (
                             )}
                           </TableCell>
                         )}
+                        {/* Coluna Diferença */}
+                        {showDiferenca && (
+                          <TableCell>
+                            {renderValorDiferenca(real, orcado)}
+                          </TableCell>
+                        )}
                       </React.Fragment>
                     );
                   })}
 
+                  {/* Colunas do Total - Real, Orçado, Dif. */}
                   <TableCell className="py-3 text-right">
-                    {renderValor(total, item.vertical_total)}
+                    {renderValor(total, calcularAVTotalDinamica(total))}
                   </TableCell>
-                  {showOrcamento && (
-                    <TableCell className="py-3 text-right bg-secondary/40">
+                  {showOrcado && (
+                    <TableCell className="py-3 text-right">
                       {renderValorOrcamento(
                         totalOrc,
                         item.vertical_orcamentos_total,
                         undefined
                       )}
+                    </TableCell>
+                  )}
+                  {showDiferenca && (
+                    <TableCell className="py-3 text-right">
+                      {renderValorDiferenca(total, totalOrc)}
                     </TableCell>
                   )}
                 </TableRow>
@@ -523,9 +651,9 @@ if (loading || !filtroAno) return (
                         {periodosFiltrados.map((p) => {
                           const real = calcularValor(sub, p);
                           const orcado = calcularOrcamento(sub, p);
-                          const diffPct = calcularDiffPct(real, orcado);
                           return (
                             <React.Fragment key={`${p}-${sub.nome}`}>
+                              {/* Coluna Real */}
                               <TableCell>
                                 {renderValor(
                                   real,
@@ -538,12 +666,12 @@ if (loading || !filtroAno) return (
                                     ? sub.horizontal_mensais?.[p]
                                     : periodo === "trimestre"
                                     ? sub.horizontal_trimestrais?.[p]
-                                    : sub.horizontal_anuais?.[p],
-                                  diffPct
+                                    : sub.horizontal_anuais?.[p]
                                 )}
                               </TableCell>
-                              {showOrcamento && (
-                                <TableCell key={`${p}-orc-${sub.nome}`}>
+                              {/* Coluna Orçado */}
+                              {showOrcado && (
+                                <TableCell>
                                   {renderValorOrcamento(
                                     orcado,
                                     periodo === "mes"
@@ -559,19 +687,31 @@ if (loading || !filtroAno) return (
                                   )}
                                 </TableCell>
                               )}
+                              {/* Coluna Diferença */}
+                              {showDiferenca && (
+                                <TableCell>
+                                  {renderValorDiferenca(real, orcado)}
+                                </TableCell>
+                              )}
                             </React.Fragment>
                           );
                         })}
+                        {/* Colunas do Total para subitens - Real, Orçado, Dif. */}
                         <TableCell className="text-right">
-                          {renderValor(subTotal, sub.vertical_total)}
+                          {renderValor(subTotal, calcularAVTotalDinamica(subTotal))}
                         </TableCell>
-                        {showOrcamento && (
-                          <TableCell className="text-right bg-muted">
+                        {showOrcado && (
+                          <TableCell className="text-right">
                             {renderValorOrcamento(
                               subTotalOrc,
                               sub.vertical_orcamentos_total,
                               undefined
                             )}
+                          </TableCell>
+                        )}
+                        {showDiferenca && (
+                          <TableCell className="text-right">
+                            {renderValorDiferenca(subTotal, subTotalOrc)}
                           </TableCell>
                         )}
                       </TableRow>

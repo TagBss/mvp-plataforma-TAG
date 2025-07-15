@@ -4,6 +4,13 @@ import pandas as pd
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
+from financial_utils import (
+    calcular_analise_vertical, calcular_analise_horizontal, 
+    calcular_realizado_vs_orcado, calcular_totalizadores,
+    processar_periodos_financeiros, calcular_valores_por_periodo,
+    agregar_por_periodo_superior, calcular_analises_completas,
+    formatar_item_financeiro
+)
 
 
 # --- CACHE GLOBAL PARA O DATAFRAME ---
@@ -229,31 +236,6 @@ def get_dre_data():
         orcamento_total = {nome: total_geral_orc.get(nome, 0.0) for nome, _ in contas_dre}
 
         import math
-
-        def calcular_analise_vertical_por_periodo(item_valor, receita_valor):
-            if receita_valor == 0 or math.isnan(receita_valor):
-                return "–"
-            return f"{((item_valor / receita_valor) * 100):.1f}%"
-
-        def calcular_analise_vertical(valor, base_valor):
-            """Função única para análise vertical"""
-            if base_valor is None or base_valor == 0 or math.isnan(base_valor):
-                return "–"
-            return f"{((valor / base_valor) * 100):.1f}%"
-
-        def calcular_analise_horizontal(valor_atual, valor_anterior):
-            """Função para análise horizontal"""
-            if valor_anterior is None or valor_anterior == 0 or math.isnan(valor_anterior):
-                return "–"
-            diff = ((valor_atual - valor_anterior) / valor_anterior) * 100
-            return f"{diff:+.1f}%"
-
-        def calcular_realizado_vs_orcado(real, orcado):
-            """Função para calcular real vs orçado"""
-            if orcado is None or orcado == 0 or math.isnan(orcado):
-                return "–"
-            diff = ((real - orcado) / orcado) * 100
-            return f"{diff:+.1f}%"
 
         def get_classificacoes(dre_n2_name):
             sub_df = df_real[df_real["DRE_n2"] == dre_n2_name]
@@ -857,31 +839,6 @@ def get_dfc_data():
         orcamento_total = {nome: total_geral_orc.get(nome, 0.0) for nome, _ in contas_dfc}
 
         import math
-
-        def calcular_analise_vertical_por_periodo(item_valor, receita_valor):
-            if receita_valor == 0 or math.isnan(receita_valor):
-                return "–"
-            return f"{((item_valor / receita_valor) * 100):.1f}%"
-
-        def calcular_analise_vertical(valor, base_valor):
-            """Função única para análise vertical"""
-            if base_valor is None or base_valor == 0 or math.isnan(base_valor):
-                return "–"
-            return f"{((valor / base_valor) * 100):.1f}%"
-
-        def calcular_analise_horizontal(valor_atual, valor_anterior):
-            """Função para análise horizontal"""
-            if valor_anterior is None or valor_anterior == 0 or math.isnan(valor_anterior):
-                return "–"
-            diff = ((valor_atual - valor_anterior) / valor_anterior) * 100
-            return f"{diff:+.1f}%"
-
-        def calcular_realizado_vs_orcado(real, orcado):
-            """Função para calcular real vs orçado"""
-            if orcado is None or orcado == 0 or math.isnan(orcado):
-                return "–"
-            diff = ((real - orcado) / orcado) * 100
-            return f"{diff:+.1f}%"
 
         def get_classificacoes(dfc_n2_name):
             sub_df = df_real[df_real["DFC_n2"] == dfc_n2_name]
