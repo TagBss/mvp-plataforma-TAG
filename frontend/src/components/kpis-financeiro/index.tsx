@@ -52,10 +52,33 @@ type MoMData = {
   variacao_percentual: number | null;
 };
 
-// Função para extrair o MoM do mês selecionado (ou último)
-const mesesAbreviados = [
-  '', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'
-];
+
+// Função utilitária para formatar períodos de meses
+const mesesAbreviados = ['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+function formatarPeriodo({ mesSelecionado, saldosEvolucao }: { mesSelecionado: string, saldosEvolucao: { mes: string }[] }) {
+  if (mesSelecionado === "") {
+    if (saldosEvolucao.length > 0) {
+      const primeiro = saldosEvolucao[0].mes;
+      const ultimo = saldosEvolucao[saldosEvolucao.length - 1].mes;
+      const formatar = (mes: string) => {
+        if (!mes.match(/^\d{4}-\d{2}$/)) return mes;
+        const [ano, m] = mes.split("-");
+        const mesNum = parseInt(m, 10);
+        return `${mesesAbreviados[mesNum]}/${ano.slice(-2)}`;
+      };
+      return `${formatar(primeiro)} - ${formatar(ultimo)}`;
+    } else {
+      return "--";
+    }
+  } else if (mesSelecionado.match(/^\d{4}-\d{2}$/)) {
+    const [ano, m] = mesSelecionado.split("-");
+    const mesNum = parseInt(m, 10);
+    return `${mesesAbreviados[mesNum]}/${ano.slice(-2)}`;
+  } else {
+    return "--";
+  }
+}
 
 
 
@@ -514,7 +537,7 @@ export default function DashFinanceiro() {
               </div>
             </CardDescription>
 
-            <ChartMovimentacoes />
+            <ChartMovimentacoes mesSelecionado={mesSelecionado} />
           </CardContent>
           <CardFooter>
             <div className="flex w-full items-start gap-2 text-sm">
@@ -549,7 +572,8 @@ export default function DashFinanceiro() {
             </div>
           </CardFooter>
         </Card>
-
+        
+        {/* Card Saldo Final */}
         <Card className="w-full">
           <CardHeader>
             <div className="flex items-center justify-center">
@@ -607,7 +631,7 @@ export default function DashFinanceiro() {
               </div>
             </CardDescription>
 
-            <ChartAreaSaldoFinal data={saldosEvolucao} />
+            <ChartAreaSaldoFinal data={saldosEvolucao} mesSelecionado={mesSelecionado} />
           </CardContent>
           <CardFooter>
             <div className="flex w-full items-start gap-2 text-sm">
@@ -643,6 +667,7 @@ export default function DashFinanceiro() {
           </CardFooter>
         </Card>
 
+        {/* Card Custos */}
         <Card className="w-full">
           <CardHeader>
             <div className="flex items-center justify-center">
@@ -692,18 +717,7 @@ export default function DashFinanceiro() {
             </CardDescription>
             <div className="text-muted-foreground flex items-center gap-2 leading-none">
               {/* Período exibido conforme filtro */}
-              {mesSelecionado === "" ? (
-                <>Todo o período</>
-              ) : mesSelecionado.match(/^\d{4}-\d{2}$/) ? (
-                (() => {
-                  const [ano, m] = mesSelecionado.split("-");
-                  const meses = ["", "jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-                  const mesNum = parseInt(m, 10);
-                  return <>{`${meses[mesNum]}/${ano.slice(-2)}`}</>;
-                })()
-              ) : (
-                <>--</>
-              )}
+              {formatarPeriodo({ mesSelecionado, saldosEvolucao })}
             </div>
           </CardFooter>
         </Card>

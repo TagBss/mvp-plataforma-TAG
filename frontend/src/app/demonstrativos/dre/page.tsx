@@ -15,7 +15,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import DreTable from "@/components/table-dre-roriz"
+import DreTable from "@/components/table-dre"
 
 export default function DrePage() {
   return (

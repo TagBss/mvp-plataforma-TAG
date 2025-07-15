@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/chart"
 import { formatCurrencyShort } from "../kpis-financeiro"
 
+
 export interface AreaChartSaldoProps {
   data: Array<{
     mes: string
@@ -17,16 +18,41 @@ export interface AreaChartSaldoProps {
   config?: {
     saldo_final?: { label: string; color: string }
   }
+  mesSelecionado?: string;
 }
 
-export function ChartAreaSaldoFinal({ data, config }: AreaChartSaldoProps) {
+export function ChartAreaSaldoFinal({ data, config, mesSelecionado }: AreaChartSaldoProps) {
   // Cores e labels padrão, pode sobrescrever via config
   const chartConfig = {
     saldo_final: {
       label: config?.saldo_final?.label || "Saldo Final",
       color: config?.saldo_final?.color || "var(--chart-5)",
     },
-  }
+  };
+
+  // Componente customizado para renderizar pontos destacados
+  type DotProps = {
+    cx?: number;
+    cy?: number;
+    payload?: { mes?: string };
+  };
+  const CustomizedDot = (props: DotProps) => {
+    const { cx, cy, payload } = props;
+    if (!mesSelecionado || !payload || payload.mes !== mesSelecionado) {
+      // Retorna um círculo invisível para manter o tipo correto
+      return <circle cx={cx} cy={cy} r={0} fill="none" />;
+    }
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={6}
+        fill="#1d65f3"
+        strokeWidth={3}
+        style={{ filter: 'drop-shadow(0 0 6px #1d65f3)' }}
+      />
+    );
+  };
 
   return (
     <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
@@ -87,8 +113,9 @@ export function ChartAreaSaldoFinal({ data, config }: AreaChartSaldoProps) {
           fillOpacity={0.4}
           stroke={chartConfig.saldo_final.color}
           stackId="a"
+          dot={CustomizedDot}
         />
       </AreaChart>
     </ChartContainer>
-  )
+  );
 }

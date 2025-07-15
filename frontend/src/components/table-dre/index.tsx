@@ -6,6 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem
+} from "@/components/ui/dropdown-menu"
 import ExcelJS from "exceljs"
 import { saveAs } from "file-saver"
 import React from "react"
@@ -282,36 +288,71 @@ if (loading || !filtroAno) return (
             <CardDescription>{filtroAno === "todos" ? "Todo o período" : `Ano: ${filtroAno}`}</CardDescription>
           </div>
           <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 sm:gap-4">
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <Checkbox checked={showVertical} onCheckedChange={val => setShowVertical(!!val)} /> Vertical %
-            </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <Checkbox checked={showHorizontal} onCheckedChange={val => setShowHorizontal(!!val)} /> Horizontal %
-            </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <Checkbox checked={showOrcamento} onCheckedChange={val => setShowOrcamento(!!val)} /> Orçamento
-            </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <Checkbox checked={showDiffOrcamento} onCheckedChange={val => setShowDiffOrcamento(!!val)} /> Dif. % Real vs Orçado
-            </label>
+            {/* DropdownMenu sofisticado para toggles de exibição */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="text-sm border rounded px-2 py-1 bg-card text-foreground cursor-pointer select-none flex items-center gap-2">
+                  Indicadores
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="min-w-[200px] p-2 flex flex-col gap-2">
+                <DropdownMenuItem asChild>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer w-full">
+                    <Checkbox checked={showVertical} onCheckedChange={val => setShowVertical(!!val)} /> Vertical %
+                  </label>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer w-full">
+                    <Checkbox checked={showHorizontal} onCheckedChange={val => setShowHorizontal(!!val)} /> Horizontal %
+                  </label>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer w-full">
+                    <Checkbox checked={showOrcamento} onCheckedChange={val => setShowOrcamento(!!val)} /> Orçamento
+                  </label>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer w-full">
+                    <Checkbox checked={showDiffOrcamento} onCheckedChange={val => setShowDiffOrcamento(!!val)} /> Dif. % Real vs Orçado
+                  </label>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <button onClick={toggleAll} className="text-sm border px-2 py-1 rounded cursor-pointer">
               {allExpanded ? "- Recolher todos" : "+ Expandir todos"}
             </button>
             <button onClick={exportExcel} className="text-sm border px-2 py-1 rounded cursor-pointer">Exportar Excel</button>
-            <select
-              value={periodo}
-              onChange={(e) => setPeriodo(e.target.value as "mes" | "trimestre" | "ano")}
-              className="text-sm border rounded px-2 py-1 bg-card text-foreground cursor-pointer"
-            >
-              <option value="mes">Mensal</option>
-              <option value="trimestre">Trimestral</option>
-              <option value="ano">Anual</option>
-            </select>
+            {/* DropdownMenu para seleção de período */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="text-sm border rounded px-2 py-1 bg-card text-foreground cursor-pointer select-none flex items-center gap-2 min-w-fit">
+                  {periodo === "mes" ? "Mensal" : periodo === "trimestre" ? "Trimestral" : "Anual"}
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="min-w-fit p-1 flex flex-col gap-1">
+                <DropdownMenuItem onSelect={() => setPeriodo("mes")}>Mensal</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setPeriodo("trimestre")}>Trimestral</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setPeriodo("ano")}>Anual</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-            <select value={filtroAno} onChange={e => setFiltroAno(e.target.value)} className="text-sm border rounded px-2 py-1 bg-card text-foreground cursor-pointer">
-              <option value="todos">Todos</option>
-              {anos.sort().map(ano => <option key={ano} value={ano}>{ano}</option>)}
-            </select>
+            {/* DropdownMenu para seleção de ano */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="text-sm border rounded px-2 py-1 bg-card text-foreground cursor-pointer select-none flex items-center gap-2 min-w-fit">
+                  {filtroAno === "todos" ? "Todos" : filtroAno}
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="min-w-fit p-1 flex flex-col gap-1 max-h-60 overflow-y-auto">
+                <DropdownMenuItem onSelect={() => setFiltroAno("todos")}>Todos</DropdownMenuItem>
+                {anos.sort().map(ano => (
+                  <DropdownMenuItem key={ano} onSelect={() => setFiltroAno(String(ano))}>{ano}</DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </CardHeader>

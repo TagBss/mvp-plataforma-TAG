@@ -7,6 +7,15 @@ import { TooltipProps } from 'recharts';
 import { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { formatCurrencyShort } from "@/components/kpis-financeiro";
 
+// Interface para as props do shape da barra
+interface BarShapeProps {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: ChartDataItem;
+}
+
 // Tooltip customizada para valores resumidos
 function CustomTooltip({ active, payload, label }: TooltipProps<ValueType, NameType>) {
   if (active && payload && payload.length) {
@@ -50,8 +59,36 @@ type ChartDataItem = {
   Movimentacoes: number;
 };
 
-export default function ChartMovimentacoes() {
+interface ChartMovimentacoesProps {
+  mesSelecionado?: string;
+}
+
+export default function ChartMovimentacoes({ mesSelecionado }: ChartMovimentacoesProps) {
   const [chartData, setChartData] = useState<ChartDataItem[]>([]);
+
+  // Componente customizado para renderizar pontos destacados na linha
+  type DotProps = {
+    cx?: number;
+    cy?: number;
+    payload?: { mes?: string };
+  };
+  const CustomizedLineDot = (props: DotProps) => {
+    const { cx, cy, payload } = props;
+    if (!mesSelecionado || !payload || payload.mes !== mesSelecionado) {
+      // Retorna um círculo invisível para manter o tipo correto
+      return <circle cx={cx} cy={cy} r={0} fill="none" />;
+    }
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={6}
+        fill="#ff651a"
+        strokeWidth={3}
+        style={{ filter: 'drop-shadow(0 0 6px #ff651a)' }}
+      />
+    );
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -108,7 +145,7 @@ export default function ChartMovimentacoes() {
     },
     Movimentacoes: {
       label: "Movimentações",
-      color: "#f59e42",
+      color: "#FF894F",
     },
   } satisfies ChartConfig;
 
@@ -126,9 +163,58 @@ export default function ChartMovimentacoes() {
           <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => formatCurrencyShort(v, { noPrefix: true })} />
           <Tooltip content={<CustomTooltip />} />
           {/* <Legend /> */}
-          <Bar dataKey="CAR" fill={chartConfig.CAR.color} radius={4} name={chartConfig.CAR.label} />
-          <Bar dataKey="CAP" fill={chartConfig.CAP.color} radius={4} name={chartConfig.CAP.label} />
-          <Line type="monotone" dataKey="Movimentacoes" stroke={chartConfig.Movimentacoes.color} strokeWidth={3} dot={false} name={chartConfig.Movimentacoes.label} />
+          <Bar
+            dataKey="CAR"
+            fill={chartConfig.CAR.color}
+            radius={4}
+            name={chartConfig.CAR.label}
+            shape={(props: BarShapeProps) => {
+              const { x, y, width, height, payload } = props;
+              const isSelected = mesSelecionado && payload?.mes === mesSelecionado;
+              return (
+                <rect
+                  x={x}
+                  y={y}
+                  width={width}
+                  height={height}
+                  rx={4}
+                  fill={isSelected ? '#f59e42' : chartConfig.CAR.color}
+                  stroke={isSelected ? '#f59e42' : undefined}
+                  strokeWidth={isSelected ? 3 : 0}
+                />
+              );
+            }}
+          />
+          <Bar
+            dataKey="CAP"
+            fill={chartConfig.CAP.color}
+            radius={4}
+            name={chartConfig.CAP.label}
+            shape={(props: BarShapeProps) => {
+              const { x, y, width, height, payload } = props;
+              const isSelected = mesSelecionado && payload?.mes === mesSelecionado;
+              return (
+                <rect
+                  x={x}
+                  y={y}
+                  width={width}
+                  height={height}
+                  rx={4}
+                  fill={isSelected ? '#f9c38b' : chartConfig.CAP.color}
+                  stroke={isSelected ? '#f9c38b' : undefined}
+                  strokeWidth={isSelected ? 3 : 0}
+                />
+              );
+            }}
+          />
+          <Line
+            type="monotone"
+            dataKey="Movimentacoes"
+            stroke={chartConfig.Movimentacoes.color}
+            strokeWidth={3}
+            dot={CustomizedLineDot}
+            name={chartConfig.Movimentacoes.label}
+          />
         </ComposedChart>
       </ResponsiveContainer>
     </ChartContainer>

@@ -15,7 +15,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import DfcTable from "@/components/table-dfc-roriz"
+import DfcTable from "@/components/table-dfc"
 
 export default function DfcPage() {
   return (
