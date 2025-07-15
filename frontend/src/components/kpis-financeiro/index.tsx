@@ -1,7 +1,6 @@
 "use client";
 
 import { ChartAreaSaldoFinal } from "@/components/chart-area-saldo-final";
-import { ChartBarMixed } from "@/components/chart-bar-mixed";
 import {
   Card,
   CardContent,
@@ -24,6 +23,7 @@ import {
 import { useEffect, useState } from "react";
 import { FiltroMes } from "@/components/filtro-mes"
 import ChartMovimentacoes from "@/components/chart-movimentacoes";
+import { ChartBarLabelCustom } from "../chart-bar-label-custom";
 
 // Função para formatar no estilo curto (Mil / Mi)
 export function formatCurrencyShort(value: number, opts?: { noPrefix?: boolean }): string {
@@ -122,6 +122,12 @@ export default function DashFinanceiro() {
   const [pmr, setPmr] = useState<string | null>(null);
   const [pmp, setPmp] = useState<string | null>(null);
   const [saldosEvolucao, setSaldosEvolucao] = useState<Array<{ mes: string; saldo_inicial: number; saldo_final: number }>>([]);
+  // Custos
+  const [custosValor, setCustosValor] = useState<number | null>(null);
+  const [custosMoM, setCustosMoM] = useState<{ variacao_absoluta: number | null, variacao_percentual: number | null } | null>(null);
+  // Removido: custosMoMArray não é necessário
+  const [custosLoading, setCustosLoading] = useState(false);
+  const [custosMesClass, setCustosMesClass] = useState<Record<string, number>>({});
 
   // 🔥 MODIFICADO: useEffect de inicialização com flag
   useEffect(() => {
@@ -156,22 +162,12 @@ export default function DashFinanceiro() {
     inicializar();
   }, []);
 
-  // 🔥 MODIFICADO: handler que não permite voltar para string vazia após inicialização
+  // Permite selecionar qualquer valor, inclusive "Todo o período" ("") após inicialização
   const handleMesSelecionado = (mes: string) => {
-    // Se ainda está inicializando, não permite mudanças
     if (inicializando) return;
-    
-    // Evita resetar para string vazia após a inicialização
-    if (!inicializando && mes === "" && mesSelecionado !== "") {
-      return;
-    }
-    
-    // Limpa os saldos atuais
     setSaldoReceber(null);
     setSaldoPagar(null);
     setSaldoMovimentacoes(null);
-    
-    // Define o novo mês
     setMesSelecionado(mes);
   };
 
@@ -188,12 +184,14 @@ export default function DashFinanceiro() {
     
     const queryString = mesSelecionado ? `?mes=${mesSelecionado}` : "";
     
+    setCustosLoading(true);
     Promise.all([
       fetch(`http://localhost:8000/receber${queryString}`).then(r => r.json()),
       fetch(`http://localhost:8000/pagar${queryString}`).then(r => r.json()),
       fetch(`http://localhost:8000/movimentacoes${queryString}`).then(r => r.json()),
-      fetch(`http://localhost:8000/saldos-evolucao`).then(r => r.json())
-    ]).then(([dataReceber, dataPagar, dataMovimentacoes, dataSaldosEvolucao]) => {
+      fetch(`http://localhost:8000/saldos-evolucao`).then(r => r.json()),
+      fetch(`http://localhost:8000/custos-visao-financeiro`).then(r => r.json())
+    ]).then(([dataReceber, dataPagar, dataMovimentacoes, dataSaldosEvolucao, dataCustos]) => {
       // Processa dados do receber
       if (dataReceber.success) {
         setSaldoReceber(dataReceber.data.saldo_total);
@@ -257,6 +255,47 @@ export default function DashFinanceiro() {
         setSaldoFinalMoM(null);
         setSaldosEvolucao([]);
       }
+
+      // Processa custos
+      if (dataCustos.success && dataCustos.data) {
+        // Se mesSelecionado vazio, pega total_geral
+        if (!mesSelecionado) {
+          setCustosValor(dataCustos.data.total_geral ?? null);
+          setCustosMesClass(dataCustos.data.total_geral_classificacao ?? {});
+          setCustosMoM(null);
+        } else {
+          // Soma todos os custos do mês selecionado
+          const custosMes = dataCustos.data.custos_mes || {};
+          setCustosValor(custosMes[mesSelecionado] ?? null);
+          setCustosMesClass(
+            Object.fromEntries(
+              Object.entries(dataCustos.data.custos_mes_classificacao || {}).map(([classificacao, meses]) => {
+                // Garante que meses é um objeto
+                if (typeof meses === 'object' && meses !== null) {
+                  return [classificacao, (meses as Record<string, number>)[mesSelecionado] ?? 0];
+                }
+                return [classificacao, 0];
+              })
+            )
+          );
+          // Consumir MoM do backend com tipagem
+          const momArr: MoMData[] = dataCustos.data.mom_analysis || [];
+          const momObj = momArr.find((item) => item.mes === mesSelecionado);
+          if (momObj) {
+            setCustosMoM({
+              variacao_absoluta: momObj.variacao_absoluta,
+              variacao_percentual: momObj.variacao_percentual
+            });
+          } else {
+            setCustosMoM(null);
+          }
+        }
+      } else {
+        setCustosValor(null);
+        setCustosMesClass({});
+        setCustosMoM(null);
+      }
+      setCustosLoading(false);
     }).catch(error => {
       console.error("Erro ao buscar saldos:", error);
       setSaldoFinal(null);
@@ -616,29 +655,62 @@ export default function DashFinanceiro() {
 
           <CardContent>
             <div className="sm:flex sm:justify-between sm:items-center">
-              <p className="text-lg sm:text-2xl">R$ -214,8 Mil</p>
-              <CardDescription>
-                <p>
-                  vs abr/25 <br />↙ 17,6%
-                </p>
-              </CardDescription>
+              <p className="text-lg sm:text-2xl">
+                {custosLoading ? (
+                  <Skeleton className="h-6 w-32" />
+                ) : custosValor !== null ? (
+                  formatCurrencyShort(custosValor)
+                ) : (
+                  "--"
+                )}
+              </p>
             </div>
-
-            <CardDescription className="py-4">
-              <p>Saldo últimos 6M</p>
+            <CardDescription>
+              <div className="flex gap-2 mt-2 mb-10 leading-none font-medium">
+                {mesSelecionado === "" ? (
+                  <>Sem variação</>
+                ) : custosMoM && custosMoM.variacao_percentual !== null ? (
+                  <>
+                    {custosMoM.variacao_percentual > 0 ? "Aumento" : custosMoM.variacao_percentual < 0 ? "Queda" : "Sem variação"} de {Math.abs(custosMoM.variacao_percentual).toFixed(1)}% neste mês
+                    {custosMoM.variacao_percentual < 0 ? (
+                      <TrendingDown className="h-4 w-4" />
+                    ) : (
+                      <TrendingUp className="h-4 w-4" />
+                    )}
+                  </>
+                ) : (
+                  <>Sem variação</>
+                )}
+              </div>
             </CardDescription>
 
-            <ChartBarMixed />
+            <ChartBarLabelCustom data={custosMesClass} />
           </CardContent>
           <CardFooter className="flex-col items-start gap-2 text-sm">
-            <div className="flex gap-2 leading-none font-medium">
-              Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
-            </div>
-            <div className="text-muted-foreground leading-none">
-              Showing total visitors for the last 6 months
+            <CardDescription>
+              <p>Custos por classificação</p>
+            </CardDescription>
+            <div className="text-muted-foreground flex items-center gap-2 leading-none">
+              {/* Período exibido conforme filtro */}
+              {mesSelecionado === "" ? (
+                <>Todo o período</>
+              ) : mesSelecionado.match(/^\d{4}-\d{2}$/) ? (
+                (() => {
+                  const [ano, m] = mesSelecionado.split("-");
+                  const meses = ["", "jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+                  const mesNum = parseInt(m, 10);
+                  return <>{`${meses[mesNum]}/${ano.slice(-2)}`}</>;
+                })()
+              ) : (
+                <>--</>
+              )}
             </div>
           </CardFooter>
         </Card>
+      </section>
+
+      <section className="py-4 flex justify-between items-center">
+        
       </section>
     </main>
   );

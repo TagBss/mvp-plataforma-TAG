@@ -42,6 +42,10 @@ export function ChartAreaSaldoFinal({ data, config }: AreaChartSaldoProps) {
           tickMargin={8}
           width={60}
           tickFormatter={(v) => formatCurrencyShort(v, { noPrefix: true })}
+          domain={[
+            (dataMin: number) => dataMin * 0.8, // -20%
+            (dataMax: number) => dataMax * 1.2   // +20%
+          ]}
         />
         <XAxis
           dataKey="mes"

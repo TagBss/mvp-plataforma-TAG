@@ -1,6 +1,5 @@
 "use client";
 
-import { ChartBarMixed } from "@/components/chart-bar-mixed";
 import {
   Card,
   CardContent,
@@ -22,6 +21,7 @@ import {
 import { useEffect, useState } from "react";
 import { FiltroMes } from "@/components/filtro-mes"
 import ChartMovimentacoes from "@/components/chart-movimentacoes";
+import { ChartBarLabelCustom } from "../chart-bar-label-custom";
 
 // Função para formatar no estilo curto (Mil / Mi)
 function formatCurrencyShort(value: number): string {
@@ -379,7 +379,7 @@ export default function DashCompetencia() {
               <p>Saldo últimos 6M</p>
             </CardDescription>
 
-            <ChartBarMixed />
+            <ChartBarLabelCustom />
           </CardContent>
           <CardFooter className="flex-col items-start gap-2 text-sm">
             <div className="flex gap-2 leading-none font-medium">
