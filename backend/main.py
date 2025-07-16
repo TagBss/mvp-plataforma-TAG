@@ -261,13 +261,13 @@ def get_dre_data():
                 grupo_orc = grupo_orc[grupo_orc["classificacao"] == classificacao]
                 grupo_orc_validos = grupo_orc.dropna(subset=["valor_original"])
 
-                orcamentos_mensais_class = grupo_orc_validos.groupby("mes_ano")["valor_original"].sum().to_dict()
+                orcamentos_mensais_class = grupo_orc_validos.groupby("mes_ano")["valor"].sum().to_dict()
                 orcamentos_mensais_completos = {mes: round(orcamentos_mensais_class.get(mes, 0.0), 0) for mes in meses_unicos}
 
-                orcamentos_trimestrais_class = grupo_orc_validos.groupby("trimestre")["valor_original"].sum().to_dict()
+                orcamentos_trimestrais_class = grupo_orc_validos.groupby("trimestre")["valor"].sum().to_dict()
                 orcamentos_trimestrais_completos = {tri: round(orcamentos_trimestrais_class.get(tri, 0.0), 0) for tri in trimestres_unicos}
 
-                orcamentos_anuais_class = grupo_orc_validos.groupby("ano")["valor_original"].sum().to_dict()
+                orcamentos_anuais_class = grupo_orc_validos.groupby("ano")["valor"].sum().to_dict()
                 orcamentos_anuais_completos = {str(ano): round(orcamentos_anuais_class.get(ano, 0.0), 0) for ano in anos_unicos}
 
                 # Real vs Orçamento - ADICIONADO
@@ -322,9 +322,37 @@ def get_dre_data():
                     else:
                         horizontal_anuais[str(ano)] = "–"
 
-                # Análise Vertical - SERÁ CALCULADA DEPOIS NO CÓDIGO PRINCIPAL
+                # Horizontal Orçamento - ADICIONADO
+                horizontal_orc_mensais = {}
+                for i, mes in enumerate(meses_unicos):
+                    if i > 0:
+                        horizontal_orc_mensais[mes] = calcular_analise_horizontal(
+                            orcamentos_mensais_completos[mes], orcamentos_mensais_completos[meses_unicos[i - 1]]
+                        )
+                    else:
+                        horizontal_orc_mensais[mes] = "–"
+
+                horizontal_orc_trimestrais = {}
+                for i, tri in enumerate(trimestres_unicos):
+                    if i > 0:
+                        horizontal_orc_trimestrais[tri] = calcular_analise_horizontal(
+                            orcamentos_trimestrais_completos[tri], orcamentos_trimestrais_completos[trimestres_unicos[i - 1]]
+                        )
+                    else:
+                        horizontal_orc_trimestrais[tri] = "–"
+
+                horizontal_orc_anuais = {}
+                for i, ano in enumerate(anos_unicos):
+                    if i > 0:
+                        ano_anterior = anos_unicos[i - 1]
+                        horizontal_orc_anuais[str(ano)] = calcular_analise_horizontal(
+                            orcamentos_anuais_completos[str(ano)], orcamentos_anuais_completos[str(anos_unicos[i - 1])]
+                        )
+                    else:
+                        horizontal_orc_anuais[str(ano)] = "–"
 
                 classificacoes.append({
+                    "tipo": "+" if total >= 0 else "-",  # Define tipo baseado no valor
                     "nome": classificacao,
                     "valor": round(total, 2),
                     "valores_mensais": valores_mensais_completos,
@@ -333,13 +361,26 @@ def get_dre_data():
                     "orcamentos_mensais": orcamentos_mensais_completos,
                     "orcamentos_trimestrais": orcamentos_trimestrais_completos,
                     "orcamentos_anuais": orcamentos_anuais_completos,
+                    "orcamento_total": round(sum(orcamentos_mensais_completos.values()), 2),
+                    "vertical_mensais": {},  # Será calculado depois
+                    "vertical_trimestrais": {},  # Será calculado depois
+                    "vertical_anuais": {},  # Será calculado depois
+                    "vertical_total": "–",  # Será calculado depois
                     "horizontal_mensais": horizontal_mensais,
                     "horizontal_trimestrais": horizontal_trimestrais,
                     "horizontal_anuais": horizontal_anuais,
+                    "vertical_orcamentos_mensais": {},  # Será calculado depois
+                    "vertical_orcamentos_trimestrais": {},  # Será calculado depois
+                    "vertical_orcamentos_anuais": {},  # Será calculado depois
+                    "vertical_orcamentos_total": "–",  # Será calculado depois
+                    "horizontal_orcamentos_mensais": horizontal_orc_mensais,
+                    "horizontal_orcamentos_trimestrais": horizontal_orc_trimestrais,
+                    "horizontal_orcamentos_anuais": horizontal_orc_anuais,
                     "real_vs_orcamento_mensais": real_vs_orcamento_mensais,
                     "real_vs_orcamento_trimestrais": real_vs_orcamento_trimestrais,
                     "real_vs_orcamento_anuais": real_vs_orcamento_anuais,
-                    "real_vs_orcamento_total": real_vs_orcamento_total
+                    "real_vs_orcamento_total": real_vs_orcamento_total,
+                    "classificacoes": []  # Nível 3 não tem filhos
                 })
             return classificacoes
 
@@ -472,7 +513,7 @@ def get_dre_data():
                 "real_vs_orcamento_trimestrais": real_vs_orcamento_trimestrais,
                 "real_vs_orcamento_anuais": real_vs_orcamento_anuais,
                 "real_vs_orcamento_total": real_vs_orcamento_total,
-                "classificacoes": get_classificacoes(nome)
+                "classificacoes": []  # Nível 3 não tem filhos
             }
 
 
@@ -545,6 +586,34 @@ def get_dre_data():
             receita_total = valores_totais["Faturamento"]
             vertical_total = calcular_analise_vertical(total, receita_total)
 
+            # Vertical Orçamento
+            vertical_orcamentos_mensais = {}
+            vertical_orcamentos_trimestrais = {}
+            vertical_orcamentos_anuais = {}
+            vertical_orcamentos_total = "–"  # Totalizadores não têm análise vertical
+
+            # Horizontal Orçamento
+            horizontal_orcamentos_mensais = {}
+            for i, mes in enumerate(meses_unicos):
+                if i > 0:
+                    horizontal_orcamentos_mensais[mes] = calcular_analise_horizontal(orcamentos_mes[mes], orcamentos_mes[meses_unicos[i - 1]])
+                else:
+                    horizontal_orcamentos_mensais[mes] = "–"
+
+            horizontal_orcamentos_trimestrais = {}
+            for i, tri in enumerate(trimestres_unicos):
+                if i > 0:
+                    horizontal_orcamentos_trimestrais[tri] = calcular_analise_horizontal(orcamentos_tri[tri], orcamentos_tri[trimestres_unicos[i - 1]])
+                else:
+                    horizontal_orcamentos_trimestrais[tri] = "–"
+
+            horizontal_orcamentos_anuais = {}
+            for i, ano in enumerate(anos_unicos):
+                if i > 0:
+                    horizontal_orcamentos_anuais[str(ano)] = calcular_analise_horizontal(orcamentos_ano[str(ano)], orcamentos_ano[str(anos_unicos[i - 1])])
+                else:
+                    horizontal_orcamentos_anuais[str(ano)] = "–"
+
             return {
                 "tipo": tipo,
                 "nome": nome,
@@ -563,6 +632,13 @@ def get_dre_data():
                 "horizontal_mensais": horizontal_mensais,
                 "horizontal_trimestrais": horizontal_trimestrais,
                 "horizontal_anuais": horizontal_anuais,
+                "vertical_orcamentos_mensais": vertical_orcamentos_mensais,
+                "vertical_orcamentos_trimestrais": vertical_orcamentos_trimestrais,
+                "vertical_orcamentos_anuais": vertical_orcamentos_anuais,
+                "vertical_orcamentos_total": vertical_orcamentos_total,
+                "horizontal_orcamentos_mensais": horizontal_orcamentos_mensais,
+                "horizontal_orcamentos_trimestrais": horizontal_orcamentos_trimestrais,
+                "horizontal_orcamentos_anuais": horizontal_orcamentos_anuais,
                 "real_vs_orcamento_mensais": real_vs_orcamento_mensais,
                 "real_vs_orcamento_trimestrais": real_vs_orcamento_trimestrais,
                 "real_vs_orcamento_anuais": real_vs_orcamento_anuais,
@@ -671,8 +747,6 @@ def get_dre_data():
     
 @app.get("/dfc")
 def get_dfc_data():
-
-
     filename = "financial-data-roriz.xlsx"
 
     try:
@@ -837,6 +911,8 @@ def get_dfc_data():
         }
 
         orcamento_total = {nome: total_geral_orc.get(nome, 0.0) for nome, _ in contas_dfc}
+        valores_totais = {nome: total_geral_real.get(nome, 0.0) for nome, _ in contas_dfc}
+        orcamentos_totais = {nome: total_geral_orc.get(nome, 0.0) for nome, _ in contas_dfc}
 
         import math
 
@@ -925,9 +1001,36 @@ def get_dfc_data():
                     else:
                         horizontal_anuais[str(ano)] = "–"
 
-                # Análise Vertical - SERÁ CALCULADA DEPOIS NO CÓDIGO PRINCIPAL
+                # Horizontal Orçamento - ADICIONADO
+                horizontal_orc_mensais = {}
+                for i, mes in enumerate(meses_unicos):
+                    if i > 0:
+                        horizontal_orc_mensais[mes] = calcular_analise_horizontal(
+                            orcamentos_mensais_completos[mes], orcamentos_mensais_completos[meses_unicos[i - 1]]
+                        )
+                    else:
+                        horizontal_orc_mensais[mes] = "–"
+
+                horizontal_orc_trimestrais = {}
+                for i, tri in enumerate(trimestres_unicos):
+                    if i > 0:
+                        horizontal_orc_trimestrais[tri] = calcular_analise_horizontal(
+                            orcamentos_trimestrais_completos[tri], orcamentos_trimestrais_completos[trimestres_unicos[i - 1]]
+                        )
+                    else:
+                        horizontal_orc_trimestrais[tri] = "–"
+
+                horizontal_orc_anuais = {}
+                for i, ano in enumerate(anos_unicos):
+                    if i > 0:
+                        horizontal_orc_anuais[str(ano)] = calcular_analise_horizontal(
+                            orcamentos_anuais_completos[str(ano)], orcamentos_anuais_completos[str(anos_unicos[i - 1])]
+                        )
+                    else:
+                        horizontal_orc_anuais[str(ano)] = "–"
 
                 classificacoes.append({
+                    "tipo": "+" if total >= 0 else "-",  # Define tipo baseado no valor
                     "nome": classificacao,
                     "valor": round(total, 2),
                     "valores_mensais": valores_mensais_completos,
@@ -936,18 +1039,28 @@ def get_dfc_data():
                     "orcamentos_mensais": orcamentos_mensais_completos,
                     "orcamentos_trimestrais": orcamentos_trimestrais_completos,
                     "orcamentos_anuais": orcamentos_anuais_completos,
+                    "orcamento_total": round(sum(orcamentos_mensais_completos.values()), 2),
+                    "vertical_mensais": {},  # Será calculado depois
+                    "vertical_trimestrais": {},  # Será calculado depois
+                    "vertical_anuais": {},  # Será calculado depois
+                    "vertical_total": "–",  # Será calculado depois
                     "horizontal_mensais": horizontal_mensais,
                     "horizontal_trimestrais": horizontal_trimestrais,
                     "horizontal_anuais": horizontal_anuais,
+                    "vertical_orcamentos_mensais": {},  # Será calculado depois
+                    "vertical_orcamentos_trimestrais": {},  # Será calculado depois
+                    "vertical_orcamentos_anuais": {},  # Será calculado depois
+                    "vertical_orcamentos_total": "–",  # Será calculado depois
+                    "horizontal_orcamentos_mensais": horizontal_orc_mensais,
+                    "horizontal_orcamentos_trimestrais": horizontal_orc_trimestrais,
+                    "horizontal_orcamentos_anuais": horizontal_orc_anuais,
                     "real_vs_orcamento_mensais": real_vs_orcamento_mensais,
                     "real_vs_orcamento_trimestrais": real_vs_orcamento_trimestrais,
                     "real_vs_orcamento_anuais": real_vs_orcamento_anuais,
-                    "real_vs_orcamento_total": real_vs_orcamento_total
+                    "real_vs_orcamento_total": real_vs_orcamento_total,
+                    "classificacoes": []  # Nível 3 não tem filhos
                 })
             return classificacoes
-
-        valores_totais = {nome: total_geral_real.get(nome, 0.0) for nome, _ in contas_dfc}
-        orcamentos_totais = {nome: total_geral_orc.get(nome, 0.0) for nome, _ in contas_dfc}
 
         def calcular_totalizadores(valores_dict):
             """Calcula os totalizadores que serão usados como base para análise vertical"""
@@ -1591,6 +1704,406 @@ def get_dfc_data():
 
     except Exception as e:
         return {"error": f"Erro ao processar a DFC: {str(e)}"}
+        if not date_column:
+            return {"error": "Coluna de competência não encontrada"}
+
+        df[date_column] = pd.to_datetime(df[date_column], errors="coerce")
+        df["mes_ano"] = df[date_column].dt.to_period("M").astype(str)
+        df["ano"] = df[date_column].dt.year
+        df["trimestre"] = df[date_column].dt.to_period("Q").apply(lambda p: f"{p.year}-T{p.quarter}")
+
+        df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
+        df = df.dropna(subset=[date_column, "valor"])
+
+        meses_unicos = sorted(df["mes_ano"].dropna().unique())
+        anos_unicos = sorted(set(int(a) for a in df["ano"].dropna().unique()))
+        trimestres_unicos = sorted(df["trimestre"].dropna().unique())
+
+        # Separar realizado e orçamento com validação
+        df_real = df[df["origem"] != "ORC"].copy()
+        df_orc = df[df["origem"] == "ORC"].copy()
+
+        if df_real.empty:
+            return {"error": "Não foram encontrados dados realizados na planilha"}
+        if df_orc.empty:
+            return {"error": "Não foram encontrados dados orçamentários na planilha"}
+
+        # Realizado
+        total_real_por_mes = {
+            mes: df_real[df_real["mes_ano"] == mes].groupby("DFC_n2")["valor"].sum().to_dict()
+            for mes in meses_unicos
+        }
+
+        # Orçamento
+        total_orc_por_mes = {
+            mes: df_orc[df_orc["mes_ano"] == mes].groupby("DFC_n2")["valor"].sum().to_dict()
+            for mes in meses_unicos
+        }
+
+        total_real_por_tri = {}
+        total_orc_por_tri = {}
+
+        for tri in trimestres_unicos:
+            meses_do_tri = df[df["trimestre"] == tri]["mes_ano"].unique()
+            soma_real, soma_orc = {}, {}
+            for mes in meses_do_tri:
+                for k, v in total_real_por_mes.get(mes, {}).items():
+                    soma_real[k] = soma_real.get(k, 0) + v
+                for k, v in total_orc_por_mes.get(mes, {}).items():
+                    soma_orc[k] = soma_orc.get(k, 0) + v
+            total_real_por_tri[tri] = soma_real
+            total_orc_por_tri[tri] = soma_orc
+
+        total_real_por_ano = {}
+        total_orc_por_ano = {}
+        for ano in anos_unicos:
+            meses_do_ano = [m for m in meses_unicos if m.startswith(str(ano))]
+            soma_real, soma_orc = {}, {}
+            for mes in meses_do_ano:
+                for k, v in total_real_por_mes.get(mes, {}).items():
+                    soma_real[k] = soma_real.get(k, 0) + v
+                for k, v in total_orc_por_mes.get(mes, {}).items():
+                    soma_orc[k] = soma_orc.get(k, 0) + v
+            total_real_por_ano[ano] = soma_real
+            total_orc_por_ano[ano] = soma_orc
+
+        total_geral_real = {}
+        total_geral_orc = {}
+        for mes in meses_unicos:
+            if mes in total_real_por_mes:
+                for k, v in total_real_por_mes[mes].items():
+                    total_geral_real[k] = total_geral_real.get(k, 0) + v
+            if mes in total_orc_por_mes:
+                for k, v in total_orc_por_mes[mes].items():
+                    total_geral_orc[k] = total_geral_orc.get(k, 0) + v
+
+        contas_dfc = [
+            ("Recebimentos Operacionais", "+"),
+            ("Tributos sobre vendas", "-"),
+            ("Custos", "-"),
+            ("Desembolsos Operacionais", "-"),
+            ("Despesas Administrativa", "-"),
+            ("Despesas com Pessoal", "-"),
+            ("Despesas com E-commerce", "-"),
+            ("Despesas com Comercial", "-"),
+            ("Despesas com Viagem", "-"),
+            ("Despesas com Ocupação", "-"),
+            ("Adiantamentos entrada", "+"),
+            ("Adiantamentos saída", "-"),
+            ("Impostos", "-"),
+            ("Investimento Comercial", "-"),
+            ("Investimento em Desenvolvimento", "-"),
+            ("Imobilizado", "-"),
+            ("Intangível", "-"),
+            ("Marcas e Patentes", "-"),
+            ("Recebimento de Empréstimos", "+"),
+            ("Receitas não operacionais", "+"),
+            ("Despesas não operacionais", "-"),
+            ("Pagamento de Empréstimos", "-"),
+            ("Parcelamentos de Impostos", "-"),
+            ("Aporte de capital", "+"),
+            ("Distribuição de lucro", "-"),
+            ("Aplicação Automática", "-"),
+            ("Resgate Automático", "+"),
+            ("Transferência Entrada", "+"),
+            ("Transferência Saída", "-"),
+            ("Empréstimo de Mútuo - Crédito", "+"),
+            ("Empréstimo de Mútuo - Débito", "-"),
+        ]
+
+        valores_mensais = {
+            mes: {nome: total_real_por_mes.get(mes, {}).get(nome, 0.0) for nome, _ in contas_dfc}
+            for mes in meses_unicos
+        }
+        orcamentos_mensais = {
+            mes: {nome: total_orc_por_mes.get(mes, {}).get(nome, 0.0) for nome, _ in contas_dfc}
+            for mes in meses_unicos
+        }
+
+        valores_trimestrais = {
+            tri: {nome: total_real_por_tri.get(tri, {}).get(nome, 0.0) for nome, _ in contas_dfc}
+            for tri in trimestres_unicos
+        }
+        orcamentos_trimestrais = {
+            tri: {nome: total_orc_por_tri.get(tri, {}).get(nome, 0.0) for nome, _ in contas_dfc}
+            for tri in trimestres_unicos
+        }
+
+        valores_anuais = {
+            str(ano): {nome: total_real_por_ano.get(ano, {}).get(nome, 0.0) for nome, _ in contas_dfc}
+            for ano in anos_unicos
+        }
+        orcamentos_anuais = {
+            str(ano): {nome: total_orc_por_ano.get(ano, {}).get(nome, 0.0) for nome, _ in contas_dfc}
+            for ano in anos_unicos
+        }
+
+        # Definir variáveis de orçamento no escopo correto
+        orcamentos_mes = {
+            mes: {nome: total_orc_por_mes.get(mes, {}).get(nome, 0.0) for nome, _ in contas_dfc}
+            for mes in meses_unicos
+        }
+
+        orcamentos_tri = {
+            tri: {nome: total_orc_por_tri.get(tri, {}).get(nome, 0.0) for nome, _ in contas_dfc}
+            for tri in trimestres_unicos
+        }
+
+        orcamentos_ano = {
+            str(ano): {nome: total_orc_por_ano.get(ano, {}).get(nome, 0.0) for nome, _ in contas_dfc}
+            for ano in anos_unicos
+        }
+
+        orcamento_total = {nome: total_geral_orc.get(nome, 0.0) for nome, _ in contas_dfc}
+
+        import math
+
+        def get_classificacoes(dfc_n2_name):
+            sub_df = df_real[df_real["DFC_n2"] == dfc_n2_name]
+            if sub_df.empty:
+                return []
+
+            classificacoes = []
+            for classificacao, grupo in sub_df.groupby("classificacao"):
+                grupo_validos = grupo.dropna(subset=["valor"])
+                total = grupo_validos["valor"].sum()
+
+                valores_mensais = grupo_validos.groupby("mes_ano")["valor"].sum().to_dict()
+                valores_mensais_completos = {mes: round(valores_mensais.get(mes, 0.0), 0) for mes in meses_unicos}
+
+                valores_trimestrais = grupo_validos.groupby("trimestre")["valor"].sum().to_dict()
+                valores_trimestrais_completos = {tri: round(valores_trimestrais.get(tri, 0.0), 0) for tri in trimestres_unicos}
+
+                valores_anuais = grupo_validos.groupby("ano")["valor"].sum().to_dict()
+                valores_anuais_completos = {str(ano): round(valores_anuais.get(ano, 0.0), 0) for ano in anos_unicos}
+
+                # orçamentos para classificações - CORRIGIDO
+                grupo_orc = df[(df["DFC_n2"] == dfc_n2_name) & (df["origem"] == "ORC")]
+                grupo_orc = grupo_orc[grupo_orc["classificacao"] == classificacao]
+                grupo_orc_validos = grupo_orc.dropna(subset=["valor"])
+
+                orcamentos_mensais_class = grupo_orc_validos.groupby("mes_ano")["valor"].sum().to_dict()
+                orcamentos_mensais_completos = {mes: round(orcamentos_mensais_class.get(mes, 0.0), 0) for mes in meses_unicos}
+
+                orcamentos_trimestrais_class = grupo_orc_validos.groupby("trimestre")["valor"].sum().to_dict()
+                orcamentos_trimestrais_completos = {tri: round(orcamentos_trimestrais_class.get(tri, 0.0), 0) for tri in trimestres_unicos}
+
+                orcamentos_anuais_class = grupo_orc_validos.groupby("ano")["valor"].sum().to_dict()
+                orcamentos_anuais_completos = {str(ano): round(orcamentos_anuais_class.get(ano, 0.0), 0) for ano in anos_unicos}
+
+                # Real vs Orçamento - ADICIONADO
+                real_vs_orcamento_mensais = {}
+                for mes in meses_unicos:
+                    real_vs_orcamento_mensais[mes] = calcular_realizado_vs_orcado(
+                        valores_mensais_completos[mes], orcamentos_mensais_completos[mes]
+                    )
+
+                real_vs_orcamento_trimestrais = {}
+                for tri in trimestres_unicos:
+                    real_vs_orcamento_trimestrais[tri] = calcular_realizado_vs_orcado(
+                        valores_trimestrais_completos[tri], orcamentos_trimestrais_completos[tri]
+                    )
+
+                real_vs_orcamento_anuais = {}
+                for ano in anos_unicos:
+                    real_vs_orcamento_anuais[str(ano)] = calcular_realizado_vs_orcado(
+                        valores_anuais_completos[str(ano)], orcamentos_anuais_completos[str(ano)]
+                    )
+
+                real_vs_orcamento_total = calcular_realizado_vs_orcado(total, sum(orcamentos_mensais_completos.values()))
+
+                # Análise Horizontal - CORRIGIDO
+                horizontal_mensais = {}
+                for i, mes in enumerate(meses_unicos):
+                    if i > 0:
+                        mes_anterior = meses_unicos[i - 1]
+                        horizontal_mensais[mes] = calcular_analise_horizontal(
+                            valores_mensais_completos[mes], valores_mensais_completos[mes_anterior]
+                        )
+                    else:
+                        horizontal_mensais[mes] = "–"
+
+                horizontal_trimestrais = {}
+                for i, tri in enumerate(trimestres_unicos):
+                    if i > 0:
+                        tri_anterior = trimestres_unicos[i - 1]
+                        horizontal_trimestrais[tri] = calcular_analise_horizontal(
+                            valores_trimestrais_completos[tri], valores_trimestrais_completos[tri_anterior]
+                        )
+                    else:
+                        horizontal_trimestrais[tri] = "–"
+
+                horizontal_anuais = {}
+                for i, ano in enumerate(anos_unicos):
+                    if i > 0:
+                        ano_anterior = anos_unicos[i - 1]
+                        horizontal_anuais[str(ano)] = calcular_analise_horizontal(
+                            valores_anuais_completos[str(ano)], valores_anuais_completos[str(ano_anterior)]
+                        )
+                    else:
+                        horizontal_anuais[str(ano)] = "–"
+
+                # Horizontal Orçamento - ADICIONADO
+                horizontal_orc_mensais = {}
+                for i, mes in enumerate(meses_unicos):
+                    if i > 0:
+                        horizontal_orc_mensais[mes] = calcular_analise_horizontal(
+                            orcamentos_mensais_completos[mes], orcamentos_mensais_completos[meses_unicos[i - 1]]
+                        )
+                    else:
+                        horizontal_orc_mensais[mes] = "–"
+
+                horizontal_orc_trimestrais = {}
+                for i, tri in enumerate(trimestres_unicos):
+                    if i > 0:
+                        horizontal_orc_trimestrais[tri] = calcular_analise_horizontal(
+                            orcamentos_trimestrais_completos[tri], orcamentos_trimestrais_completos[trimestres_unicos[i - 1]]
+                        )
+                    else:
+                        horizontal_orc_trimestrais[tri] = "–"
+
+                horizontal_orc_anuais = {}
+                for i, ano in enumerate(anos_unicos):
+                    if i > 0:
+                        ano_anterior = anos_unicos[i - 1]
+                        horizontal_orc_anuais[str(ano)] = calcular_analise_horizontal(
+                            orcamentos_anuais_completos[str(ano)], orcamentos_anuais_completos[str(anos_unicos[i - 1])]
+                        )
+                    else:
+                        horizontal_orc_anuais[str(ano)] = "–"
+
+                classificacoes.append({
+                    "tipo": "+" if total >= 0 else "-",  # Define tipo baseado no valor
+                    "nome": classificacao,
+                    "valor": round(total, 2),
+                    "valores_mensais": valores_mensais_completos,
+                    "valores_trimestrais": valores_trimestrais_completos,
+                    "valores_anuais": valores_anuais_completos,
+                    "orcamentos_mensais": orcamentos_mensais_completos,
+                    "orcamentos_trimestrais": orcamentos_trimestrais_completos,
+                    "orcamentos_anuais": orcamentos_anuais_completos,
+                    "orcamento_total": round(sum(orcamentos_mensais_completos.values()), 2),
+                    "vertical_mensais": {},  # Será calculado depois
+                    "vertical_trimestrais": {},  # Será calculado depois
+                    "vertical_anuais": {},  # Será calculado depois
+                    "vertical_total": "–",  # Será calculado depois
+                    "horizontal_mensais": horizontal_mensais,
+                    "horizontal_trimestrais": horizontal_trimestrais,
+                    "horizontal_anuais": horizontal_anuais,
+                    "vertical_orcamentos_mensais": {},  # Será calculado depois
+                    "vertical_orcamentos_trimestrais": {},  # Será calculado depois
+                    "vertical_orcamentos_anuais": {},  # Será calculado depois
+                    "vertical_orcamentos_total": "–",  # Será calculado depois
+                    "horizontal_orcamentos_mensais": horizontal_orc_mensais,
+                    "horizontal_orcamentos_trimestrais": horizontal_orc_trimestrais,
+                    "horizontal_orcamentos_anuais": horizontal_orc_anuais,
+                    "real_vs_orcamento_mensais": real_vs_orcamento_mensais,
+                    "real_vs_orcamento_trimestrais": real_vs_orcamento_trimestrais,
+                    "real_vs_orcamento_anuais": real_vs_orcamento_anuais,
+                    "real_vs_orcamento_total": real_vs_orcamento_total,
+                    "classificacoes": []  # Nível 3 não tem filhos
+                })
+            return classificacoes
+
+        result = []
+        result.append(criar_linha_conta("Faturamento", "+"))
+        result.append(calcular_linha("Receita Bruta", lambda v: v["Faturamento"]))
+        result.append(criar_linha_conta("Tributos e deduções sobre a receita", "-"))
+        result.append(calcular_linha("Receita Líquida", lambda v: v["Faturamento"] + v["Tributos e deduções sobre a receita"]))
+
+        for nome in ["Custo com Importação", "Custo com Mercadoria Interna"]:
+            result.append(criar_linha_conta(nome, "-"))
+
+        result.append(calcular_linha("Resultado Bruto", lambda v: (
+            v["Faturamento"] + v["Tributos e deduções sobre a receita"] + v["Custo com Importação"] + v["Custo com Mercadoria Interna"]
+        )))
+
+        for nome in ["Despesas Administrativa", "Despesas com Pessoal", "Despesas com Ocupação", "Despesas comercial", "Despesas com E-commerce"]:
+            result.append(criar_linha_conta(nome, "-"))
+
+        result.append(calcular_linha("EBITDA", lambda v: (
+            v["Faturamento"] + v["Tributos e deduções sobre a receita"] + v["Custo com Importação"] + v["Custo com Mercadoria Interna"]
+            + v["Despesas Administrativa"] + v["Despesas com Pessoal"]
+            + v["Despesas com Ocupação"] + v["Despesas comercial"] + v["Despesas com E-commerce"]
+        )))
+
+        for nome in ["Depreciação", "Amortização"]:
+            result.append(criar_linha_conta(nome, "-"))
+
+        result.append(calcular_linha("EBIT", lambda v: (
+            v["Faturamento"] + v["Tributos e deduções sobre a receita"] + v["Custo com Importação"] + v["Custo com Mercadoria Interna"]
+            + v["Despesas Administrativa"] + v["Despesas com Pessoal"]
+            + v["Despesas com Ocupação"] + v["Despesas comercial"] + v["Despesas com E-commerce"]
+            + v["Depreciação"] + v["Amortização"]
+        )))
+
+        for nome in ["Receitas Financeiras", "Despesas Financeiras",
+                     "Receitas não operacionais", "Despesas não operacionais"]:
+            result.append(criar_linha_conta(nome, "+" if "Receitas" in nome else "-"))
+
+        result.append(calcular_linha("Resultado Financeiro", lambda v: (
+            v["Faturamento"] + v["Tributos e deduções sobre a receita"] + v["Custo com Importação"] + v["Custo com Mercadoria Interna"]
+            + v["Despesas Administrativa"] + v["Despesas com Pessoal"]
+            + v["Despesas com Ocupação"] + v["Despesas comercial"] + v["Despesas com E-commerce"]
+            + v["Depreciação"] + v["Amortização"]
+            + v["Receitas Financeiras"] + v["Despesas Financeiras"]
+            + v["Receitas não operacionais"] + v["Despesas não operacionais"]
+        )))
+
+        for nome in ["IRPJ", "CSLL"]:
+            result.append(criar_linha_conta(nome, "-"))
+
+        result.append(calcular_linha("Resultado Líquido", lambda v: (
+            v["Faturamento"] + v["Tributos e deduções sobre a receita"] + v["Custo com Importação"] + v["Custo com Mercadoria Interna"]
+            + v["Despesas Administrativa"] + v["Despesas com Pessoal"]
+            + v["Despesas com Ocupação"] + v["Despesas comercial"] + v["Despesas com E-commerce"]
+            + v["Depreciação"] + v["Amortização"]
+            + v["Receitas Financeiras"] + v["Despesas Financeiras"]
+            + v["Receitas não operacionais"] + v["Despesas não operacionais"]
+            + v["IRPJ"] + v["CSLL"]
+        )))
+
+        # Calcular análise vertical para as classificações
+        for item in result:
+            if "classificacoes" in item and item["classificacoes"]:
+                for classificacao in item["classificacoes"]:
+                    classificacao["vertical_mensais"] = {}
+                    classificacao["vertical_trimestrais"] = {}
+                    classificacao["vertical_anuais"] = {}
+
+                    for mes in meses_unicos:
+                        base_valor = valores_mensais[mes]["Faturamento"]
+                        filho_valor = classificacao["valores_mensais"][mes]
+                        classificacao["vertical_mensais"][mes] = calcular_analise_vertical(filho_valor, base_valor)
+
+                    for tri in trimestres_unicos:
+                        base_valor = valores_trimestrais[tri]["Faturamento"]
+                        filho_valor = classificacao["valores_trimestrais"][tri]
+                        classificacao["vertical_trimestrais"][tri] = calcular_analise_vertical(filho_valor, base_valor)
+
+                    for ano in anos_unicos:
+                        base_valor = valores_anuais[str(ano)]["Faturamento"]
+                        filho_valor = classificacao["valores_anuais"][str(ano)]
+                        classificacao["vertical_anuais"][str(ano)] = calcular_analise_vertical(filho_valor, base_valor)
+
+                    classificacao["vertical_total"] = calcular_analise_vertical(
+                        classificacao["valor"],
+                        valores_totais["Faturamento"]
+                    )
+
+        return {
+            "meses": meses_unicos,
+            "trimestres": trimestres_unicos,
+            "anos": anos_unicos,
+            "data": result,
+            "orcamentos_mensais": orcamentos_mes,
+            "orcamentos_trimestrais": orcamentos_tri,
+            "orcamentos_anuais": orcamentos_ano,
+            "orcamento_total": orcamento_total,
+        }
+
+    except Exception as e:
+        return {"error": f"Erro ao processar a DFC: {str(e)}"}
 
 def calcular_mom(df_filtrado, date_column, origem):
     """
@@ -1824,12 +2337,11 @@ def get_movimentacoes(mes: str = None):
         for mes in all_meses:
             valor_atual = (mom_cap.get(mes, {}).get("valor_atual", 0) or 0) + (mom_car.get(mes, {}).get("valor_atual", 0) or 0)
             valor_anterior = (mom_cap.get(mes, {}).get("valor_anterior", 0) or 0) + (mom_car.get(mes, {}).get("valor_anterior", 0) or 0)
-            variacao_absoluta = (mom_cap.get(mes, {}).get("variacao_absoluta", 0) or 0) + (mom_car.get(mes, {}).get("variacao_absoluta", 0) or 0)
-            # Calcular variação percentual da soma
+            variacao_absoluta = None
+            variacao_percentual = None
             if valor_anterior != 0:
+                variacao_absoluta = round((valor_atual - valor_anterior), 2)
                 variacao_percentual = round((valor_atual - valor_anterior) / valor_anterior * 100, 2)
-            else:
-                variacao_percentual = None
             mom_analysis.append({
                 "mes": mes,
                 "valor_atual": round(valor_atual, 2),
@@ -1852,7 +2364,7 @@ def get_movimentacoes(mes: str = None):
     except Exception as e:
         return {"error": f"Erro ao calcular movimentações: {str(e)}"}
 
-# Novo endpoint para evolução de saldos (saldo inicial, movimentação, saldo final mês a mês)
+# Novo endpoint para evolução de saldos (saldo inicial, movimentação, saldo final)
 @app.get("/saldos-evolucao")
 def get_saldos_evolucao():
     """
