@@ -1281,91 +1281,101 @@ def get_dfc_data():
             "Financiamento": fin_orc_total, "Movimentação entre Contas": mov_orc_total
         }
 
+        # Função para criar um totalizador com suas contas filhas
+        def criar_totalizador(nome_totalizador, nomes_contas, func_calculo):
+            # Criar todas as contas filhas
+            contas_filhas = []
+            for nome_conta in nomes_contas:
+                tipo = "+" if any(palavra in nome_conta for palavra in ["Recebimentos", "entrada", "Receitas", "Aporte", "Resgate", "Crédito"]) else "-"
+                conta = criar_linha_conta(nome_conta, tipo, nome_totalizador)
+                
+                # Calcular análise vertical para as classificações desta conta
+                if "classificacoes" in conta and conta["classificacoes"]:
+                    for classificacao in conta["classificacoes"]:
+                        classificacao["vertical_mensais"] = {}
+                        classificacao["vertical_trimestrais"] = {}
+                        classificacao["vertical_anuais"] = {}
+
+                        for mes in meses_unicos:
+                            base_valor = totalizadores_mensais[mes][nome_totalizador]
+                            filho_valor = classificacao["valores_mensais"][mes]
+                            classificacao["vertical_mensais"][mes] = calcular_analise_vertical(filho_valor, base_valor)
+
+                        for tri in trimestres_unicos:
+                            base_valor = totalizadores_trimestrais[tri][nome_totalizador]
+                            filho_valor = classificacao["valores_trimestrais"][tri]
+                            classificacao["vertical_trimestrais"][tri] = calcular_analise_vertical(filho_valor, base_valor)
+
+                        for ano in anos_unicos:
+                            base_valor = totalizadores_anuais[str(ano)][nome_totalizador]
+                            filho_valor = classificacao["valores_anuais"][str(ano)]
+                            classificacao["vertical_anuais"][str(ano)] = calcular_analise_vertical(filho_valor, base_valor)
+
+                        classificacao["vertical_total"] = calcular_analise_vertical(
+                            classificacao["valor"],
+                            totalizadores_totais[nome_totalizador]
+                        )
+                
+                contas_filhas.append(conta)
+            
+            # Criar o totalizador principal
+            totalizador = calcular_linha(nome_totalizador, func_calculo)
+            totalizador["classificacoes"] = contas_filhas
+            
+            return totalizador
+
+        # Criar estrutura hierárquica
         result = []
 
-        # Contas operacionais
-        for nome in ["Recebimentos Operacionais", "Tributos sobre vendas", "Custos", "Desembolsos Operacionais", 
-                "Despesas Administrativa", "Despesas com Pessoal", "Despesas com E-commerce", "Despesas com Comercial", 
-                "Despesas com Viagem", "Despesas com Ocupação", "Adiantamentos entrada", "Adiantamentos saída", "Impostos"]:
-            result.append(criar_linha_conta(nome, "+" if "Recebimentos" in nome or "entrada" in nome else "-", "Operacional"))
+        # 1. OPERACIONAL
+        operacional = criar_totalizador(
+            "Operacional",
+            ["Recebimentos Operacionais", "Tributos sobre vendas", "Custos", "Desembolsos Operacionais", 
+             "Despesas Administrativa", "Despesas com Pessoal", "Despesas com E-commerce", "Despesas com Comercial", 
+             "Despesas com Viagem", "Despesas com Ocupação", "Adiantamentos entrada", "Adiantamentos saída", "Impostos"],
+            lambda v: (
+                v["Recebimentos Operacionais"] + v["Tributos sobre vendas"] + v["Custos"] + v["Desembolsos Operacionais"]
+                + v["Despesas Administrativa"] + v["Despesas com Pessoal"]
+                + v["Despesas com E-commerce"] + v["Despesas com Comercial"] + v["Despesas com Viagem"]
+                + v["Despesas com Ocupação"] + v["Adiantamentos entrada"]
+                + v["Adiantamentos saída"] + v["Impostos"]
+            )
+        )
+        result.append(operacional)
 
-        result.append(calcular_linha("Operacional", lambda v: (
-            v["Recebimentos Operacionais"] + v["Tributos sobre vendas"] + v["Custos"] + v["Desembolsos Operacionais"]
-            + v["Despesas Administrativa"] + v["Despesas com Pessoal"]
-            + v["Despesas com E-commerce"] + v["Despesas com Comercial"] + v["Despesas com Viagem"]
-            + v["Despesas com Ocupação"] + v["Adiantamentos entrada"]
-            + v["Adiantamentos saída"] + v["Impostos"]
-        )))
+        # 2. INVESTIMENTO
+        investimento = criar_totalizador(
+            "Investimento",
+            ["Investimento Comercial", "Investimento em Desenvolvimento", "Imobilizado", "Intangível", "Marcas e Patentes"],
+            lambda v: (
+                v["Investimento Comercial"] + v["Investimento em Desenvolvimento"]
+                + v["Imobilizado"] + v["Intangível"] + v["Marcas e Patentes"]
+            )
+        )
+        result.append(investimento)
 
-        # Contas de investimento
-        for nome in ["Investimento Comercial", "Investimento em Desenvolvimento", 
-                "Imobilizado", "Intangível", "Marcas e Patentes"]:
-            result.append(criar_linha_conta(nome, "-", "Investimento"))
+        # 3. FINANCIAMENTO
+        financiamento = criar_totalizador(
+            "Financiamento",
+            ["Recebimento de Empréstimos", "Receitas não operacionais", "Despesas não operacionais", "Pagamento de Empréstimos", 
+             "Parcelamentos de Impostos", "Aporte de capital", "Distribuição de lucro", "Aplicação Automática", "Resgate Automático"],
+            lambda v: (
+                v["Recebimento de Empréstimos"] + v["Receitas não operacionais"] + v["Despesas não operacionais"] 
+                + v["Pagamento de Empréstimos"] + v["Parcelamentos de Impostos"] + v["Aporte de capital"] 
+                + v["Distribuição de lucro"] + v["Aplicação Automática"] + v["Resgate Automático"]
+            )
+        )
+        result.append(financiamento)
 
-        result.append(calcular_linha("Investimento", lambda v: (
-            v["Investimento Comercial"] + v["Investimento em Desenvolvimento"]
-            + v["Imobilizado"] + v["Intangível"] + v["Marcas e Patentes"]
-        )))
-
-        # Contas de financiamento
-        for nome in ["Recebimento de Empréstimos", "Receitas não operacionais", "Despesas não operacionais", "Pagamento de Empréstimos", 
-                "Parcelamentos de Impostos", "Aporte de capital", "Distribuição de lucro", "Aplicação Automática", "Resgate Automático"]:
-            result.append(criar_linha_conta(nome, "+" if "Recebimento" in nome or "Receitas" in nome or "Aporte" in nome or "Resgate" in nome else "-", "Financiamento"))
-
-        result.append(calcular_linha("Financiamento", lambda v: (
-            v["Recebimento de Empréstimos"] + v["Receitas não operacionais"] + v["Despesas não operacionais"] + v["Pagamento de Empréstimos"] + v["Parcelamentos de Impostos"] + v["Aporte de capital"] + v["Distribuição de lucro"] + v["Aplicação Automática"] + v["Resgate Automático"]
-        )))
-
-        # Contas de movimentação entre contas
-        for nome in ["Transferência Entrada", "Transferência Saída", "Empréstimo de Mútuo - Crédito", "Empréstimo de Mútuo - Débito"]:
-            result.append(criar_linha_conta(nome, "+" if "Entrada" in nome or "Crédito" in nome else "-", "Movimentação entre Contas"))
-
-        result.append(calcular_linha("Movimentação entre Contas", lambda v: (
-            v["Transferência Entrada"] + v["Transferência Saída"] + v["Empréstimo de Mútuo - Crédito"] + v["Empréstimo de Mútuo - Débito"]
-        )))
-
-        # Calcular análise vertical para as classificações
-        for item in result:
-            if "classificacoes" in item and item["classificacoes"]:
-                # Determinar qual totalizador usar baseado no nome do item
-                if item["nome"] in ["Recebimentos Operacionais", "Tributos sobre vendas", "Custos", "Desembolsos Operacionais", 
-                                "Despesas Administrativa", "Despesas com Pessoal", "Despesas com E-commerce", "Despesas com Comercial", 
-                                "Despesas com Viagem", "Despesas com Ocupação", "Adiantamentos entrada", "Adiantamentos saída", "Impostos"]:
-                    totalizador_nome = "Operacional"
-                elif item["nome"] in ["Investimento Comercial", "Investimento em Desenvolvimento", "Imobilizado", "Intangível", "Marcas e Patentes"]:
-                    totalizador_nome = "Investimento"
-                elif item["nome"] in ["Recebimento de Empréstimos", "Receitas não operacionais", "Despesas não operacionais", "Pagamento de Empréstimos", 
-                                    "Parcelamentos de Impostos", "Aporte de capital", "Distribuição de lucro", "Aplicação Automática", "Resgate Automático"]:
-                    totalizador_nome = "Financiamento"
-                elif item["nome"] in ["Transferência Entrada", "Transferência Saída", "Empréstimo de Mútuo - Crédito", "Empréstimo de Mútuo - Débito"]:
-                    totalizador_nome = "Movimentação entre Contas"
-                else:
-                    totalizador_nome = "Operacional"  # padrão
-                
-                for classificacao in item["classificacoes"]:
-                    classificacao["vertical_mensais"] = {}
-                    classificacao["vertical_trimestrais"] = {}
-                    classificacao["vertical_anuais"] = {}
-
-                    for mes in meses_unicos:
-                        base_valor = totalizadores_mensais[mes][totalizador_nome]
-                        filho_valor = classificacao["valores_mensais"][mes]
-                        classificacao["vertical_mensais"][mes] = calcular_analise_vertical(filho_valor, base_valor)
-
-                    for tri in trimestres_unicos:
-                        base_valor = totalizadores_trimestrais[tri][totalizador_nome]
-                        filho_valor = classificacao["valores_trimestrais"][tri]
-                        classificacao["vertical_trimestrais"][tri] = calcular_analise_vertical(filho_valor, base_valor)
-
-                    for ano in anos_unicos:
-                        base_valor = totalizadores_anuais[str(ano)][totalizador_nome]
-                        filho_valor = classificacao["valores_anuais"][str(ano)]
-                        classificacao["vertical_anuais"][str(ano)] = calcular_analise_vertical(filho_valor, base_valor)
-
-                    classificacao["vertical_total"] = calcular_analise_vertical(
-                        classificacao["valor"],
-                        totalizadores_totais[totalizador_nome]
-                    )
+        # 4. MOVIMENTAÇÃO ENTRE CONTAS
+        movimentacao = criar_totalizador(
+            "Movimentação entre Contas",
+            ["Transferência Entrada", "Transferência Saída", "Empréstimo de Mútuo - Crédito", "Empréstimo de Mútuo - Débito"],
+            lambda v: (
+                v["Transferência Entrada"] + v["Transferência Saída"] + v["Empréstimo de Mútuo - Crédito"] + v["Empréstimo de Mútuo - Débito"]
+            )
+        )
+        result.append(movimentacao)
 
         return {
             "meses": meses_unicos,

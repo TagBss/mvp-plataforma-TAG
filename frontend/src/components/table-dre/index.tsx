@@ -367,6 +367,9 @@ if (loading || !filtroAno) return (
         <div className="flex flex-col lg:flex-row lg:flex-wrap lg:justify-between gap-2 lg:gap-4 overflow-x-auto">
           <div>
             <CardTitle>DRE - Roriz Instrumentos</CardTitle>
+            <CardDescription>
+              Valores em Reais (R$)
+            </CardDescription>
             <CardDescription>{filtroAno === "todos" ? "Todo o período" : `Ano: ${filtroAno}`}</CardDescription>
           </div>
           <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 sm:gap-4">
