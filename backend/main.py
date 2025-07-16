@@ -2346,7 +2346,7 @@ def get_movimentacoes(mes: str = None):
                 "mes": mes,
                 "valor_atual": round(valor_atual, 2),
                 "valor_anterior": round(valor_anterior, 2) if valor_anterior != 0 else None,
-                "variacao_absoluta": round(variacao_absoluta, 2) if variacao_absoluta != 0 else None,
+                "variacao_absoluta": round(variacao_absoluta, 2) if variacao_absoluta is not None else None,
                 "variacao_percentual": variacao_percentual
             })
 

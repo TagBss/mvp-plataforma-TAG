@@ -54,7 +54,7 @@ export function ChartBarLabelCustom({ data }: { data?: Record<string, number> })
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch("http://localhost:8000/custos-visao-financeiro");
+        const res = await fetch("https://mvp-plataforma-tag-3s9u.onrender.com/custos-visao-financeiro");
         if (!res.ok) throw new Error("Erro ao buscar dados do backend")
         const json = await res.json()
         if (!json.success) throw new Error(json.error || "Erro desconhecido")

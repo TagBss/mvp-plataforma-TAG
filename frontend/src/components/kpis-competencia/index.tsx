@@ -110,7 +110,7 @@ export default function DashCompetencia() {
 
   // Carregar o último mês mais recente ao abrir a tela
   useEffect(() => {
-    fetch(`http://localhost:8000/receber`).then(res => res.json()).then(data => {
+    fetch(`https://mvp-plataforma-tag-3s9u.onrender.com/receber`).then(res => res.json()).then(data => {
       if (data.success && data.data?.meses_disponiveis?.length > 0) {
         const meses = data.data.meses_disponiveis;
         const mesPadrao = meses[meses.length - 1];
@@ -127,8 +127,8 @@ export default function DashCompetencia() {
     setLoading(true);
     const queryString = mesSelecionado ? `?mes=${mesSelecionado}` : "";
     Promise.all([
-      fetch(`http://localhost:8000/receber${queryString}`).then(r => r.json()),
-      fetch(`http://localhost:8000/pagar${queryString}`).then(r => r.json())
+      fetch(`https://mvp-plataforma-tag-3s9u.onrender.com/receber${queryString}`).then(r => r.json()),
+      fetch(`https://mvp-plataforma-tag-3s9u.onrender.com/pagar${queryString}`).then(r => r.json())
     ]).then(([dataReceber, dataPagar]) => {
       if (dataReceber.success) {
         setSaldoReceber(dataReceber.data.saldo_total);
@@ -150,7 +150,7 @@ export default function DashCompetencia() {
       <section className="py-4 flex justify-between items-center">
         <FiltroMes 
           onSelect={handleMesSelecionado} 
-          endpoint="http://localhost:8000/receber"
+          endpoint="https://mvp-plataforma-tag-3s9u.onrender.com/receber"
           value={mesSelecionado}
         />
       </section>

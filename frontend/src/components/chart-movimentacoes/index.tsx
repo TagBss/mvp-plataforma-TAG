@@ -94,9 +94,9 @@ export default function ChartMovimentacoes({ mesSelecionado }: ChartMovimentacoe
     async function fetchData() {
       try {
         const [carRes, capRes, movRes] = await Promise.all([
-          fetch("http://localhost:8000/receber").then(r => r.json()),
-          fetch("http://localhost:8000/pagar").then(r => r.json()),
-          fetch("http://localhost:8000/movimentacoes").then(r => r.json()),
+          fetch("https://mvp-plataforma-tag-3s9u.onrender.com/receber").then(r => r.json()),
+          fetch("https://mvp-plataforma-tag-3s9u.onrender.com/pagar").then(r => r.json()),
+          fetch("https://mvp-plataforma-tag-3s9u.onrender.com/movimentacoes").then(r => r.json()),
         ]);
         if (!carRes.success || !capRes.success || !movRes.success) {
           setChartData([]);

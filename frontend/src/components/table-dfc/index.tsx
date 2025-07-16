@@ -22,6 +22,9 @@ import {
 type DfcItem = FinancialItem & {
   tipo: string
   nome: string
+  valor?: number  // Adicionando esta propriedade
+  orcamento_total?: number  // Adicionando esta propriedade
+  
   valores_mensais?: Record<string, number>
   valores_trimestrais?: Record<string, number>
   valores_anuais?: Record<string, number>
@@ -33,13 +36,13 @@ type DfcItem = FinancialItem & {
   horizontal_trimestrais?: Record<string, string>
   horizontal_anuais?: Record<string, string>
 
-  vertical_mensais_orcamento?: Record<string, string>
-  vertical_trimestrais_orcamento?: Record<string, string>
-  vertical_anuais_orcamento?: Record<string, string>
+  vertical_orcamentos_mensais?: Record<string, string>
+  vertical_orcamentos_trimestrais?: Record<string, string>
+  vertical_orcamentos_anuais?: Record<string, string>
   vertical_orcamentos_total?: string
-  horizontal_mensais_orcamento?: Record<string, string>
-  horizontal_trimestrais_orcamento?: Record<string, string>
-  horizontal_anuais_orcamento?: Record<string, string>
+  horizontal_orcamentos_mensais?: Record<string, string>
+  horizontal_orcamentos_trimestrais?: Record<string, string>
+  horizontal_orcamentos_anuais?: Record<string, string>
 
   orcamentos_mensais?: Record<string, number>
   orcamentos_trimestrais?: Record<string, number>
@@ -72,7 +75,7 @@ export default function DfcTable() {
   const [periodo, setPeriodo] = useState<"mes" | "trimestre" | "ano">("mes")
 
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/dfc")
+    fetch("https://mvp-plataforma-tag-3s9u.onrender.com/dfc")
       .then(res => res.json())
       .then((result: DfcResponse | { error: string }) => {
         if ("error" in result) {
@@ -550,80 +553,393 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
         </TableHeader>
 
         <TableBody>
-          {data.map((totalizador) => {
-            // Totalizador sempre é expansível na nova estrutura
-            const isOpen = openSections[totalizador.nome] ?? false;
+          {data.map((item) => {
+            // Se for "Movimentações", renderizar seus totalizadores filhos
+            if (item.nome === "Movimentações" && item.classificacoes) {
+              return (
+                <React.Fragment key={item.nome}>
+                  {/* LINHA PRINCIPAL DAS MOVIMENTAÇÕES */}
+                  <TableRow className="bg-primary/10 font-bold border-t-4 border-primary">
+                    <TableCell className="py-4 md:sticky md:left-0 md:z-20 bg-primary/10 font-bold">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base font-bold text-primary">{item.nome}</span>
+                      </div>
+                    </TableCell>
+                    
+                    {periodosFiltrados.map((p) => {
+                      const real = calcularValor(item, p);
+                      const orcado = calcularOrcamento(item, p);
+                      return (
+                        <React.Fragment key={p}>
+                          <TableCell className="font-bold">
+                            {renderValor(real)}
+                          </TableCell>
+                          {showOrcado && (
+                            <TableCell className="font-bold">
+                              {renderValorOrcamento(orcado)}
+                            </TableCell>
+                          )}
+                          {showDiferenca && (
+                            <TableCell className="font-bold">
+                              {renderValorDiferenca(real, orcado)}
+                            </TableCell>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
 
-            const totalTotalizador = calcularTotal(
-              periodo === "mes"
-                ? totalizador.valores_mensais
-                : periodo === "trimestre"
-                ? totalizador.valores_trimestrais
-                : totalizador.valores_anuais
-            );
-            const totalTotalizadorOrc = calcularTotalOrcamento(
-              periodo === "mes"
-                ? totalizador.orcamentos_mensais
-                : periodo === "trimestre"
-                ? totalizador.orcamentos_trimestrais
-                : totalizador.orcamentos_anuais
-            );
+                    <TableCell className="py-4 text-right font-bold">
+                      {renderValor(item.valor ?? 0)}
+                    </TableCell>
+                    {showOrcado && (
+                      <TableCell className="py-4 text-right font-bold">
+                        {renderValorOrcamento(item.orcamento_total ?? 0)}
+                      </TableCell>
+                    )}
+                    {showDiferenca && (
+                      <TableCell className="py-4 text-right font-bold">
+                        {renderValorDiferenca(item.valor ?? 0, item.orcamento_total ?? 0)}
+                      </TableCell>
+                    )}
+                  </TableRow>
 
-            return (
-              <React.Fragment key={totalizador.nome}>
-                {/* LINHA DO TOTALIZADOR PRINCIPAL */}
-                <TableRow
-                  className="cursor-pointer hover:bg-muted/50 bg-muted/80 font-bold border-t-2"
-                  onClick={() => toggle(totalizador.nome)}
-                >
-                  <TableCell className="py-4 md:sticky md:left-0 md:z-20 bg-muted font-bold">
-                    <div className="flex items-center gap-2">
-                      <ChevronDown
-                        size={18}
-                        className={`transition-transform ${
-                          isOpen ? "rotate-0" : "-rotate-90"
-                        }`}
-                      />
-                      <span className="text-sm font-bold">{totalizador.tipo}</span>
-                      <span className="text-base font-bold">{totalizador.nome}</span>
-                    </div>
+                  {/* TOTALIZADORES (NÍVEL 1) */}
+                  {item.classificacoes.map((totalizador) => {
+                    const isOpen = openSections[totalizador.nome] ?? false;
+
+                    const totalTotalizador = calcularTotal(
+                      periodo === "mes"
+                        ? totalizador.valores_mensais
+                        : periodo === "trimestre"
+                        ? totalizador.valores_trimestrais
+                        : totalizador.valores_anuais
+                    );
+                    const totalTotalizadorOrc = calcularTotalOrcamento(
+                      periodo === "mes"
+                        ? totalizador.orcamentos_mensais
+                        : periodo === "trimestre"
+                        ? totalizador.orcamentos_trimestrais
+                        : totalizador.orcamentos_anuais
+                    );
+
+                    return (
+                      <React.Fragment key={totalizador.nome}>
+                        {/* LINHA DO TOTALIZADOR */}
+                        <TableRow
+                          className="cursor-pointer hover:bg-muted/50 bg-muted/80 font-bold border-t-2"
+                          onClick={() => toggle(totalizador.nome)}
+                        >
+                          <TableCell className="py-4 md:sticky md:left-0 md:z-20 bg-muted font-bold pl-4">
+                            <div className="flex items-center gap-2">
+                              <ChevronDown
+                                size={18}
+                                className={`transition-transform ${
+                                  isOpen ? "rotate-0" : "-rotate-90"
+                                }`}
+                              />
+                              <span className="text-sm font-bold">{totalizador.tipo}</span>
+                              <span className="text-base font-bold">{totalizador.nome}</span>
+                            </div>
+                          </TableCell>
+
+                          {periodosFiltrados.map((p) => {
+                            const real = calcularValor(totalizador, p);
+                            const orcado = calcularOrcamento(totalizador, p);
+                            return (
+                              <React.Fragment key={p}>
+                                <TableCell className="font-bold">
+                                  {renderValor(
+                                    real,
+                                    periodo === "mes"
+                                      ? totalizador.vertical_mensais?.[p]
+                                      : periodo === "trimestre"
+                                      ? totalizador.vertical_trimestrais?.[p]
+                                      : totalizador.vertical_anuais?.[p],
+                                    periodo === "mes"
+                                      ? totalizador.horizontal_mensais?.[p]
+                                      : periodo === "trimestre"
+                                      ? totalizador.horizontal_trimestrais?.[p]
+                                      : totalizador.horizontal_anuais?.[p]
+                                  )}
+                                </TableCell>
+                                {showOrcado && (
+                                  <TableCell className="font-bold">
+                                    {renderValorOrcamento(
+                                      orcado,
+                                      periodo === "mes"
+                                        ? totalizador.vertical_orcamentos_mensais?.[p]
+                                        : periodo === "trimestre"
+                                        ? totalizador.vertical_orcamentos_trimestrais?.[p]
+                                        : totalizador.vertical_orcamentos_anuais?.[p],
+                                      periodo === "mes"
+                                        ? totalizador.horizontal_orcamentos_mensais?.[p]
+                                        : periodo === "trimestre"
+                                        ? totalizador.horizontal_orcamentos_trimestrais?.[p]
+                                        : totalizador.horizontal_orcamentos_anuais?.[p]
+                                    )}
+                                  </TableCell>
+                                )}
+                                {showDiferenca && (
+                                  <TableCell className="font-bold">
+                                    {renderValorDiferenca(real, orcado)}
+                                  </TableCell>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+
+                          <TableCell className="py-4 text-right font-bold">
+                            {renderValor(totalTotalizador, calcularAVTotalDinamica(totalTotalizador))}
+                          </TableCell>
+                          {showOrcado && (
+                            <TableCell className="py-4 text-right font-bold">
+                              {renderValorOrcamento(
+                                totalTotalizadorOrc,
+                                totalizador.vertical_orcamentos_total,
+                                undefined
+                              )}
+                            </TableCell>
+                          )}
+                          {showDiferenca && (
+                            <TableCell className="py-4 text-right font-bold">
+                              {renderValorDiferenca(totalTotalizador, totalTotalizadorOrc)}
+                            </TableCell>
+                          )}
+                        </TableRow>
+
+                        {/* CONTAS FILHAS DO TOTALIZADOR (NÍVEL 2) */}
+                        {isOpen &&
+                          totalizador.classificacoes?.map((conta) => {
+                            const isContaExpandable = !!conta.classificacoes?.length;
+                            const isContaOpen = openSections[`${totalizador.nome}-${conta.nome}`] ?? false;
+
+                            const totalConta = calcularTotal(
+                              periodo === "mes"
+                                ? conta.valores_mensais
+                                : periodo === "trimestre"
+                                ? conta.valores_trimestrais
+                                : conta.valores_anuais
+                            );
+                            const totalContaOrc = calcularTotalOrcamento(
+                              periodo === "mes"
+                                ? conta.orcamentos_mensais
+                                : periodo === "trimestre"
+                                ? conta.orcamentos_trimestrais
+                                : conta.orcamentos_anuais
+                            );
+
+                            return (
+                              <React.Fragment key={`${totalizador.nome}-${conta.nome}`}>
+                                {/* LINHA DA CONTA */}
+                                <TableRow
+                                  className={`${
+                                    isContaExpandable ? "cursor-pointer hover:bg-muted/30" : ""
+                                  } bg-muted/20`}
+                                  onClick={() => isContaExpandable && toggle(`${totalizador.nome}-${conta.nome}`)}
+                                >
+                                  <TableCell className="sticky left-0 z-10 bg-muted/20 pl-8">
+                                    <div className="flex items-center gap-2">
+                                      {isContaExpandable && (
+                                        <ChevronDown
+                                          size={14}
+                                          className={`transition-transform ${
+                                            isContaOpen ? "rotate-0" : "-rotate-90"
+                                          }`}
+                                        />
+                                      )}
+                                      <span className="text-sm">{conta.tipo}</span>
+                                      <span className="font-medium">{conta.nome}</span>
+                                    </div>
+                                  </TableCell>
+
+                                  {periodosFiltrados.map((p) => {
+                                    const real = calcularValor(conta, p);
+                                    const orcado = calcularOrcamento(conta, p);
+                                    return (
+                                      <React.Fragment key={p}>
+                                        <TableCell>
+                                          {renderValor(
+                                            real,
+                                            periodo === "mes"
+                                              ? conta.vertical_mensais?.[p]
+                                              : periodo === "trimestre"
+                                              ? conta.vertical_trimestrais?.[p]
+                                              : conta.vertical_anuais?.[p],
+                                            periodo === "mes"
+                                              ? conta.horizontal_mensais?.[p]
+                                              : periodo === "trimestre"
+                                              ? conta.horizontal_trimestrais?.[p]
+                                              : conta.horizontal_anuais?.[p]
+                                          )}
+                                        </TableCell>
+                                        {showOrcado && (
+                                          <TableCell>
+                                            {renderValorOrcamento(
+                                              orcado,
+                                              periodo === "mes"
+                                                ? conta.vertical_orcamentos_mensais?.[p]
+                                                : periodo === "trimestre"
+                                                ? conta.vertical_orcamentos_trimestrais?.[p]
+                                                : conta.vertical_orcamentos_anuais?.[p],
+                                              periodo === "mes"
+                                                ? conta.horizontal_orcamentos_mensais?.[p]
+                                                : periodo === "trimestre"
+                                                ? conta.horizontal_orcamentos_trimestrais?.[p]
+                                                : conta.horizontal_orcamentos_anuais?.[p]
+                                            )}
+                                          </TableCell>
+                                        )}
+                                        {showDiferenca && (
+                                          <TableCell>
+                                            {renderValorDiferenca(real, orcado)}
+                                          </TableCell>
+                                        )}
+                                      </React.Fragment>
+                                    );
+                                  })}
+
+                                  <TableCell className="text-right">
+                                    {renderValor(totalConta, calcularAVTotalDinamica(totalConta))}
+                                  </TableCell>
+                                  {showOrcado && (
+                                    <TableCell className="text-right">
+                                      {renderValorOrcamento(
+                                        totalContaOrc,
+                                        conta.vertical_orcamentos_total,
+                                        undefined
+                                      )}
+                                    </TableCell>
+                                  )}
+                                  {showDiferenca && (
+                                    <TableCell className="text-right">
+                                      {renderValorDiferenca(totalConta, totalContaOrc)}
+                                    </TableCell>
+                                  )}
+                                </TableRow>
+
+                                {/* CLASSIFICAÇÕES DA CONTA (NÍVEL 3) */}
+                                {isContaOpen &&
+                                  conta.classificacoes?.map((classificacao) => {
+                                    const totalClassificacao = calcularTotal(
+                                      periodo === "mes"
+                                        ? classificacao.valores_mensais
+                                        : periodo === "trimestre"
+                                        ? classificacao.valores_trimestrais
+                                        : classificacao.valores_anuais
+                                    );
+                                    const totalClassificacaoOrc = calcularTotalOrcamento(
+                                      periodo === "mes"
+                                        ? classificacao.orcamentos_mensais
+                                        : periodo === "trimestre"
+                                        ? classificacao.orcamentos_trimestrais
+                                        : classificacao.orcamentos_anuais
+                                    );
+
+                                    return (
+                                      <TableRow 
+                                        key={`${totalizador.nome}-${conta.nome}-${classificacao.nome}`} 
+                                        className="bg-muted/10"
+                                      >
+                                        <TableCell className="sticky left-0 z-10 bg-muted/10 pl-16 text-sm">
+                                          <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
+                                            <span className="text-muted-foreground">{classificacao.nome}</span>
+                                          </div>
+                                        </TableCell>
+
+                                        {periodosFiltrados.map((p) => {
+                                          const real = calcularValor(classificacao, p);
+                                          const orcado = calcularOrcamento(classificacao, p);
+                                          return (
+                                            <React.Fragment key={p}>
+                                              <TableCell className="text-sm">
+                                                {renderValor(
+                                                  real,
+                                                  periodo === "mes"
+                                                    ? classificacao.vertical_mensais?.[p]
+                                                    : periodo === "trimestre"
+                                                    ? classificacao.vertical_trimestrais?.[p]
+                                                    : classificacao.vertical_anuais?.[p],
+                                                  periodo === "mes"
+                                                    ? classificacao.horizontal_mensais?.[p]
+                                                    : periodo === "trimestre"
+                                                    ? classificacao.horizontal_trimestrais?.[p]
+                                                    : classificacao.horizontal_anuais?.[p]
+                                                )}
+                                              </TableCell>
+                                              {showOrcado && (
+                                                <TableCell className="text-sm">
+                                                  {renderValorOrcamento(
+                                                    orcado,
+                                                    periodo === "mes"
+                                                      ? classificacao.vertical_orcamentos_mensais?.[p]
+                                                      : periodo === "trimestre"
+                                                      ? classificacao.vertical_orcamentos_trimestrais?.[p]
+                                                      : classificacao.vertical_orcamentos_anuais?.[p],
+                                                    periodo === "mes"
+                                                      ? classificacao.horizontal_orcamentos_mensais?.[p]
+                                                      : periodo === "trimestre"
+                                                      ? classificacao.horizontal_orcamentos_trimestrais?.[p]
+                                                      : classificacao.horizontal_orcamentos_anuais?.[p]
+                                                  )}
+                                                </TableCell>
+                                              )}
+                                              {showDiferenca && (
+                                                <TableCell className="text-sm">
+                                                  {renderValorDiferenca(real, orcado)}
+                                                </TableCell>
+                                              )}
+                                            </React.Fragment>
+                                          );
+                                        })}
+
+                                        <TableCell className="text-right text-sm">
+                                          {renderValor(totalClassificacao, calcularAVTotalDinamica(totalClassificacao))}
+                                        </TableCell>
+                                        {showOrcado && (
+                                          <TableCell className="text-right text-sm">
+                                            {renderValorOrcamento(
+                                              totalClassificacaoOrc,
+                                              classificacao.vertical_orcamentos_total,
+                                              undefined
+                                            )}
+                                          </TableCell>
+                                        )}
+                                        {showDiferenca && (
+                                          <TableCell className="text-right text-sm">
+                                            {renderValorDiferenca(totalClassificacao, totalClassificacaoOrc)}
+                                          </TableCell>
+                                        )}
+                                      </TableRow>
+                                    );
+                                  })}
+                              </React.Fragment>
+                            );
+                          })}
+                      </React.Fragment>
+                    );
+                  })}
+                </React.Fragment>
+              );
+            } else {
+              // Para "Saldo inicial" e "Saldo final", renderizar diretamente
+              return (
+                <TableRow key={item.nome} className="bg-primary/5 font-bold border-t-2 border-primary">
+                  <TableCell className="py-4 md:sticky md:left-0 md:z-20 bg-primary/5 font-bold">
+                    <span className="text-base font-bold text-primary">{item.nome}</span>
                   </TableCell>
-
+                  
                   {periodosFiltrados.map((p) => {
-                    const real = calcularValor(totalizador, p);
-                    const orcado = calcularOrcamento(totalizador, p);
+                    const real = calcularValor(item, p);
+                    const orcado = calcularOrcamento(item, p);
                     return (
                       <React.Fragment key={p}>
                         <TableCell className="font-bold">
-                          {renderValor(
-                            real,
-                            periodo === "mes"
-                              ? totalizador.vertical_mensais?.[p]
-                              : periodo === "trimestre"
-                              ? totalizador.vertical_trimestrais?.[p]
-                              : totalizador.vertical_anuais?.[p],
-                            periodo === "mes"
-                              ? totalizador.horizontal_mensais?.[p]
-                              : periodo === "trimestre"
-                              ? totalizador.horizontal_trimestrais?.[p]
-                              : totalizador.horizontal_anuais?.[p]
-                          )}
+                          {renderValor(real)}
                         </TableCell>
                         {showOrcado && (
                           <TableCell className="font-bold">
-                            {renderValorOrcamento(
-                              orcado,
-                              periodo === "mes"
-                                ? totalizador.vertical_mensais_orcamento?.[p]
-                                : periodo === "trimestre"
-                                ? totalizador.vertical_trimestrais_orcamento?.[p]
-                                : totalizador.vertical_anuais_orcamento?.[p],
-                              periodo === "mes"
-                                ? totalizador.horizontal_mensais_orcamento?.[p]
-                                : periodo === "trimestre"
-                                ? totalizador.horizontal_trimestrais_orcamento?.[p]
-                                : totalizador.horizontal_anuais_orcamento?.[p]
-                            )}
+                            {renderValorOrcamento(orcado)}
                           </TableCell>
                         )}
                         {showDiferenca && (
@@ -636,235 +952,21 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                   })}
 
                   <TableCell className="py-4 text-right font-bold">
-                    {renderValor(totalTotalizador, calcularAVTotalDinamica(totalTotalizador))}
+                    {renderValor(item.valor ?? 0)}
                   </TableCell>
                   {showOrcado && (
                     <TableCell className="py-4 text-right font-bold">
-                      {renderValorOrcamento(
-                        totalTotalizadorOrc,
-                        totalizador.vertical_orcamentos_total,
-                        undefined
-                      )}
+                      {renderValorOrcamento(item.orcamento_total ?? 0)}
                     </TableCell>
                   )}
                   {showDiferenca && (
                     <TableCell className="py-4 text-right font-bold">
-                      {renderValorDiferenca(totalTotalizador, totalTotalizadorOrc)}
+                      {renderValorDiferenca(item.valor ?? 0, item.orcamento_total ?? 0)}
                     </TableCell>
                   )}
                 </TableRow>
-
-                {/* CONTAS FILHAS DO TOTALIZADOR */}
-                {isOpen &&
-                  totalizador.classificacoes?.map((conta) => {
-                    const isContaExpandable = !!conta.classificacoes?.length;
-                    const isContaOpen = openSections[`${totalizador.nome}-${conta.nome}`] ?? false;
-
-                    const totalConta = calcularTotal(
-                      periodo === "mes"
-                        ? conta.valores_mensais
-                        : periodo === "trimestre"
-                        ? conta.valores_trimestrais
-                        : conta.valores_anuais
-                    );
-                    const totalContaOrc = calcularTotalOrcamento(
-                      periodo === "mes"
-                        ? conta.orcamentos_mensais
-                        : periodo === "trimestre"
-                        ? conta.orcamentos_trimestrais
-                        : conta.orcamentos_anuais
-                    );
-
-                    return (
-                      <React.Fragment key={`${totalizador.nome}-${conta.nome}`}>
-                        {/* LINHA DA CONTA */}
-                        <TableRow
-                          className={`${
-                            isContaExpandable ? "cursor-pointer hover:bg-muted/30" : ""
-                          } bg-muted/20`}
-                          onClick={() => isContaExpandable && toggle(`${totalizador.nome}-${conta.nome}`)}
-                        >
-                          <TableCell className="sticky left-0 z-10 bg-muted/20 pl-8">
-                            <div className="flex items-center gap-2">
-                              {isContaExpandable && (
-                                <ChevronDown
-                                  size={14}
-                                  className={`transition-transform ${
-                                    isContaOpen ? "rotate-0" : "-rotate-90"
-                                  }`}
-                                />
-                              )}
-                              <span className="text-sm">{conta.tipo}</span>
-                              <span className="font-medium">{conta.nome}</span>
-                            </div>
-                          </TableCell>
-
-                          {periodosFiltrados.map((p) => {
-                            const real = calcularValor(conta, p);
-                            const orcado = calcularOrcamento(conta, p);
-                            return (
-                              <React.Fragment key={p}>
-                                <TableCell>
-                                  {renderValor(
-                                    real,
-                                    periodo === "mes"
-                                      ? conta.vertical_mensais?.[p]
-                                      : periodo === "trimestre"
-                                      ? conta.vertical_trimestrais?.[p]
-                                      : conta.vertical_anuais?.[p],
-                                    periodo === "mes"
-                                      ? conta.horizontal_mensais?.[p]
-                                      : periodo === "trimestre"
-                                      ? conta.horizontal_trimestrais?.[p]
-                                      : conta.horizontal_anuais?.[p]
-                                  )}
-                                </TableCell>
-                                {showOrcado && (
-                                  <TableCell>
-                                    {renderValorOrcamento(
-                                      orcado,
-                                      periodo === "mes"
-                                        ? conta.vertical_mensais_orcamento?.[p]
-                                        : periodo === "trimestre"
-                                        ? conta.vertical_trimestrais_orcamento?.[p]
-                                        : conta.vertical_anuais_orcamento?.[p],
-                                      periodo === "mes"
-                                        ? conta.horizontal_mensais_orcamento?.[p]
-                                        : periodo === "trimestre"
-                                        ? conta.horizontal_trimestrais_orcamento?.[p]
-                                        : conta.horizontal_anuais_orcamento?.[p]
-                                    )}
-                                  </TableCell>
-                                )}
-                                {showDiferenca && (
-                                  <TableCell>
-                                    {renderValorDiferenca(real, orcado)}
-                                  </TableCell>
-                                )}
-                              </React.Fragment>
-                            );
-                          })}
-
-                          <TableCell className="text-right">
-                            {renderValor(totalConta, calcularAVTotalDinamica(totalConta))}
-                          </TableCell>
-                          {showOrcado && (
-                            <TableCell className="text-right">
-                              {renderValorOrcamento(
-                                totalContaOrc,
-                                conta.vertical_orcamentos_total,
-                                undefined
-                              )}
-                            </TableCell>
-                          )}
-                          {showDiferenca && (
-                            <TableCell className="text-right">
-                              {renderValorDiferenca(totalConta, totalContaOrc)}
-                            </TableCell>
-                          )}
-                        </TableRow>
-
-                        {/* CLASSIFICAÇÕES DA CONTA (NÍVEL 3) */}
-                        {isContaOpen &&
-                          conta.classificacoes?.map((classificacao) => {
-                            const totalClassificacao = calcularTotal(
-                              periodo === "mes"
-                                ? classificacao.valores_mensais
-                                : periodo === "trimestre"
-                                ? classificacao.valores_trimestrais
-                                : classificacao.valores_anuais
-                            );
-                            const totalClassificacaoOrc = calcularTotalOrcamento(
-                              periodo === "mes"
-                                ? classificacao.orcamentos_mensais
-                                : periodo === "trimestre"
-                                ? classificacao.orcamentos_trimestrais
-                                : classificacao.orcamentos_anuais
-                            );
-
-                            return (
-                              <TableRow 
-                                key={`${totalizador.nome}-${conta.nome}-${classificacao.nome}`} 
-                                className="bg-muted/10"
-                              >
-                                <TableCell className="sticky left-0 z-10 bg-muted/10 pl-16 text-sm">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
-                                    <span className="text-muted-foreground">{classificacao.nome}</span>
-                                  </div>
-                                </TableCell>
-
-                                {periodosFiltrados.map((p) => {
-                                  const real = calcularValor(classificacao, p);
-                                  const orcado = calcularOrcamento(classificacao, p);
-                                  return (
-                                    <React.Fragment key={`${p}-${classificacao.nome}`}>
-                                      <TableCell>
-                                        {renderValor(
-                                          real,
-                                          periodo === "mes"
-                                            ? classificacao.vertical_mensais?.[p]
-                                            : periodo === "trimestre"
-                                            ? classificacao.vertical_trimestrais?.[p]
-                                            : classificacao.vertical_anuais?.[p],
-                                          periodo === "mes"
-                                            ? classificacao.horizontal_mensais?.[p]
-                                            : periodo === "trimestre"
-                                            ? classificacao.horizontal_trimestrais?.[p]
-                                            : classificacao.horizontal_anuais?.[p]
-                                        )}
-                                      </TableCell>
-                                      {showOrcado && (
-                                        <TableCell>
-                                          {renderValorOrcamento(
-                                            orcado,
-                                            periodo === "mes"
-                                              ? classificacao.vertical_mensais_orcamento?.[p]
-                                              : periodo === "trimestre"
-                                              ? classificacao.vertical_trimestrais_orcamento?.[p]
-                                              : classificacao.vertical_anuais_orcamento?.[p],
-                                            periodo === "mes"
-                                              ? classificacao.horizontal_mensais_orcamento?.[p]
-                                              : periodo === "trimestre"
-                                              ? classificacao.horizontal_trimestrais_orcamento?.[p]
-                                              : classificacao.horizontal_anuais_orcamento?.[p]
-                                          )}
-                                        </TableCell>
-                                      )}
-                                      {showDiferenca && (
-                                        <TableCell>
-                                          {renderValorDiferenca(real, orcado)}
-                                        </TableCell>
-                                      )}
-                                    </React.Fragment>
-                                  );
-                                })}
-
-                                <TableCell className="text-right">
-                                  {renderValor(totalClassificacao, calcularAVTotalDinamica(totalClassificacao))}
-                                </TableCell>
-                                {showOrcado && (
-                                  <TableCell className="text-right">
-                                    {renderValorOrcamento(
-                                      totalClassificacaoOrc,
-                                      classificacao.vertical_orcamentos_total,
-                                      undefined
-                                    )}
-                                  </TableCell>
-                                )}
-                                {showDiferenca && (
-                                  <TableCell className="text-right">
-                                    {renderValorDiferenca(totalClassificacao, totalClassificacaoOrc)}
-                                  </TableCell>
-                                )}
-                              </TableRow>
-                            );
-                          })}
-                      </React.Fragment>
-                    );
-                  })}
-              </React.Fragment>
-            );
+              );
+            }
           })}
         </TableBody>
       </Table>

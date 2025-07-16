@@ -69,7 +69,7 @@ export default function DreTable() {
   const [periodo, setPeriodo] = useState<"mes" | "trimestre" | "ano">("mes")
 
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/dre")
+    fetch("https://mvp-plataforma-tag-3s9u.onrender.com/dre")
       .then(res => res.json())
       .then((result: DreResponse | { error: string }) => {
         if ("error" in result) {
