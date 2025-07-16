@@ -1325,8 +1325,8 @@ def get_dfc_data():
             return totalizador
 
         # Criar estrutura hierárquica
-        result = []
 
+        # Primeiro criar os 4 totalizadores atuais (nível 1)
         # 1. OPERACIONAL
         operacional = criar_totalizador(
             "Operacional",
@@ -1341,7 +1341,6 @@ def get_dfc_data():
                 + v["Adiantamentos saída"] + v["Impostos"]
             )
         )
-        result.append(operacional)
 
         # 2. INVESTIMENTO
         investimento = criar_totalizador(
@@ -1352,7 +1351,6 @@ def get_dfc_data():
                 + v["Imobilizado"] + v["Intangível"] + v["Marcas e Patentes"]
             )
         )
-        result.append(investimento)
 
         # 3. FINANCIAMENTO
         financiamento = criar_totalizador(
@@ -1365,17 +1363,220 @@ def get_dfc_data():
                 + v["Distribuição de lucro"] + v["Aplicação Automática"] + v["Resgate Automático"]
             )
         )
-        result.append(financiamento)
 
         # 4. MOVIMENTAÇÃO ENTRE CONTAS
-        movimentacao = criar_totalizador(
+        movimentacao_entre_contas = criar_totalizador(
             "Movimentação entre Contas",
             ["Transferência Entrada", "Transferência Saída", "Empréstimo de Mútuo - Crédito", "Empréstimo de Mútuo - Débito"],
             lambda v: (
                 v["Transferência Entrada"] + v["Transferência Saída"] + v["Empréstimo de Mútuo - Crédito"] + v["Empréstimo de Mútuo - Débito"]
             )
         )
-        result.append(movimentacao)
+
+        # Função para criar um item de nível 0 (saldo inicial, movimentações, saldo final)
+        def criar_item_nivel_0(nome, tipo="="):
+            valores_mes = {}
+            valores_tri = {}
+            valores_ano = {}
+            
+            # Para saldo inicial e final, buscar dados do endpoint saldos-evolucao
+            if nome in ["Saldo inicial", "Saldo final"]:
+                try:
+                    saldos_evolucao = get_saldos_evolucao()
+                    if saldos_evolucao.get("success"):
+                        evolucao_data = saldos_evolucao["data"]["evolucao"]
+                        for item in evolucao_data:
+                            mes = item["mes"]
+                            if nome == "Saldo inicial":
+                                valores_mes[mes] = round(item["saldo_inicial"], 0)
+                            else:  # Saldo final
+                                valores_mes[mes] = round(item["saldo_final"], 0)
+                        
+                        # Agregar por trimestre e ano
+                        for tri in trimestres_unicos:
+                            ano_tri = tri.split('-T')[0]
+                            trimestre_num = tri.split('-T')[1]
+                            if trimestre_num == '1':
+                                meses_do_tri = [m for m in meses_unicos if m.startswith(ano_tri) and m.split('-')[1] in ['01', '02', '03']]
+                            elif trimestre_num == '2':
+                                meses_do_tri = [m for m in meses_unicos if m.startswith(ano_tri) and m.split('-')[1] in ['04', '05', '06']]
+                            elif trimestre_num == '3':
+                                meses_do_tri = [m for m in meses_unicos if m.startswith(ano_tri) and m.split('-')[1] in ['07', '08', '09']]
+                            else:  # T4
+                                meses_do_tri = [m for m in meses_unicos if m.startswith(ano_tri) and m.split('-')[1] in ['10', '11', '12']]
+                            
+                            if meses_do_tri:
+                                if nome == "Saldo inicial":
+                                    valores_tri[tri] = valores_mes.get(min(meses_do_tri), 0)
+                                else:  # Saldo final
+                                    valores_tri[tri] = valores_mes.get(max(meses_do_tri), 0)
+                        
+                        for ano in anos_unicos:
+                            meses_do_ano = [m for m in meses_unicos if m.startswith(str(ano))]
+                            if meses_do_ano:
+                                if nome == "Saldo inicial":
+                                    valores_ano[str(ano)] = valores_mes.get(min(meses_do_ano), 0)
+                                else:  # Saldo final
+                                    valores_ano[str(ano)] = valores_mes.get(max(meses_do_ano), 0)
+                    else:
+                        # Se falhou, usar valores zero
+                        for mes in meses_unicos:
+                            valores_mes[mes] = 0
+                        for tri in trimestres_unicos:
+                            valores_tri[tri] = 0
+                        for ano in anos_unicos:
+                            valores_ano[str(ano)] = 0
+                except:
+                    # Se falhou, usar valores zero
+                    for mes in meses_unicos:
+                        valores_mes[mes] = 0
+                    for tri in trimestres_unicos:
+                        valores_tri[tri] = 0
+                    for ano in anos_unicos:
+                        valores_ano[str(ano)] = 0
+            else:
+                # Para movimentações, inicializar com zero (será calculado depois)
+                for mes in meses_unicos:
+                    valores_mes[mes] = 0
+                for tri in trimestres_unicos:
+                    valores_tri[tri] = 0
+                for ano in anos_unicos:
+                    valores_ano[str(ano)] = 0
+
+            valor_total = sum(valores_mes.values()) if valores_mes else 0
+
+            # Para saldos, orçamentos são zero (não faz sentido orçar saldo inicial/final)
+            orcamentos_mes = {mes: 0 for mes in meses_unicos}
+            orcamentos_tri = {tri: 0 for tri in trimestres_unicos}
+            orcamentos_ano = {str(ano): 0 for ano in anos_unicos}
+            orcamento_total = 0
+
+            # Análises horizontais e verticais (simplificadas para nível 0)
+            horizontal_mensais = {mes: "–" for mes in meses_unicos}
+            horizontal_trimestrais = {tri: "–" for tri in trimestres_unicos}
+            horizontal_anuais = {str(ano): "–" for ano in anos_unicos}
+            
+            vertical_mensais = {mes: "–" for mes in meses_unicos}
+            vertical_trimestrais = {tri: "–" for tri in trimestres_unicos}
+            vertical_anuais = {str(ano): "–" for ano in anos_unicos}
+            vertical_total = "–"
+
+            real_vs_orcamento_mensais = {mes: "–" for mes in meses_unicos}
+            real_vs_orcamento_trimestrais = {tri: "–" for tri in trimestres_unicos}
+            real_vs_orcamento_anuais = {str(ano): "–" for ano in anos_unicos}
+            real_vs_orcamento_total = "–"
+
+            return {
+                "tipo": tipo,
+                "nome": nome,
+                "valor": valor_total,
+                "valores_mensais": valores_mes,
+                "valores_trimestrais": valores_tri,
+                "valores_anuais": valores_ano,
+                "orcamentos_mensais": orcamentos_mes,
+                "orcamentos_trimestrais": orcamentos_tri,
+                "orcamentos_anuais": orcamentos_ano,
+                "orcamento_total": orcamento_total,
+                "vertical_mensais": vertical_mensais,
+                "vertical_trimestrais": vertical_trimestrais,
+                "vertical_anuais": vertical_anuais,
+                "vertical_total": vertical_total,
+                "horizontal_mensais": horizontal_mensais,
+                "horizontal_trimestrais": horizontal_trimestrais,
+                "horizontal_anuais": horizontal_anuais,
+                "vertical_orcamentos_mensais": vertical_mensais,
+                "vertical_orcamentos_trimestrais": vertical_trimestrais,
+                "vertical_orcamentos_anuais": vertical_anuais,
+                "vertical_orcamentos_total": vertical_total,
+                "horizontal_orcamentos_mensais": horizontal_mensais,
+                "horizontal_orcamentos_trimestrais": horizontal_trimestrais,
+                "horizontal_orcamentos_anuais": horizontal_anuais,
+                "real_vs_orcamento_mensais": real_vs_orcamento_mensais,
+                "real_vs_orcamento_trimestrais": real_vs_orcamento_trimestrais,
+                "real_vs_orcamento_anuais": real_vs_orcamento_anuais,
+                "real_vs_orcamento_total": real_vs_orcamento_total,
+                "classificacoes": []
+            }
+
+        # Criar estrutura do nível 0
+        result = []
+
+        # 1. SALDO INICIAL
+        saldo_inicial = criar_item_nivel_0("Saldo inicial", "=")
+        result.append(saldo_inicial)
+
+        # 2. MOVIMENTAÇÕES (contém os 4 totalizadores como filhos)
+        movimentacoes = criar_item_nivel_0("Movimentações", "=")
+        
+        # Calcular valores de movimentações como soma dos 4 totalizadores
+        for mes in meses_unicos:
+            movimentacoes["valores_mensais"][mes] = (
+                operacional["valores_mensais"][mes] + 
+                investimento["valores_mensais"][mes] + 
+                financiamento["valores_mensais"][mes] + 
+                movimentacao_entre_contas["valores_mensais"][mes]
+            )
+        for tri in trimestres_unicos:
+            movimentacoes["valores_trimestrais"][tri] = (
+                operacional["valores_trimestrais"][tri] + 
+                investimento["valores_trimestrais"][tri] + 
+                financiamento["valores_trimestrais"][tri] + 
+                movimentacao_entre_contas["valores_trimestrais"][tri]
+            )
+        for ano in anos_unicos:
+            movimentacoes["valores_anuais"][str(ano)] = (
+                operacional["valores_anuais"][str(ano)] + 
+                investimento["valores_anuais"][str(ano)] + 
+                financiamento["valores_anuais"][str(ano)] + 
+                movimentacao_entre_contas["valores_anuais"][str(ano)]
+            )
+        
+        # Atualizar valor total
+        movimentacoes["valor"] = (
+            operacional["valor"] + 
+            investimento["valor"] + 
+            financiamento["valor"] + 
+            movimentacao_entre_contas["valor"]
+        )
+        
+        # Calcular orçamentos de movimentações como soma dos 4 totalizadores
+        for mes in meses_unicos:
+            movimentacoes["orcamentos_mensais"][mes] = (
+                operacional["orcamentos_mensais"][mes] + 
+                investimento["orcamentos_mensais"][mes] + 
+                financiamento["orcamentos_mensais"][mes] + 
+                movimentacao_entre_contas["orcamentos_mensais"][mes]
+            )
+        for tri in trimestres_unicos:
+            movimentacoes["orcamentos_trimestrais"][tri] = (
+                operacional["orcamentos_trimestrais"][tri] + 
+                investimento["orcamentos_trimestrais"][tri] + 
+                financiamento["orcamentos_trimestrais"][tri] + 
+                movimentacao_entre_contas["orcamentos_trimestrais"][tri]
+            )
+        for ano in anos_unicos:
+            movimentacoes["orcamentos_anuais"][str(ano)] = (
+                operacional["orcamentos_anuais"][str(ano)] + 
+                investimento["orcamentos_anuais"][str(ano)] + 
+                financiamento["orcamentos_anuais"][str(ano)] + 
+                movimentacao_entre_contas["orcamentos_anuais"][str(ano)]
+            )
+        
+        # Atualizar orçamento total
+        movimentacoes["orcamento_total"] = (
+            operacional["orcamento_total"] + 
+            investimento["orcamento_total"] + 
+            financiamento["orcamento_total"] + 
+            movimentacao_entre_contas["orcamento_total"]
+        )
+        
+        # Adicionar os 4 totalizadores como classificações de "Movimentações"
+        movimentacoes["classificacoes"] = [operacional, investimento, financiamento, movimentacao_entre_contas]
+        result.append(movimentacoes)
+
+        # 3. SALDO FINAL
+        saldo_final = criar_item_nivel_0("Saldo final", "=")
+        result.append(saldo_final)
 
         return {
             "meses": meses_unicos,
