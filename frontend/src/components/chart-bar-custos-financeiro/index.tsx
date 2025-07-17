@@ -32,7 +32,7 @@ const chartConfig = {
 } satisfies ChartConfig
 
 // Permite receber dados via props para filtro dinâmico
-export function ChartBarLabelCustom({ data }: { data?: Record<string, number> }) {
+export function ChartCustosFinanceiro({ data }: { data?: Record<string, number> }) {
   // Se receber data via props, usa ela, senão busca do backend (modo antigo)
   const [chartData, setChartData] = useState<ChartData[]>([])
   const [loading, setLoading] = useState(false)

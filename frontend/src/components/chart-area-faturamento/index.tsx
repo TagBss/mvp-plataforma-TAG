@@ -1,32 +1,30 @@
 "use client"
 
-
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import { formatCurrencyShort } from "../kpis-financeiro"
+import { formatCurrencyShort } from "../kpis-competencia"
 
-
-export interface AreaChartSaldoProps {
+export interface AreaChartFaturamentoProps {
   data: Array<{
     mes: string
-    saldo_final: number
+    faturamento: number
   }>
   config?: {
-    saldo_final?: { label: string; color: string }
+    faturamento?: { label: string; color: string }
   }
   mesSelecionado?: string;
 }
 
-export function ChartAreaSaldoFinal({ data, config, mesSelecionado }: AreaChartSaldoProps) {
+export function ChartAreaFaturamento({ data, config, mesSelecionado }: AreaChartFaturamentoProps) {
   // Cores e labels padrão, pode sobrescrever via config
   const chartConfig = {
-    saldo_final: {
-      label: config?.saldo_final?.label || "Saldo Final",
-      color: config?.saldo_final?.color || "var(--chart-5)",
+    faturamento: {
+      label: config?.faturamento?.label || "Faturamento",
+      color: config?.faturamento?.color || "var(--chart-5)",
     },
   };
 
@@ -92,26 +90,26 @@ export function ChartAreaSaldoFinal({ data, config, mesSelecionado }: AreaChartS
         />
         <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
         <defs>
-          <linearGradient id="fillSaldoFinal" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id="fillFaturamento" x1="0" y1="0" x2="0" y2="1">
             <stop
               offset="5%"
-              stopColor={chartConfig.saldo_final.color}
+              stopColor={chartConfig.faturamento.color}
               stopOpacity={0.8}
             />
             <stop
               offset="95%"
-              stopColor={chartConfig.saldo_final.color}
+              stopColor={chartConfig.faturamento.color}
               stopOpacity={0.1}
             />
           </linearGradient>
         </defs>
         <Area
-          dataKey="saldo_final"
-          name={chartConfig.saldo_final.label}
+          dataKey="faturamento"
+          name={chartConfig.faturamento.label}
           type="natural"
-          fill="url(#fillSaldoFinal)"
+          fill="url(#fillFaturamento)"
           fillOpacity={0.4}
-          stroke={chartConfig.saldo_final.color}
+          stroke={chartConfig.faturamento.color}
           stackId="a"
           dot={CustomizedDot}
         />

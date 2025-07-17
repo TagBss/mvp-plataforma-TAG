@@ -23,7 +23,7 @@ import {
 import { useEffect, useState } from "react";
 import { FiltroMes } from "@/components/filtro-mes"
 import ChartMovimentacoes from "@/components/chart-movimentacoes";
-import { ChartBarLabelCustom } from "../chart-bar-label-custom";
+import { ChartCustosFinanceiro } from "../chart-bar-custos-financeiro";
 
 // Função para formatar no estilo curto (Mil / Mi)
 export function formatCurrencyShort(value: number, opts?: { noPrefix?: boolean }): string {
@@ -745,7 +745,7 @@ export default function DashFinanceiro() {
                   </div>
                 </CardDescription>
 
-                <ChartBarLabelCustom data={custosMesClass} />
+                <ChartCustosFinanceiro data={custosMesClass} />
               </CardContent>
               <CardFooter className="flex-col items-start gap-2 text-sm">
                 <CardDescription>

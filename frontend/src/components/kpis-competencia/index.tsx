@@ -4,10 +4,11 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { CardSkeleton } from "@/components/ui/card-skeleton";
+import { CardSkeleton, CardSkeletonLarge } from "@/components/ui/card-skeleton";
 import {  
   MinusCircle,
   PlusCircle,
@@ -16,6 +17,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { FiltroMes } from "@/components/filtro-mes"
+import { ChartWaterfallDre } from "@/components/chart-waterfall-dre"
+import { ChartAreaFaturamento } from "@/components/chart-area-faturamento"
 
 // Função para formatar no estilo curto (Mil / Mi)
 export function formatCurrencyShort(value: number, opts?: { noPrefix?: boolean }): string {
@@ -53,6 +56,22 @@ interface DreLinha {
 
 // Função utilitária para formatar períodos de meses
 const mesesAbreviados = ['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+function formatarPeriodo(dados: Array<{ mes: string }>) {
+  if (dados.length === 0) return "Todo o período";
+  
+  const primeiro = dados[0].mes;
+  const ultimo = dados[dados.length - 1].mes;
+  
+  const formatar = (mes: string) => {
+    if (!mes.match(/^\d{4}-\d{2}$/)) return mes;
+    const [ano, m] = mes.split("-");
+    const mesNum = parseInt(m, 10);
+    return `${mesesAbreviados[mesNum]}/${ano.slice(-2)}`;
+  };
+  
+  return `${formatar(primeiro)} - ${formatar(ultimo)}`;
+}
 
 function getMoMIndicator(momData: MoMData[], mesSelecionado: string) {
   if (!momData || momData.length === 0) return null;
@@ -103,6 +122,7 @@ export default function DashCompetencia() {
   // Estados dos KPIs
   const [faturamentoValor, setFaturamentoValor] = useState<number | null>(null);
   const [momFaturamento, setMomFaturamento] = useState<MoMData[]>([]);
+  const [faturamentoEvolucao, setFaturamentoEvolucao] = useState<Array<{ mes: string; faturamento: number }>>([]);
   const [custosValor, setCustosValor] = useState<number | null>(null);
   const [momCustos, setMomCustos] = useState<MoMData[]>([]);
   const [lucroLiquidoValor, setLucroLiquidoValor] = useState<number | null>(null);
@@ -140,6 +160,18 @@ export default function DashCompetencia() {
         ? fat.valores_mensais[mes] 
         : fat?.valor ?? null;
       setFaturamentoValor(valorFaturamento);
+      
+      // Processar evolução do faturamento (últimos 12 meses)
+      if (fat && fat.valores_mensais) {
+        const mesesOrdenados = Object.keys(fat.valores_mensais).sort();
+        const evolucao = mesesOrdenados.slice(-12).map(mes => ({
+          mes,
+          faturamento: fat.valores_mensais[mes] || 0
+        }));
+        setFaturamentoEvolucao(evolucao);
+      } else {
+        setFaturamentoEvolucao([]);
+      }
       // Custos (Custo com Importação + Custo com Mercadoria Interna)
       const custoImport = linhas.find((item) => item.nome === "Custo com Importação");
       const custoMerc = linhas.find((item) => item.nome === "Custo com Mercadoria Interna");
@@ -502,6 +534,110 @@ export default function DashCompetencia() {
             </Card>
           </>
         )}
+      </section>
+
+      <section className="mt-4 flex flex-col lg:flex-row gap-4">
+        {(inicializando || loading) ? (
+          // Exibe skeletons enquanto carrega
+          <>
+            <CardSkeletonLarge />
+            <CardSkeletonLarge />
+          </>
+        ) : (
+          // Exibe os cards reais após carregar
+          <>
+            {/* Gráfico cascata */}
+            <Card className="w-full">
+              <CardHeader>
+                <div className="flex items-center justify-center">
+                  <CardTitle className="text-lg sm:text-xl select-none">
+                    Análise de Cascata DRE
+                  </CardTitle>
+                  <TrendingUp className="ml-auto w-4 h-4" />
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                <div className="sm:flex sm:justify-between sm:items-center">
+                  <CardDescription>
+                    <div className="flex gap-2 mb-10 leading-none font-medium">
+                      Evolução dos resultados financeiros
+                      {mesSelecionado && ` - ${mesSelecionado}`}
+                    </div>
+                  </CardDescription>
+                </div>
+
+                <ChartWaterfallDre mesSelecionado={mesSelecionado} />
+              </CardContent>
+              <CardFooter className="flex-col items-start gap-2 text-sm">
+                <CardDescription>
+                  <p>Análise de cascata DRE</p>
+                </CardDescription>
+                <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                  {mesSelecionado ? (
+                    (() => {
+                      const formatar = (mes: string) => {
+                        if (!mes.match(/^\d{4}-\d{2}$/)) return mes;
+                        const [ano, m] = mes.split("-");
+                        const mesNum = parseInt(m, 10);
+                        return `${mesesAbreviados[mesNum]}/${ano.slice(-2)}`;
+                      };
+                      return formatar(mesSelecionado);
+                    })()
+                  ) : (
+                    faturamentoEvolucao.length > 0 ? (
+                      formatarPeriodo(faturamentoEvolucao)
+                    ) : (
+                      "Todo o período"
+                    )
+                  )}
+                </div>
+              </CardFooter>
+            </Card>
+            
+            {/* Gráfico de faturamento */}
+            <Card className="w-full">
+              <CardHeader>
+                <div className="flex items-center justify-center">
+                  <CardTitle className="text-lg sm:text-xl select-none">
+                    Faturamento
+                  </CardTitle>
+                  <PlusCircle className="ml-auto w-4 h-4" />
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                <div className="sm:flex sm:justify-between sm:items-center">
+                  <CardDescription>
+                    <div className="flex gap-2 mb-10 leading-none font-medium">
+                      Faturamento ao longo do tempo
+                      {mesSelecionado && ` - ${mesSelecionado} destacado`}
+                    </div>
+                  </CardDescription>
+                </div>
+
+                <ChartAreaFaturamento data={faturamentoEvolucao} mesSelecionado={mesSelecionado} />
+              </CardContent>
+              <CardFooter className="flex-col items-start gap-2 text-sm">
+                <CardDescription>
+                  <p>Faturamento últimos 12M</p>
+                </CardDescription>
+                <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                  {faturamentoEvolucao.length > 0 ? (
+                    formatarPeriodo(faturamentoEvolucao)
+                  ) : (
+                    "Todo o período"
+                  )}
+                </div>
+              </CardFooter>
+            </Card>
+          </>
+        )}
+      </section>
+
+      <section>
+        {/* Gráfico de custos competencia
+        Gráfico de despesas competencia */}
       </section>
 
       <section className="mt-8 text-center">
