@@ -34,10 +34,21 @@ export function FiltroMes({ onSelect, endpoint, value }: FiltroMesProps) {
     const fetchMeses = async () => {
       const res = await fetch(endpoint)
       const data = await res.json()
-      if (data.success && data.data?.meses_disponiveis) {
-        setMesesDisponiveis(data.data.meses_disponiveis)
+      let meses: string[] = [];
+      // Aceita tanto meses_disponiveis quanto meses
+      if (data?.data?.meses_disponiveis && Array.isArray(data.data.meses_disponiveis)) {
+        meses = data.data.meses_disponiveis;
+      } else if (data?.meses_disponiveis && Array.isArray(data.meses_disponiveis)) {
+        meses = data.meses_disponiveis;
+      } else if (data?.meses && Array.isArray(data.meses)) {
+        meses = data.meses;
+      } else if (Array.isArray(data) && data.length > 0 && typeof data[0] === "string") {
+        meses = data;
+      }
+      if (meses.length > 0) {
+        setMesesDisponiveis(meses);
       } else {
-        console.error("meses_disponiveis não encontrados!")
+        console.error("meses_disponiveis ou meses não encontrados!");
       }
     }
     fetchMeses()

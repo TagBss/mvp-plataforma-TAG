@@ -42,10 +42,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://mvp-plataforma-tag.vercel.app/",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,26 +55,6 @@ app.include_router(dfc_router, tags=["DFC"])
 @app.get("/")
 def root():
     return {"message": "API está funcionando!"}
-
-@app.get("/chart-data")
-def get_chart_data():
-    filename = "upload.xlsx" if os.path.exists("upload.xlsx") else "dados.xlsx"
-    try:
-        df = pd.read_excel(filename)
-        return df.to_dict(orient="records")
-    except Exception as e:
-        return {"error": f"Erro ao ler o arquivo: {str(e)}"}
-
-@app.post("/upload")
-def upload_excel(file: UploadFile = File(...)):
-    if not file.filename.endswith(".xlsx"):
-        return {"error": "Somente arquivos .xlsx são permitidos."}
-    try:
-        with open("upload.xlsx", "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        return {"filename": file.filename, "status": "uploaded"}
-    except Exception as e:
-        return {"error": f"Erro ao salvar o arquivo: {str(e)}"}
 
 def calcular_mom(df_filtrado, date_column, origem):
     """
@@ -106,43 +83,6 @@ def calcular_mom(df_filtrado, date_column, origem):
             mom_data.append({
                 "mes": str(row[date_column]),
                 "valor_atual": round(row['valor'], 2),
-                "valor_anterior": round(row['valor_anterior'], 2) if pd.notna(row['valor_anterior']) else None,
-                "variacao_absoluta": round(row['variacao_absoluta'], 2) if pd.notna(row['variacao_absoluta']) else None,
-                "variacao_percentual": row['variacao_percentual'] if pd.notna(row['variacao_percentual']) else None
-            })
-        
-        return mom_data
-        
-    except Exception as e:
-        return []
-
-def calcular_mom_faturamento(df_filtrado, date_column):
-    """
-    Calcula variação Month over Month (MoM) para faturamento usando valor_original
-    """
-    try:
-        # Agrupar por mês e somar valores
-        df_mensal = df_filtrado.groupby(
-            df_filtrado[date_column].dt.to_period('M')
-        )['valor_original'].sum().reset_index()
-        
-        # Ordenar por data
-        df_mensal = df_mensal.sort_values(date_column)
-        
-        # Calcular variação MoM
-        df_mensal['valor_anterior'] = df_mensal['valor_original'].shift(1)
-        df_mensal['variacao_absoluta'] = df_mensal['valor_original'] - df_mensal['valor_anterior']
-        df_mensal['variacao_percentual'] = (
-            (df_mensal['valor_original'] - df_mensal['valor_anterior']) / 
-            df_mensal['valor_anterior'] * 100
-        ).round(2)
-        
-        # Preparar dados para retorno
-        mom_data = []
-        for _, row in df_mensal.iterrows():
-            mom_data.append({
-                "mes": str(row[date_column]),
-                "valor_atual": round(row['valor_original'], 2),
                 "valor_anterior": round(row['valor_anterior'], 2) if pd.notna(row['valor_anterior']) else None,
                 "variacao_absoluta": round(row['variacao_absoluta'], 2) if pd.notna(row['variacao_absoluta']) else None,
                 "variacao_percentual": row['variacao_percentual'] if pd.notna(row['variacao_percentual']) else None
@@ -302,10 +242,6 @@ def calcular_saldo(origem: str, mes_filtro: str = None):
     except Exception as e:
         return {"error": f"Erro ao calcular saldo: {str(e)}"}
 
-@app.get("/faturamento")
-def get_faturamento(mes: str = None):
-    return calcular_faturamento(mes)
-
 @app.get("/receber")
 def get_caixa_saldo(mes: str = None):
     return calcular_saldo("CAR", mes)
@@ -428,98 +364,6 @@ def get_saldos_evolucao():
 @app.get("/custos-visao-financeiro")
 def get_custos():
     filename = "financial-data-roriz.xlsx"
-    df = get_cached_df(filename)
-    if df is None:
-        return {"error": "Erro ao ler o arquivo Excel."}
-
-    # Validação das colunas obrigatórias
-    required_columns = ["valor", "DFC_n2", "classificacao"]
-    if not all(col in df.columns for col in required_columns):
-        return {"error": f"A planilha deve conter as colunas: {', '.join(required_columns)}"}
-
-    # Filtrar apenas custos e origem CAR ou CAP
-    if "origem" not in df.columns:
-        return {"error": "A planilha deve conter a coluna 'origem'"}
-    df_custos = df[(df["DFC_n2"] == "Custos") & (df["origem"].isin(["CAR", "CAP"]))].copy()
-    if df_custos.empty:
-        return {"error": "Não há dados de custos na planilha para origem 'CAR' ou 'CAP'."}
-
-    # Identificar coluna de data
-    date_column = next((col for col in df_custos.columns if col.lower() == "data"), None)
-    if not date_column:
-        return {"error": "Coluna de data não encontrada"}
-
-    df_custos[date_column] = pd.to_datetime(df_custos[date_column], errors="coerce")
-    df_custos = df_custos.dropna(subset=[date_column, "valor"])
-    df_custos["mes_ano"] = df_custos[date_column].dt.to_period("M").astype(str)
-
-    # Custos por classificação mês a mês
-    custos_mes_class = (
-        df_custos.groupby(["classificacao", "mes_ano"])['valor'].sum().reset_index()
-    )
-
-    # Estruturar resposta: { classificacao: { mes_ano: valor, ... }, ... }
-    resultado = {}
-    for _, row in custos_mes_class.iterrows():
-        classificacao = row["classificacao"] or "Sem classificação"
-        mes_ano = row["mes_ano"]
-        valor = float(row["valor"])
-        if classificacao not in resultado:
-            resultado[classificacao] = {}
-        resultado[classificacao][mes_ano] = valor
-
-    # Total geral por classificação (todos os meses)
-    total_geral = (
-        df_custos.groupby("classificacao")['valor'].sum().to_dict()
-    )
-    # Converter para float
-    total_geral = {k or "Sem classificação": float(v) for k, v in total_geral.items()}
-
-    # Custos totais mês a mês (sem classificação)
-    custos_mes = df_custos.groupby("mes_ano")["valor"].sum().to_dict()
-    custos_mes = {k: float(v) for k, v in custos_mes.items()}
-
-    # Total geral de custos (sem classificação)
-    total_geral_custos = float(df_custos["valor"].sum())
-
-    # Cálculo da análise MoM (Month-over-Month) dos custos totais
-    # Ordenar meses cronologicamente
-    meses_ordenados = sorted(custos_mes.keys())
-    mom_analysis = []
-    for idx, mes in enumerate(meses_ordenados):
-        valor_atual = custos_mes[mes]
-        valor_anterior = custos_mes[meses_ordenados[idx-1]] if idx > 0 else None
-        variacao_absoluta = None
-        variacao_percentual = None
-        if valor_anterior is not None:
-            variacao_absoluta = valor_atual - valor_anterior
-            variacao_percentual = (variacao_absoluta / valor_anterior * 100) if valor_anterior != 0 else None
-        mom_analysis.append({
-            "mes": mes,
-            "valor_atual": valor_atual,
-            "valor_anterior": valor_anterior,
-            "variacao_absoluta": variacao_absoluta,
-            "variacao_percentual": variacao_percentual
-        })
-
-    return {
-        "success": True,
-        "data": {
-            "custos_mes_classificacao": resultado,
-            "total_geral_classificacao": total_geral,
-            "custos_mes": custos_mes,
-            "total_geral": total_geral_custos,
-            "mom_analysis": mom_analysis
-        }
-    }
-
-def calcular_faturamento(mes_filtro: str = None):
-    """
-    Calcula faturamento baseado em:
-    - Coluna: valor_original
-    - Filtros: origem = "FAT" e DRE_n2 = "Faturamento"
-    """
-    filename = "financial-data-roriz.xlsx"
     
     try:
         df = get_cached_df(filename)
@@ -527,200 +371,85 @@ def calcular_faturamento(mes_filtro: str = None):
             return {"error": "Erro ao ler o arquivo Excel."}
 
         # Validação das colunas obrigatórias
-        required_columns = ["valor_original", "origem", "DRE_n2", "competencia"]
+        required_columns = ["valor", "DFC_n2", "classificacao"]
         if not all(col in df.columns for col in required_columns):
             return {"error": f"A planilha deve conter as colunas: {', '.join(required_columns)}"}
 
-        # Identificar coluna de data (usar competencia para faturamento)
-        date_column = "competencia"
+        # Filtrar apenas custos e origem CAR ou CAP
+        if "origem" not in df.columns:
+            return {"error": "A planilha deve conter a coluna 'origem'"}
+        df_custos = df[(df["DFC_n2"] == "Custos") & (df["origem"].isin(["CAR", "CAP"]))].copy()
+        if df_custos.empty:
+            return {"error": "Não há dados de custos na planilha para origem 'CAR' ou 'CAP'."}
 
-        # Processar dados
-        df[date_column] = pd.to_datetime(df[date_column], errors="coerce")
-        df["valor_original"] = pd.to_numeric(df["valor_original"], errors="coerce")
+        # Identificar coluna de data
+        date_column = next((col for col in df_custos.columns if col.lower() == "data"), None)
+        if not date_column:
+            return {"error": "Coluna de data não encontrada"}
 
-        df = df.dropna(subset=[date_column, "valor_original"])
+        df_custos[date_column] = pd.to_datetime(df_custos[date_column], errors="coerce")
+        df_custos = df_custos.dropna(subset=[date_column, "valor"])
+        df_custos["mes_ano"] = df_custos[date_column].dt.to_period("M").astype(str)
 
-        # Filtrar por origem = "FAT" e DRE_n2 = "Faturamento"
-        df_fat = df[
-            (df["origem"] == "FAT") & 
-            (df["DRE_n2"] == "Faturamento")
-        ].copy()
+        # Custos por classificação mês a mês
+        custos_mes_class = (
+            df_custos.groupby(["classificacao", "mes_ano"])['valor'].sum().reset_index()
+        )
 
-        # Filtrar para MoM (NÃO filtra por mês - sempre todos os meses)
-        df_mom = df_fat.copy()
+        # Estruturar resposta: { classificacao: { mes_ano: valor, ... }, ... }
+        resultado = {}
+        for _, row in custos_mes_class.iterrows():
+            classificacao = row["classificacao"] or "Sem classificação"
+            mes_ano = row["mes_ano"]
+            valor = float(row["valor"])
+            if classificacao not in resultado:
+                resultado[classificacao] = {}
+            resultado[classificacao][mes_ano] = valor
 
-        # Calcular MoM SEM filtro de mês - usar função adaptada para valor_original
-        mom_data = calcular_mom_faturamento(df_mom, date_column)
+        # Total geral por classificação (todos os meses)
+        total_geral = (
+            df_custos.groupby("classificacao")['valor'].sum().to_dict()
+        )
+        # Converter para float
+        total_geral = {k or "Sem classificação": float(v) for k, v in total_geral.items()}
 
-        # Filtrar por mês se especificado
-        df_filtrado = df_fat.copy()
-        if mes_filtro:
-            df_filtrado = df_filtrado[
-                df_filtrado[date_column].dt.strftime("%Y-%m") == mes_filtro
-            ]
+        # Custos totais mês a mês (sem classificação)
+        custos_mes = df_custos.groupby("mes_ano")["valor"].sum().to_dict()
+        custos_mes = {k: float(v) for k, v in custos_mes.items()}
 
-        if df_filtrado.empty:
-            return {
-                "error": f"Não foram encontrados registros de faturamento",
-                "total_faturamento": 0,
-                "anos_disponiveis": [],
-                "meses_disponiveis": []
-            }
+        # Total geral de custos (sem classificação)
+        total_geral_custos = float(df_custos["valor"].sum())
 
-        # Soma total do faturamento
-        total_faturamento = df_filtrado["valor_original"].sum()
-        total_registros = len(df_filtrado)
-
-        # Anos e meses disponíveis
-        if not mes_filtro:
-            # Se for todo o período, pegue todos os meses/anos disponíveis
-            anos_disponiveis = sorted(df_fat[date_column].dt.year.unique().tolist())
-            meses_disponiveis = sorted(df_fat[date_column].dt.strftime("%Y-%m").unique().tolist())
-        else:
-            anos_disponiveis = sorted(df_filtrado[date_column].dt.year.unique().tolist())
-            meses_disponiveis = sorted(df_filtrado[date_column].dt.strftime("%Y-%m").unique().tolist())
+        # Cálculo da análise MoM (Month-over-Month) dos custos totais
+        # Ordenar meses cronologicamente
+        meses_ordenados = sorted(custos_mes.keys())
+        mom_analysis = []
+        for idx, mes in enumerate(meses_ordenados):
+            valor_atual = custos_mes[mes]
+            valor_anterior = custos_mes[meses_ordenados[idx-1]] if idx > 0 else None
+            variacao_absoluta = None
+            variacao_percentual = None
+            if valor_anterior is not None:
+                variacao_absoluta = valor_atual - valor_anterior
+                variacao_percentual = (variacao_absoluta / valor_anterior * 100) if valor_anterior != 0 else None
+            mom_analysis.append({
+                "mes": mes,
+                "valor_atual": valor_atual,
+                "valor_anterior": valor_anterior,
+                "variacao_absoluta": variacao_absoluta,
+                "variacao_percentual": variacao_percentual
+            })
 
         return {
             "success": True,
             "data": {
-                "total_faturamento": round(total_faturamento, 2),
-                "data_calculo": pd.Timestamp.now().strftime("%Y-%m-%d"),
-                "estatisticas": {
-                    "total_registros": total_registros
-                },
-                "anos_disponiveis": anos_disponiveis,
-                "meses_disponiveis": meses_disponiveis,
-                "mom_analysis": mom_data
+                "custos_mes_classificacao": resultado,
+                "total_geral_classificacao": total_geral,
+                "custos_mes": custos_mes,
+                "total_geral": total_geral_custos,
+                "mom_analysis": mom_analysis
             }
         }
-        
-    except Exception as e:
-        return {"error": f"Erro ao calcular faturamento: {str(e)}"}
 
-def calcular_custos_competencia(mes_filtro: str = None):
-    """
-    Calcula custos de competência baseado em:
-    - Coluna: valor_original
-    - Filtros: origem = "CAP" e DRE_n2 in ["Custo com Mercadoria Interna", "Custo com Importação", "Despesas comercial"]
-    - Coluna de data: competencia
-    """
-    filename = "financial-data-roriz.xlsx"
-    
-    try:
-        df = get_cached_df(filename)
-        if df is None:
-            return {"error": "Erro ao ler o arquivo Excel."}
-
-        # Validação das colunas obrigatórias
-        required_columns = ["valor_original", "origem", "DRE_n2", "competencia"]
-        if not all(col in df.columns for col in required_columns):
-            return {"error": f"A planilha deve conter as colunas: {', '.join(required_columns)}"}
-
-        # Identificar coluna de data (usar competencia para custos)
-        date_column = "competencia"
-
-        # Processar dados
-        df[date_column] = pd.to_datetime(df[date_column], errors="coerce")
-        df["valor_original"] = pd.to_numeric(df["valor_original"], errors="coerce")
-
-        df = df.dropna(subset=[date_column, "valor_original"])
-
-        # Filtrar por origem = "CAP" e DRE_n2 específicos
-        dre_n2_custos = ["Custo com Mercadoria Interna", "Custo com Importação", "Despesas comercial"]
-        df_custos = df[
-            (df["origem"] == "CAP") & 
-            (df["DRE_n2"].isin(dre_n2_custos))
-        ].copy()
-
-        # Filtrar para MoM (NÃO filtra por mês - sempre todos os meses)
-        df_mom = df_custos.copy()
-
-        # Calcular MoM SEM filtro de mês - usar função adaptada para valor_original
-        mom_data = calcular_mom_custos(df_mom, date_column)
-
-        # Filtrar por mês se especificado
-        df_filtrado = df_custos.copy()
-        if mes_filtro:
-            df_filtrado = df_filtrado[
-                df_filtrado[date_column].dt.strftime("%Y-%m") == mes_filtro
-            ]
-
-        if df_filtrado.empty:
-            return {
-                "error": f"Não foram encontrados registros de custos",
-                "total_custos": 0,
-                "anos_disponiveis": [],
-                "meses_disponiveis": []
-            }
-
-        # Soma total dos custos
-        total_custos = df_filtrado["valor_original"].sum()
-        total_registros = len(df_filtrado)
-
-        # Anos e meses disponíveis
-        if not mes_filtro:
-            # Se for todo o período, pegue todos os meses/anos disponíveis
-            anos_disponiveis = sorted(df_custos[date_column].dt.year.unique().tolist())
-            meses_disponiveis = sorted(df_custos[date_column].dt.strftime("%Y-%m").unique().tolist())
-        else:
-            anos_disponiveis = sorted(df_filtrado[date_column].dt.year.unique().tolist())
-            meses_disponiveis = sorted(df_filtrado[date_column].dt.strftime("%Y-%m").unique().tolist())
-
-        return {
-            "success": True,
-            "data": {
-                "total_custos": round(total_custos, 2),
-                "data_calculo": pd.Timestamp.now().strftime("%Y-%m-%d"),
-                "estatisticas": {
-                    "total_registros": total_registros
-                },
-                "anos_disponiveis": anos_disponiveis,
-                "meses_disponiveis": meses_disponiveis,
-                "mom_analysis": mom_data
-            }
-        }
-        
     except Exception as e:
         return {"error": f"Erro ao calcular custos: {str(e)}"}
-
-def calcular_mom_custos(df_filtrado, date_column):
-    """
-    Calcula variação Month over Month (MoM) para custos usando valor_original
-    """
-    try:
-        # Agrupar por mês e somar valores
-        df_mensal = df_filtrado.groupby(
-            df_filtrado[date_column].dt.to_period('M')
-        )['valor_original'].sum().reset_index()
-        
-        # Ordenar por data
-        df_mensal = df_mensal.sort_values(date_column)
-        
-        # Calcular variação MoM
-        df_mensal['valor_anterior'] = df_mensal['valor_original'].shift(1)
-        df_mensal['variacao_absoluta'] = df_mensal['valor_original'] - df_mensal['valor_anterior']
-        df_mensal['variacao_percentual'] = (
-            (df_mensal['valor_original'] - df_mensal['valor_anterior']) / 
-            df_mensal['valor_anterior'] * 100
-        ).round(2)
-        
-        # Preparar dados para retorno
-        mom_data = []
-        for _, row in df_mensal.iterrows():
-            mom_data.append({
-                "mes": str(row[date_column]),
-                "valor_atual": round(row['valor_original'], 2),
-                "valor_anterior": round(row['valor_anterior'], 2) if pd.notna(row['valor_anterior']) else None,
-                "variacao_absoluta": round(row['variacao_absoluta'], 2) if pd.notna(row['variacao_absoluta']) else None,
-                "variacao_percentual": row['variacao_percentual'] if pd.notna(row['variacao_percentual']) else None
-            })
-        
-        return mom_data
-        
-    except Exception as e:
-        return []
-
-@app.get("/custos-competencia")
-def get_custos_competencia(mes: str = None):
-    return calcular_custos_competencia(mes)
-

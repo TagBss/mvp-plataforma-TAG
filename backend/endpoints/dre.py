@@ -1,4 +1,7 @@
 from fastapi import APIRouter
+import pandas as pd
+import time
+import os
 from financial_utils import (
     calcular_analise_vertical, calcular_analise_horizontal, 
     calcular_realizado_vs_orcado, calcular_totalizadores,
@@ -42,14 +45,29 @@ def get_cached_df(filename="financial-data-roriz.xlsx"):
 
 router = APIRouter()
 
+from fastapi import Request
+
 @router.get("/dre")
-def get_dre_data():
+def get_dre_data(request: Request):
     filename = "financial-data-roriz.xlsx"
+
 
     try:
         df = get_cached_df(filename)
         if df is None:
             return {"error": "Erro ao ler o arquivo Excel."}
+
+        # Filtro por mês, se fornecido na query string
+        mes_param = request.query_params.get("mes")
+        if mes_param:
+            # Garante que a coluna mes_ano existe antes de filtrar
+            date_column = next((col for col in df.columns if col.lower() == "competencia"), None)
+            if date_column:
+                df[date_column] = pd.to_datetime(df[date_column], errors="coerce")
+                df["mes_ano"] = df[date_column].dt.to_period("M").astype(str)
+                df = df[df["mes_ano"] == mes_param]
+            else:
+                return {"error": "Coluna de competência não encontrada para filtro de mês."}
 
         # Validação das colunas obrigatórias (incluindo 'origem')
         required_columns = ["DRE_n2", "valor_original", "classificacao", "origem"]
@@ -457,7 +475,8 @@ def get_dre_data():
                 "real_vs_orcamento_mensais": real_vs_orcamento_mensais,
                 "real_vs_orcamento_trimestrais": real_vs_orcamento_trimestrais,
                 "real_vs_orcamento_anuais": real_vs_orcamento_anuais,
-                "real_vs_orcamento_total": real_vs_orcamento_total
+                "real_vs_orcamento_total": real_vs_orcamento_total,
+                "classificacoes": get_classificacoes(nome)
             }
 
         result = []
