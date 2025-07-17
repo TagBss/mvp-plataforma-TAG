@@ -128,7 +128,7 @@ function getMoMIndicator(momData: MoMData[], mesSelecionado: string) {
 
 
 
-export default function DashFinanceiro() {
+export default function DashCompetencia() {
   // Estados
   const [saldoPagar, setSaldoPagar] = useState<number | null>(null);
   const [saldoMovimentacoes, setSaldoMovimentacoes] = useState<number | null>(null);
@@ -153,6 +153,10 @@ export default function DashFinanceiro() {
   const [faturamentoValor, setFaturamentoValor] = useState<number | null>(null);
   const [momFaturamento, setMomFaturamento] = useState<MoMData[]>([]);
   const [faturamentoLoading, setFaturamentoLoading] = useState(false);
+  // Custos Competência
+  const [custosCompetenciaValor, setCustosCompetenciaValor] = useState<number | null>(null);
+  const [momCustosCompetencia, setMomCustosCompetencia] = useState<MoMData[]>([]);
+  const [custosCompetenciaLoading, setCustosCompetenciaLoading] = useState(false);
 
   // 🔥 MODIFICADO: useEffect de inicialização com flag
   useEffect(() => {
@@ -208,6 +212,7 @@ export default function DashFinanceiro() {
     setSaldoPagar(null);
     setSaldoMovimentacoes(null);
     setFaturamentoValor(null);
+    setCustosCompetenciaValor(null);
     setMesSelecionado(mes);
   };
 
@@ -234,6 +239,7 @@ export default function DashFinanceiro() {
     
     setCustosLoading(true);
     setFaturamentoLoading(true);
+    setCustosCompetenciaLoading(true);
     Promise.all([
       fetch(`http://127.0.0.1:8000/receber${queryString}`).then(r => {
         console.log("📊 Status receber:", r.status);
@@ -258,15 +264,20 @@ export default function DashFinanceiro() {
       fetch(`http://127.0.0.1:8000/faturamento${queryString}`).then(r => {
         console.log("📊 Status faturamento:", r.status);
         return r.json();
+      }),
+      fetch(`http://127.0.0.1:8000/custos-competencia${queryString}`).then(r => {
+        console.log("📊 Status custos-competencia:", r.status);
+        return r.json();
       })
-    ]).then(([dataReceber, dataPagar, dataMovimentacoes, dataSaldosEvolucao, dataCustos, dataFaturamento]) => {
+    ]).then(([dataReceber, dataPagar, dataMovimentacoes, dataSaldosEvolucao, dataCustos, dataFaturamento, dataCustosCompetencia]) => {
       console.log("📦 Dados recebidos:", {
         receber: dataReceber,
         pagar: dataPagar,
         movimentacoes: dataMovimentacoes,
         saldosEvolucao: dataSaldosEvolucao,
         custos: dataCustos,
-        faturamento: dataFaturamento
+        faturamento: dataFaturamento,
+        custosCompetencia: dataCustosCompetencia
       });
 
       // Processa dados do pagar
@@ -385,6 +396,18 @@ export default function DashFinanceiro() {
         console.log("❌ Erro nos dados faturamento:", dataFaturamento);
       }
       setFaturamentoLoading(false);
+
+      // Processa dados dos custos de competência
+      if (dataCustosCompetencia.success && dataCustosCompetencia.data) {
+        setCustosCompetenciaValor(dataCustosCompetencia.data.total_custos ?? null);
+        setMomCustosCompetencia(dataCustosCompetencia.data.mom_analysis || []);
+        console.log("✅ Custos competência definido:", dataCustosCompetencia.data.total_custos);
+      } else {
+        setCustosCompetenciaValor(null);
+        setMomCustosCompetencia([]);
+        console.log("❌ Erro nos dados custos competência:", dataCustosCompetencia);
+      }
+      setCustosCompetenciaLoading(false);
     }).catch(error => {
       console.error("Erro ao buscar saldos:", error);
       setSaldoFinal(null);
@@ -406,7 +429,7 @@ export default function DashFinanceiro() {
       </section>
       
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {(inicializando || loading || faturamentoLoading) ? (
+        {(inicializando || loading || faturamentoLoading || custosCompetenciaLoading) ? (
           // Exibe skeletons enquanto carrega
           <>
             <CardSkeleton />
@@ -456,14 +479,12 @@ export default function DashFinanceiro() {
                   </CardDescription>
                 </div>
             </CardContent>
-            </Card>
-
-            {/* Contas Pagas */}
+            </Card>            {/* Custos */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-center">
                   <CardTitle className="text-lg sm:text-xl select-none">
-                    Contas pagas
+                    Custos
                   </CardTitle>
                   <MinusCircle className="ml-auto w-4 h-4" />
                 </div>
@@ -472,8 +493,8 @@ export default function DashFinanceiro() {
               <CardContent>
                 <div className="sm:flex sm:justify-between sm:items-center">
                   <p className="text-lg sm:text-2xl">
-                    {saldoPagar !== null ? (
-                      formatCurrencyShort(saldoPagar)
+                    {custosCompetenciaValor !== null ? (
+                      formatCurrencyShort(Math.abs(custosCompetenciaValor))
                     ) : (
                       "--"
                     )}
@@ -482,7 +503,7 @@ export default function DashFinanceiro() {
                     {mesSelecionado === "" ? (
                       <p>vs período anterior <br />-- --</p>
                     ) : (() => {
-                      const mom = getMoMIndicator(momPagar, mesSelecionado);
+                      const mom = getMoMIndicator(momCustosCompetencia, mesSelecionado);
                       return mom && mom.hasValue ? (
                         <p>
                           vs {mom.mesAnterior} <br />
@@ -496,7 +517,7 @@ export default function DashFinanceiro() {
                     })()}
                   </CardDescription>
                 </div>
-              </CardContent>
+            </CardContent>
             </Card>
 
             {/* PMR */}
