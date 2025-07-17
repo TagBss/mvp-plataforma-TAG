@@ -130,7 +130,6 @@ function getMoMIndicator(momData: MoMData[], mesSelecionado: string) {
 
 export default function DashFinanceiro() {
   // Estados
-  const [saldoReceber, setSaldoReceber] = useState<number | null>(null);
   const [saldoPagar, setSaldoPagar] = useState<number | null>(null);
   const [saldoMovimentacoes, setSaldoMovimentacoes] = useState<number | null>(null);
   const [saldoFinal, setSaldoFinal] = useState<number | null>(null);
@@ -139,7 +138,6 @@ export default function DashFinanceiro() {
   const [inicializando, setInicializando] = useState(true); // 🔥 NOVO: controla inicialização
   const [loading, setLoading] = useState(false);
   const [loadingSaldoFinal, setLoadingSaldoFinal] = useState(false);
-  const [momReceber, setMomReceber] = useState<MoMData[]>([]);
   const [momPagar, setMomPagar] = useState<MoMData[]>([]);
   const [momMovimentacoes, setMomMovimentacoes] = useState<MoMData[]>([]);
   const [pmr, setPmr] = useState<string | null>(null);
@@ -151,6 +149,10 @@ export default function DashFinanceiro() {
   // Removido: custosMoMArray não é necessário
   const [custosLoading, setCustosLoading] = useState(false);
   const [custosMesClass, setCustosMesClass] = useState<Record<string, number>>({});
+  // Faturamento
+  const [faturamentoValor, setFaturamentoValor] = useState<number | null>(null);
+  const [momFaturamento, setMomFaturamento] = useState<MoMData[]>([]);
+  const [faturamentoLoading, setFaturamentoLoading] = useState(false);
 
   // 🔥 MODIFICADO: useEffect de inicialização com flag
   useEffect(() => {
@@ -203,9 +205,9 @@ export default function DashFinanceiro() {
   // Permite selecionar qualquer valor, inclusive "Todo o período" ("") após inicialização
   const handleMesSelecionado = (mes: string) => {
     if (inicializando) return;
-    setSaldoReceber(null);
     setSaldoPagar(null);
     setSaldoMovimentacoes(null);
+    setFaturamentoValor(null);
     setMesSelecionado(mes);
   };
 
@@ -231,6 +233,7 @@ export default function DashFinanceiro() {
     console.log("🔗 Query string:", queryString);
     
     setCustosLoading(true);
+    setFaturamentoLoading(true);
     Promise.all([
       fetch(`http://127.0.0.1:8000/receber${queryString}`).then(r => {
         console.log("📊 Status receber:", r.status);
@@ -251,25 +254,21 @@ export default function DashFinanceiro() {
       fetch(`http://127.0.0.1:8000/custos-visao-financeiro`).then(r => {
         console.log("📊 Status custos:", r.status);
         return r.json();
+      }),
+      fetch(`http://127.0.0.1:8000/faturamento${queryString}`).then(r => {
+        console.log("📊 Status faturamento:", r.status);
+        return r.json();
       })
-    ]).then(([dataReceber, dataPagar, dataMovimentacoes, dataSaldosEvolucao, dataCustos]) => {
+    ]).then(([dataReceber, dataPagar, dataMovimentacoes, dataSaldosEvolucao, dataCustos, dataFaturamento]) => {
       console.log("📦 Dados recebidos:", {
         receber: dataReceber,
         pagar: dataPagar,
         movimentacoes: dataMovimentacoes,
         saldosEvolucao: dataSaldosEvolucao,
-        custos: dataCustos
+        custos: dataCustos,
+        faturamento: dataFaturamento
       });
 
-      // Processa dados do receber
-      if (dataReceber.success) {
-        setSaldoReceber(dataReceber.data.saldo_total);
-        setMomReceber(dataReceber.data.mom_analysis || []);
-        console.log("✅ Saldo receber definido:", dataReceber.data.saldo_total);
-      } else {
-        console.log("❌ Erro nos dados receber:", dataReceber);
-      }
-      
       // Processa dados do pagar
       if (dataPagar.success) {
         setSaldoPagar(dataPagar.data.saldo_total);
@@ -374,6 +373,18 @@ export default function DashFinanceiro() {
         setCustosMoM(null);
       }
       setCustosLoading(false);
+
+      // Processa dados do faturamento
+      if (dataFaturamento.success && dataFaturamento.data) {
+        setFaturamentoValor(dataFaturamento.data.total_faturamento ?? null);
+        setMomFaturamento(dataFaturamento.data.mom_analysis || []);
+        console.log("✅ Faturamento definido:", dataFaturamento.data.total_faturamento);
+      } else {
+        setFaturamentoValor(null);
+        setMomFaturamento([]);
+        console.log("❌ Erro nos dados faturamento:", dataFaturamento);
+      }
+      setFaturamentoLoading(false);
     }).catch(error => {
       console.error("Erro ao buscar saldos:", error);
       setSaldoFinal(null);
@@ -395,7 +406,7 @@ export default function DashFinanceiro() {
       </section>
       
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {(inicializando || loading) ? (
+        {(inicializando || loading || faturamentoLoading) ? (
           // Exibe skeletons enquanto carrega
           <>
             <CardSkeleton />
@@ -406,7 +417,7 @@ export default function DashFinanceiro() {
         ) : (
           // Exibe os cards reais após carregar
           <>
-            {/* Contas Recebidas */}
+            {/* Faturamento */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-center">
@@ -420,8 +431,8 @@ export default function DashFinanceiro() {
               <CardContent>
                 <div className="sm:flex sm:justify-between sm:items-center">
                   <p className="text-lg sm:text-2xl">
-                    {saldoReceber !== null ? (
-                      formatCurrencyShort(saldoReceber)
+                    {faturamentoValor !== null ? (
+                      formatCurrencyShort(faturamentoValor)
                     ) : (
                       "--"
                     )}
@@ -430,7 +441,7 @@ export default function DashFinanceiro() {
                     {mesSelecionado === "" ? (
                       <p>vs período anterior <br />-- --</p>
                     ) : (() => {
-                      const mom = getMoMIndicator(momReceber, mesSelecionado);
+                      const mom = getMoMIndicator(momFaturamento, mesSelecionado);
                       return mom && mom.hasValue ? (
                         <p>
                           vs {mom.mesAnterior} <br />
