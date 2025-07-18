@@ -221,10 +221,73 @@ def get_dfc_data():
             classificacoes = []
             for classificacao, grupo in sub_df.groupby("classificacao"):
                 total_class = grupo["valor"].sum()
+                
+                # Calcular valores por período
+                valores_mensais = {}
+                orcamentos_mensais = {}
+                for mes in meses_unicos:
+                    real_mes = df_real[(df_real["DFC_n2"] == dfc_n2_name) & 
+                                      (df_real["classificacao"] == classificacao) & 
+                                      (df_real["mes_ano"] == mes)]["valor"].sum()
+                    orc_mes = df_orc[(df_orc["DFC_n2"] == dfc_n2_name) & 
+                                    (df_orc["classificacao"] == classificacao) & 
+                                    (df_orc["mes_ano"] == mes)]["valor"].sum()
+                    valores_mensais[mes] = real_mes
+                    orcamentos_mensais[mes] = orc_mes
+                
+                valores_trimestrais = {}
+                orcamentos_trimestrais = {}
+                for tri in trimestres_unicos:
+                    real_tri = df_real[(df_real["DFC_n2"] == dfc_n2_name) & 
+                                      (df_real["classificacao"] == classificacao) & 
+                                      (df_real["trimestre"] == tri)]["valor"].sum()
+                    orc_tri = df_orc[(df_orc["DFC_n2"] == dfc_n2_name) & 
+                                    (df_orc["classificacao"] == classificacao) & 
+                                    (df_orc["trimestre"] == tri)]["valor"].sum()
+                    valores_trimestrais[tri] = real_tri
+                    orcamentos_trimestrais[tri] = orc_tri
+                
+                valores_anuais = {}
+                orcamentos_anuais = {}
+                for ano in anos_unicos:
+                    real_ano = df_real[(df_real["DFC_n2"] == dfc_n2_name) & 
+                                      (df_real["classificacao"] == classificacao) & 
+                                      (df_real["ano"] == ano)]["valor"].sum()
+                    orc_ano = df_orc[(df_orc["DFC_n2"] == dfc_n2_name) & 
+                                    (df_orc["classificacao"] == classificacao) & 
+                                    (df_orc["ano"] == ano)]["valor"].sum()
+                    valores_anuais[str(ano)] = real_ano
+                    orcamentos_anuais[str(ano)] = orc_ano
+                
                 classificacoes.append({
                     "nome": classificacao,
                     "valor": total_class,
-                    "vertical_total": calcular_analise_vertical(total_class, total_geral_real.get("Recebimentos Operacionais", 0))
+                    "valores_mensais": valores_mensais,
+                    "valores_trimestrais": valores_trimestrais,
+                    "valores_anuais": valores_anuais,
+                    "orcamentos_mensais": orcamentos_mensais,
+                    "orcamentos_trimestrais": orcamentos_trimestrais,
+                    "orcamentos_anuais": orcamentos_anuais,
+                    "orcamento_total": sum(orcamentos_mensais.values()),
+                    "vertical_total": calcular_analise_vertical(total_class, total_geral_real.get("Recebimentos Operacionais", 0)),
+                    # Adicionar campos obrigatórios para compatibilidade com frontend
+                    "vertical_mensais": {mes: "–" for mes in meses_unicos},
+                    "vertical_trimestrais": {tri: "–" for tri in trimestres_unicos},
+                    "vertical_anuais": {str(ano): "–" for ano in anos_unicos},
+                    "horizontal_mensais": {mes: "–" for mes in meses_unicos},
+                    "horizontal_trimestrais": {tri: "–" for tri in trimestres_unicos},
+                    "horizontal_anuais": {str(ano): "–" for ano in anos_unicos},
+                    "vertical_orcamentos_mensais": {mes: "–" for mes in meses_unicos},
+                    "vertical_orcamentos_trimestrais": {tri: "–" for tri in trimestres_unicos},
+                    "vertical_orcamentos_anuais": {str(ano): "–" for ano in anos_unicos},
+                    "vertical_orcamentos_total": "–",
+                    "horizontal_orcamentos_mensais": {mes: "–" for mes in meses_unicos},
+                    "horizontal_orcamentos_trimestrais": {tri: "–" for tri in trimestres_unicos},
+                    "horizontal_orcamentos_anuais": {str(ano): "–" for ano in anos_unicos},
+                    "real_vs_orcamento_mensais": {mes: "–" for mes in meses_unicos},
+                    "real_vs_orcamento_trimestrais": {tri: "–" for tri in trimestres_unicos},
+                    "real_vs_orcamento_anuais": {str(ano): "–" for ano in anos_unicos},
+                    "real_vs_orcamento_total": "–"
                 })
             return classificacoes
 
@@ -630,11 +693,7 @@ def get_dfc_data():
         # Criar estrutura do nível 0
         result = []
 
-        # 1. SALDO INICIAL
-        saldo_inicial = criar_item_nivel_0("Saldo inicial", "=")
-        result.append(saldo_inicial)
-
-        # 2. MOVIMENTAÇÕES (contém os 4 totalizadores como filhos)
+        # PRIMEIRO: MOVIMENTAÇÕES (contém os 4 totalizadores como filhos)
         movimentacoes = criar_item_nivel_0("Movimentações", "=")
         
         # Calcular valores de movimentações como soma dos 4 totalizadores
@@ -701,10 +760,85 @@ def get_dfc_data():
         
         # Adicionar os 4 totalizadores como classificações de "Movimentações"
         movimentacoes["classificacoes"] = [operacional, investimento, financiamento, movimentacao_entre_contas]
+
+        # 1. SALDO INICIAL (0 no primeiro mês, saldo final do mês anterior nos demais)
+        saldo_inicial = criar_item_nivel_0("Saldo inicial", "=")
+        
+        # Calcular saldo inicial mês a mês (saldo final do mês anterior)
+        saldo_acumulado = 0
+        for mes in meses_unicos:
+            saldo_inicial["valores_mensais"][mes] = saldo_acumulado
+            # Atualizar saldo acumulado para o próximo mês
+            saldo_acumulado += movimentacoes["valores_mensais"][mes]
+        
+        # Calcular saldo inicial trimestre a trimestre
+        saldo_acumulado_tri = 0
+        for tri in trimestres_unicos:
+            saldo_inicial["valores_trimestrais"][tri] = saldo_acumulado_tri
+            saldo_acumulado_tri += movimentacoes["valores_trimestrais"][tri]
+        
+        # Calcular saldo inicial ano a ano
+        saldo_acumulado_ano = 0
+        for ano in anos_unicos:
+            saldo_inicial["valores_anuais"][str(ano)] = saldo_acumulado_ano
+            saldo_acumulado_ano += movimentacoes["valores_anuais"][str(ano)]
+        
+        # Saldo inicial total permanece 0
+        saldo_inicial["valor"] = 0
+        
+        # Fazer o mesmo para orçamentos
+        saldo_acumulado_orc = 0
+        for mes in meses_unicos:
+            saldo_inicial["orcamentos_mensais"][mes] = saldo_acumulado_orc
+            saldo_acumulado_orc += movimentacoes["orcamentos_mensais"][mes]
+        
+        saldo_acumulado_orc_tri = 0
+        for tri in trimestres_unicos:
+            saldo_inicial["orcamentos_trimestrais"][tri] = saldo_acumulado_orc_tri
+            saldo_acumulado_orc_tri += movimentacoes["orcamentos_trimestrais"][tri]
+        
+        saldo_acumulado_orc_ano = 0
+        for ano in anos_unicos:
+            saldo_inicial["orcamentos_anuais"][str(ano)] = saldo_acumulado_orc_ano
+            saldo_acumulado_orc_ano += movimentacoes["orcamentos_anuais"][str(ano)]
+        
+        saldo_inicial["orcamento_total"] = 0
+        
+        result.append(saldo_inicial)
+
+        # 2. Adicionar as movimentações
         result.append(movimentacoes)
 
-        # 3. SALDO FINAL
+        # 3. SALDO FINAL (saldo inicial + movimentação de cada período)
         saldo_final = criar_item_nivel_0("Saldo final", "=")
+        
+        # Calcular saldo final mês a mês (saldo inicial + movimentação)
+        for mes in meses_unicos:
+            saldo_final["valores_mensais"][mes] = saldo_inicial["valores_mensais"][mes] + movimentacoes["valores_mensais"][mes]
+        
+        # Calcular saldo final trimestre a trimestre
+        for tri in trimestres_unicos:
+            saldo_final["valores_trimestrais"][tri] = saldo_inicial["valores_trimestrais"][tri] + movimentacoes["valores_trimestrais"][tri]
+        
+        # Calcular saldo final ano a ano
+        for ano in anos_unicos:
+            saldo_final["valores_anuais"][str(ano)] = saldo_inicial["valores_anuais"][str(ano)] + movimentacoes["valores_anuais"][str(ano)]
+        
+        # Saldo final total
+        saldo_final["valor"] = movimentacoes["valor"]
+        
+        # Fazer o mesmo para orçamentos
+        for mes in meses_unicos:
+            saldo_final["orcamentos_mensais"][mes] = saldo_inicial["orcamentos_mensais"][mes] + movimentacoes["orcamentos_mensais"][mes]
+        
+        for tri in trimestres_unicos:
+            saldo_final["orcamentos_trimestrais"][tri] = saldo_inicial["orcamentos_trimestrais"][tri] + movimentacoes["orcamentos_trimestrais"][tri]
+        
+        for ano in anos_unicos:
+            saldo_final["orcamentos_anuais"][str(ano)] = saldo_inicial["orcamentos_anuais"][str(ano)] + movimentacoes["orcamentos_anuais"][str(ano)]
+        
+        saldo_final["orcamento_total"] = movimentacoes["orcamento_total"]
+        
         result.append(saldo_final)
 
         return {

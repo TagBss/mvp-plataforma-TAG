@@ -75,7 +75,7 @@ export default function DfcTable() {
   const [periodo, setPeriodo] = useState<"mes" | "trimestre" | "ano">("mes")
 
   useEffect(() => {
-    fetch("https://mvp-plataforma-tag-3s9u.onrender.com/dfc")
+    fetch("http://127.0.0.1:8000/dfc")
       .then(res => res.json())
       .then((result: DfcResponse | { error: string }) => {
         if ("error" in result) {
@@ -101,17 +101,28 @@ export default function DfcTable() {
     const novoEstado = !allExpanded
     const novasSecoes: Record<string, boolean> = {}
     
+    // Primeiro marcar Movimentações
+    novasSecoes["Movimentações"] = novoEstado
+    
     // Marcar totalizadores e suas contas
-    data.forEach(totalizador => {
-      novasSecoes[totalizador.nome] = novoEstado
-      
-      // Marcar contas filhas dos totalizadores
-      if (totalizador.classificacoes?.length) {
-        totalizador.classificacoes.forEach(conta => {
-          if (conta.classificacoes?.length) {
-            novasSecoes[`${totalizador.nome}-${conta.nome}`] = novoEstado
+    data.forEach(item => {
+      if (item.nome === "Movimentações" && item.classificacoes) {
+        // Para os totalizadores dentro de Movimentações
+        item.classificacoes.forEach(totalizador => {
+          novasSecoes[totalizador.nome] = novoEstado
+          
+          // Marcar contas filhas dos totalizadores
+          if (totalizador.classificacoes?.length) {
+            totalizador.classificacoes.forEach(conta => {
+              if (conta.classificacoes?.length) {
+                novasSecoes[`${totalizador.nome}-${conta.nome}`] = novoEstado
+              }
+            })
           }
         })
+      } else {
+        // Para outros itens (saldo inicial, saldo final)
+        novasSecoes[item.nome] = novoEstado
       }
     })
     
@@ -492,7 +503,7 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
           <TableRow>
             <TableHead 
               rowSpan={showOrcado || showDiferenca ? 2 : 1} 
-              className="min-w-[300px] md:sticky md:left-0 md:z-20 bg-card border-r"
+              className="min-w-[300px] md:sticky md:left-0 md:z-10 bg-background/98 border-r font-semibold"
             >
               Descrição
             </TableHead>
@@ -501,7 +512,7 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                 key={p} 
                 colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)} 
                 rowSpan={showOrcado || showDiferenca ? 1 : 1}
-                className="text-center min-w-[120px] bg-muted/20 border-r"
+                className="text-center min-w-[120px] bg-muted/30 border-r font-semibold"
               >
                 {p}
               </TableHead>
@@ -509,7 +520,7 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
             <TableHead 
               colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)} 
               rowSpan={showOrcado || showDiferenca ? 1 : 1}
-              className="text-center min-w-[120px] bg-muted/20"
+              className="text-center min-w-[120px] bg-muted/30 font-semibold"
             >
               Total
             </TableHead>
@@ -523,12 +534,12 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                     Real
                   </TableHead>
                   {showOrcado && (
-                    <TableHead className="text-right min-w-[120px] bg-secondary/40">
+                    <TableHead className="text-right min-w-[120px] bg-secondary/30">
                       Orçado
                     </TableHead>
                   )}
                   {showDiferenca && (
-                    <TableHead className="text-right min-w-[120px] bg-accent/20">
+                    <TableHead className="text-right min-w-[120px] bg-accent/30">
                       Dif.
                     </TableHead>
                   )}
@@ -539,12 +550,12 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                 Real
               </TableHead>
               {showOrcado && (
-                <TableHead className="text-right min-w-[120px] bg-secondary/40">
+                <TableHead className="text-right min-w-[120px] bg-secondary/30">
                   Orçado
                 </TableHead>
               )}
               {showDiferenca && (
-                <TableHead className="text-right min-w-[120px] bg-accent/20">
+                <TableHead className="text-right min-w-[120px] bg-accent/30">
                   Dif.
                 </TableHead>
               )}
@@ -554,14 +565,25 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
 
         <TableBody>
           {data.map((item) => {
-            // Se for "Movimentações", renderizar seus totalizadores filhos
+            // Se for "Movimentações", renderizar como item expansível com totalizadores filhos
             if (item.nome === "Movimentações" && item.classificacoes) {
+              const isMovimentacoesOpen = openSections["Movimentações"] ?? false;
+              
               return (
                 <React.Fragment key={item.nome}>
-                  {/* LINHA PRINCIPAL DAS MOVIMENTAÇÕES */}
-                  <TableRow className="bg-primary/10 font-bold border-t-4 border-primary">
-                    <TableCell className="py-4 md:sticky md:left-0 md:z-20 bg-primary/10 font-bold">
+                  {/* LINHA PRINCIPAL DAS MOVIMENTAÇÕES - CLICÁVEL PARA EXPANDIR */}
+                  <TableRow 
+                    className="bg-primary/5 font-bold border-t-2 border-primary/20 cursor-pointer hover:bg-primary/8 transition-colors duration-200"
+                    onClick={() => toggle("Movimentações")}
+                  >
+                    <TableCell className="py-4 md:sticky md:left-0 md:z-10 bg-background/98 font-bold border-r border-border">
                       <div className="flex items-center gap-2">
+                        <ChevronDown
+                          size={16}
+                          className={`transition-transform ${
+                            isMovimentacoesOpen ? "rotate-0" : "-rotate-90"
+                          }`}
+                        />
                         <span className="text-base font-bold text-primary">{item.nome}</span>
                       </div>
                     </TableCell>
@@ -603,8 +625,8 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                     )}
                   </TableRow>
 
-                  {/* TOTALIZADORES (NÍVEL 1) */}
-                  {item.classificacoes.map((totalizador) => {
+                  {/* TOTALIZADORES (NÍVEL 1) - SÓ MOSTRA SE MOVIMENTAÇÕES ESTÁ EXPANDIDA */}
+                  {isMovimentacoesOpen && item.classificacoes.map((totalizador) => {
                     const isOpen = openSections[totalizador.nome] ?? false;
 
                     const totalTotalizador = calcularTotal(
@@ -626,10 +648,10 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                       <React.Fragment key={totalizador.nome}>
                         {/* LINHA DO TOTALIZADOR */}
                         <TableRow
-                          className="cursor-pointer hover:bg-muted/50 bg-muted/80 font-bold border-t-2"
+                          className="cursor-pointer hover:bg-muted/20 bg-muted/12 font-semibold border-t border-muted/30 transition-colors duration-200"
                           onClick={() => toggle(totalizador.nome)}
                         >
-                          <TableCell className="py-4 md:sticky md:left-0 md:z-20 bg-muted font-bold pl-4">
+                          <TableCell className="py-4 md:sticky md:left-0 md:z-10 bg-background/98 font-semibold pl-4 border-r border-border">
                             <div className="flex items-center gap-2">
                               <ChevronDown
                                 size={18}
@@ -637,8 +659,8 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                                   isOpen ? "rotate-0" : "-rotate-90"
                                 }`}
                               />
-                              <span className="text-sm font-bold">{totalizador.tipo}</span>
-                              <span className="text-base font-bold">{totalizador.nome}</span>
+                              <span className="text-sm font-medium text-muted-foreground">{totalizador.tipo}</span>
+                              <span className="text-base font-semibold">{totalizador.nome}</span>
                             </div>
                           </TableCell>
 
@@ -733,11 +755,11 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                                 {/* LINHA DA CONTA */}
                                 <TableRow
                                   className={`${
-                                    isContaExpandable ? "cursor-pointer hover:bg-muted/30" : ""
-                                  } bg-muted/20`}
+                                    isContaExpandable ? "cursor-pointer hover:bg-accent/15" : ""
+                                  } bg-accent/5 border-t border-border/25 transition-colors duration-200`}
                                   onClick={() => isContaExpandable && toggle(`${totalizador.nome}-${conta.nome}`)}
                                 >
-                                  <TableCell className="sticky left-0 z-10 bg-muted/20 pl-8">
+                                  <TableCell className="sticky left-0 z-10 bg-background/98 pl-8 border-r border-border/20">
                                     <div className="flex items-center gap-2">
                                       {isContaExpandable && (
                                         <ChevronDown
@@ -747,7 +769,7 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                                           }`}
                                         />
                                       )}
-                                      <span className="text-sm">{conta.tipo}</span>
+                                      <span className="text-sm text-muted-foreground">{conta.tipo}</span>
                                       <span className="font-medium">{conta.nome}</span>
                                     </div>
                                   </TableCell>
@@ -838,11 +860,11 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                                     return (
                                       <TableRow 
                                         key={`${totalizador.nome}-${conta.nome}-${classificacao.nome}`} 
-                                        className="bg-muted/10"
+                                        className="bg-muted/4 border-t border-border/15 hover:bg-muted/8 transition-colors duration-200"
                                       >
-                                        <TableCell className="sticky left-0 z-10 bg-muted/10 pl-16 text-sm">
+                                        <TableCell className="sticky left-0 z-10 bg-background/98 pl-16 text-sm border-r border-border/10">
                                           <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
+                                            <div className="w-1.5 h-1.5 rounded-full bg-primary/60" />
                                             <span className="text-muted-foreground">{classificacao.nome}</span>
                                           </div>
                                         </TableCell>
@@ -924,9 +946,9 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
             } else {
               // Para "Saldo inicial" e "Saldo final", renderizar diretamente
               return (
-                <TableRow key={item.nome} className="bg-primary/5 font-bold border-t-2 border-primary">
-                  <TableCell className="py-4 md:sticky md:left-0 md:z-20 bg-primary/5 font-bold">
-                    <span className="text-base font-bold text-primary">{item.nome}</span>
+                <TableRow key={item.nome} className="bg-secondary/8 font-semibold border-t border-secondary/25 hover:bg-secondary/12 transition-colors duration-200">
+                  <TableCell className="py-4 md:sticky md:left-0 md:z-10 bg-background/98 font-semibold border-r border-border">
+                    <span className="text-base font-semibold text-secondary-foreground">{item.nome}</span>
                   </TableCell>
                   
                   {periodosFiltrados.map((p) => {
