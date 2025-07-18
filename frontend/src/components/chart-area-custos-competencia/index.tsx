@@ -19,7 +19,7 @@ export interface AreaChartCustosProps {
   mesSelecionado?: string;
 }
 
-export function ChartAreaCustos({ data, config, mesSelecionado }: AreaChartCustosProps) {
+export function ChartCustosCompetencia({ data, config, mesSelecionado }: AreaChartCustosProps) {
   // Cores e labels padrão, pode sobrescrever via config
   const chartConfig = {
     custos: {

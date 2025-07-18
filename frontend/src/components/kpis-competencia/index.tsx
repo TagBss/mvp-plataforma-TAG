@@ -20,8 +20,10 @@ import { useEffect, useState } from "react";
 import { FiltroMes } from "@/components/filtro-mes"
 import { ChartBarDre } from "@/components/chart-bar-dre"
 import { ChartAreaFaturamento } from "@/components/chart-area-faturamento"
-import { ChartAreaCustos } from "@/components/chart-area-custos"
+import { ChartCustosCompetencia as ChartAreaCustos } from "@/components/chart-area-custos-competencia"
 import { ChartAreaDespesas } from "@/components/chart-area-despesas"
+import { ChartCustosCompetencia } from "@/components/chart-bar-custos-competencia"
+import { ChartDespesasCompetencia } from "@/components/chart-bar-despesas-competencia"
 
 // Função para formatar no estilo curto (Mil / Mi)
 export function formatCurrencyShort(value: number, opts?: { noPrefix?: boolean }): string {
@@ -811,6 +813,106 @@ export default function DashCompetencia() {
               <div className="text-muted-foreground flex items-center gap-2 leading-none">
                 {despesasEvolucao.length > 0 ? (
                   formatarPeriodo(despesasEvolucao)
+                ) : (
+                  "Todo o período"
+                )}
+              </div>
+            </CardFooter>
+          </Card>
+        )}
+      </section>
+
+      <section className="mt-4 flex flex-col lg:flex-row gap-4">
+        {(inicializando || loading) ? (
+          // Exibe skeleton enquanto carrega
+          <CardSkeletonLarge />
+        ) : (
+          // Exibe o gráfico de ranking de custos
+          <Card className="w-full">
+            <CardHeader>
+              <div className="flex items-center justify-center">
+                <CardTitle className="text-lg sm:text-xl select-none">
+                  Ranking de Custos
+                </CardTitle>
+                <MinusCircle className="ml-auto w-4 h-4" />
+              </div>
+            </CardHeader>
+
+            <CardContent>
+              <div className="sm:flex sm:justify-between sm:items-center">
+                <CardDescription>
+                  <div className="flex gap-2 mb-10 leading-none font-medium">
+                    Custos por classificação
+                  </div>
+                </CardDescription>
+              </div>
+
+              <ChartCustosCompetencia mesSelecionado={mesSelecionado} />
+            </CardContent>
+            <CardFooter className="flex-col items-start gap-2 text-sm">
+              <CardDescription>
+                <p>Classificação de custos por valor</p>
+              </CardDescription>
+              <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                {mesSelecionado ? (
+                  (() => {
+                    const formatar = (mes: string) => {
+                      if (!mes.match(/^\d{4}-\d{2}$/)) return mes;
+                      const [ano, m] = mes.split("-");
+                      const mesNum = parseInt(m, 10);
+                      return `${mesesAbreviados[mesNum]}/${ano.slice(-2)}`;
+                    };
+                    return formatar(mesSelecionado);
+                  })()
+                ) : (
+                  "Todo o período"
+                )}
+              </div>
+            </CardFooter>
+          </Card>
+        )}
+
+        {(inicializando || loading) ? (
+          // Exibe skeleton enquanto carrega
+          <CardSkeletonLarge />
+        ) : (
+          // Exibe o gráfico de ranking de despesas
+          <Card className="w-full">
+            <CardHeader>
+              <div className="flex items-center justify-center">
+                <CardTitle className="text-lg sm:text-xl select-none">
+                  Ranking de Despesas
+                </CardTitle>
+                <MinusCircle className="ml-auto w-4 h-4" />
+              </div>
+            </CardHeader>
+
+            <CardContent>
+              <div className="sm:flex sm:justify-between sm:items-center">
+                <CardDescription>
+                  <div className="flex gap-2 mb-10 leading-none font-medium">
+                    Despesas por classificação
+                  </div>
+                </CardDescription>
+              </div>
+
+              <ChartDespesasCompetencia mesSelecionado={mesSelecionado} />
+            </CardContent>
+            <CardFooter className="flex-col items-start gap-2 text-sm">
+              <CardDescription>
+                <p>Classificação de despesas por valor</p>
+              </CardDescription>
+              <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                {mesSelecionado ? (
+                  (() => {
+                    const formatar = (mes: string) => {
+                      if (!mes.match(/^\d{4}-\d{2}$/)) return mes;
+                      const [ano, m] = mes.split("-");
+                      const mesNum = parseInt(m, 10);
+                      return `${mesesAbreviados[mesNum]}/${ano.slice(-2)}`;
+                    };
+                    return formatar(mesSelecionado);
+                  })()
                 ) : (
                   "Todo o período"
                 )}

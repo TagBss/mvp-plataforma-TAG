@@ -8,6 +8,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
+import { formatCurrencyShort } from "../kpis-competencia"
 
 export const description = "Gráfico de cascata DRE usando Recharts"
 
@@ -48,22 +49,6 @@ const chartConfig = {
     color: "var(--chart-4)",
   }
 } satisfies ChartConfig
-
-// Função para formatar valores em formato curto
-function formatCurrencyShort(value: number): string {
-  const absValue = Math.abs(value)
-  let formatted = ""
-
-  if (absValue >= 1_000_000) {
-    formatted = `${(absValue / 1_000_000).toFixed(1)}Mi`
-  } else if (absValue >= 1_000) {
-    formatted = `${(absValue / 1_000).toFixed(1)}K`
-  } else {
-    formatted = absValue.toFixed(0)
-  }
-
-  return `${value < 0 ? "-" : ""}R$${formatted.replace(".", ",")}`
-}
 
 export function ChartBarDre({ mesSelecionado }: ChartWaterfallDreProps) {
   const [chartData, setChartData] = useState<WaterfallDataPoint[]>([])
@@ -133,7 +118,7 @@ export function ChartBarDre({ mesSelecionado }: ChartWaterfallDreProps) {
             valor: Math.abs(valor),
             valorAcumulado,
             tipo,
-            displayValue: formatCurrencyShort(valor),
+            displayValue: formatCurrencyShort(valor, { noPrefix: false }),
             fill
           }
         })
@@ -195,7 +180,7 @@ export function ChartBarDre({ mesSelecionado }: ChartWaterfallDreProps) {
             interval={0}
           />
           <YAxis 
-            tickFormatter={(value) => formatCurrencyShort(value)}
+            tickFormatter={(value) => formatCurrencyShort(value, { noPrefix: true })}
             fontSize={12}
             fontFamily="Geist, sans-serif"
           />
