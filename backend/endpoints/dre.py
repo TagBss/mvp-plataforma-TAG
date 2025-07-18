@@ -216,17 +216,159 @@ def get_dre_data(request: Request):
         orcamento_total = {nome: total_geral_orc.get(nome, 0.0) for nome, _ in contas_dre}
 
         def get_classificacoes(dre_n2_name):
-            sub_df = df_real[df_real["DRE_n2"] == dre_n2_name]
-            if sub_df.empty:
+            sub_df_real = df_real[df_real["DRE_n2"] == dre_n2_name]
+            sub_df_orc = df_orc[df_orc["DRE_n2"] == dre_n2_name]
+            if sub_df_real.empty:
                 return []
 
             classificacoes = []
-            for classificacao, grupo in sub_df.groupby("classificacao"):
-                total_class = grupo["valor_original"].sum()
+            # Obter todas as classificações únicas (de realizado e orçamento)
+            classificacoes_unicas = set(sub_df_real["classificacao"].unique())
+            if not sub_df_orc.empty:
+                classificacoes_unicas.update(sub_df_orc["classificacao"].unique())
+
+            for classificacao in classificacoes_unicas:
+                # Dados realizados
+                grupo_real = sub_df_real[sub_df_real["classificacao"] == classificacao]
+                
+                # Dados orçamentários
+                grupo_orc = sub_df_orc[sub_df_orc["classificacao"] == classificacao]
+
+                # Calcular valores por período - REALIZADO
+                valores_mes = {}
+                for mes in meses_unicos:
+                    valores_mes[mes] = grupo_real[grupo_real["mes_ano"] == mes]["valor_original"].sum()
+
+                valores_tri = {}
+                for tri in trimestres_unicos:
+                    meses_do_tri = df[df["trimestre"] == tri]["mes_ano"].unique()
+                    soma = sum(valores_mes.get(mes, 0) for mes in meses_do_tri)
+                    valores_tri[tri] = soma
+
+                valores_ano = {}
+                for ano in anos_unicos:
+                    meses_do_ano = [m for m in meses_unicos if m.startswith(str(ano))]
+                    soma = sum(valores_mes.get(mes, 0) for mes in meses_do_ano)
+                    valores_ano[str(ano)] = soma
+
+                total_real = grupo_real["valor_original"].sum()
+
+                # Calcular valores por período - ORÇAMENTO
+                orcamentos_mes = {}
+                for mes in meses_unicos:
+                    orcamentos_mes[mes] = grupo_orc[grupo_orc["mes_ano"] == mes]["valor_original"].sum()
+
+                orcamentos_tri = {}
+                for tri in trimestres_unicos:
+                    meses_do_tri = df[df["trimestre"] == tri]["mes_ano"].unique()
+                    soma = sum(orcamentos_mes.get(mes, 0) for mes in meses_do_tri)
+                    orcamentos_tri[tri] = soma
+
+                orcamentos_ano = {}
+                for ano in anos_unicos:
+                    meses_do_ano = [m for m in meses_unicos if m.startswith(str(ano))]
+                    soma = sum(orcamentos_mes.get(mes, 0) for mes in meses_do_ano)
+                    orcamentos_ano[str(ano)] = soma
+
+                total_orc = grupo_orc["valor_original"].sum()
+
+                # Calcular análises verticais
+                vertical_mensais = {}
+                for mes in meses_unicos:
+                    vertical_mensais[mes] = calcular_analise_vertical(valores_mes[mes], valores_mensais[mes]["Faturamento"])
+
+                vertical_trimestrais = {}
+                for tri in trimestres_unicos:
+                    vertical_trimestrais[tri] = calcular_analise_vertical(valores_tri[tri], valores_trimestrais[tri]["Faturamento"])
+
+                vertical_anuais = {}
+                for ano in anos_unicos:
+                    vertical_anuais[str(ano)] = calcular_analise_vertical(valores_ano[str(ano)], valores_anuais[str(ano)]["Faturamento"])
+
+                vertical_total = calcular_analise_vertical(total_real, total_geral_real.get("Faturamento", 0))
+
+                # Calcular análises verticais para orçamento
+                vertical_mensais_orcamento = {}
+                for mes in meses_unicos:
+                    vertical_mensais_orcamento[mes] = calcular_analise_vertical(orcamentos_mes[mes], orcamentos_mensais[mes]["Faturamento"])
+
+                vertical_trimestrais_orcamento = {}
+                for tri in trimestres_unicos:
+                    vertical_trimestrais_orcamento[tri] = calcular_analise_vertical(orcamentos_tri[tri], orcamentos_trimestrais[tri]["Faturamento"])
+
+                vertical_anuais_orcamento = {}
+                for ano in anos_unicos:
+                    vertical_anuais_orcamento[str(ano)] = calcular_analise_vertical(orcamentos_ano[str(ano)], orcamentos_anuais[str(ano)]["Faturamento"])
+
+                vertical_orcamentos_total = calcular_analise_vertical(total_orc, total_geral_orc.get("Faturamento", 0))
+
+                # Calcular análises horizontais
+                horizontal_mensais = {}
+                for i, mes in enumerate(meses_unicos):
+                    if i == 0:
+                        horizontal_mensais[mes] = "–"
+                    else:
+                        horizontal_mensais[mes] = calcular_analise_horizontal(valores_mes[mes], valores_mes[meses_unicos[i-1]])
+
+                horizontal_trimestrais = {}
+                for i, tri in enumerate(trimestres_unicos):
+                    if i == 0:
+                        horizontal_trimestrais[tri] = "–"
+                    else:
+                        horizontal_trimestrais[tri] = calcular_analise_horizontal(valores_tri[tri], valores_tri[trimestres_unicos[i-1]])
+
+                horizontal_anuais = {}
+                for i, ano in enumerate(anos_unicos):
+                    if i == 0:
+                        horizontal_anuais[str(ano)] = "–"
+                    else:
+                        horizontal_anuais[str(ano)] = calcular_analise_horizontal(valores_ano[str(ano)], valores_ano[str(anos_unicos[i-1])])
+
+                # Calcular análises horizontais para orçamento
+                horizontal_mensais_orcamento = {}
+                for i, mes in enumerate(meses_unicos):
+                    if i == 0:
+                        horizontal_mensais_orcamento[mes] = "–"
+                    else:
+                        horizontal_mensais_orcamento[mes] = calcular_analise_horizontal(orcamentos_mes[mes], orcamentos_mes[meses_unicos[i-1]])
+
+                horizontal_trimestrais_orcamento = {}
+                for i, tri in enumerate(trimestres_unicos):
+                    if i == 0:
+                        horizontal_trimestrais_orcamento[tri] = "–"
+                    else:
+                        horizontal_trimestrais_orcamento[tri] = calcular_analise_horizontal(orcamentos_tri[tri], orcamentos_tri[trimestres_unicos[i-1]])
+
+                horizontal_anuais_orcamento = {}
+                for i, ano in enumerate(anos_unicos):
+                    if i == 0:
+                        horizontal_anuais_orcamento[str(ano)] = "–"
+                    else:
+                        horizontal_anuais_orcamento[str(ano)] = calcular_analise_horizontal(orcamentos_ano[str(ano)], orcamentos_ano[str(anos_unicos[i-1])])
+
                 classificacoes.append({
                     "nome": classificacao,
-                    "valor": total_class,
-                    "vertical_total": calcular_analise_vertical(total_class, total_geral_real.get("Faturamento", 0))
+                    "valor": total_real,
+                    "valores_mensais": valores_mes,
+                    "valores_trimestrais": valores_tri,
+                    "valores_anuais": valores_ano,
+                    "orcamentos_mensais": orcamentos_mes,
+                    "orcamentos_trimestrais": orcamentos_tri,
+                    "orcamentos_anuais": orcamentos_ano,
+                    "vertical_total": vertical_total,
+                    "vertical_mensais": vertical_mensais,
+                    "vertical_trimestrais": vertical_trimestrais,
+                    "vertical_anuais": vertical_anuais,
+                    "vertical_mensais_orcamento": vertical_mensais_orcamento,
+                    "vertical_trimestrais_orcamento": vertical_trimestrais_orcamento,
+                    "vertical_anuais_orcamento": vertical_anuais_orcamento,
+                    "vertical_orcamentos_total": vertical_orcamentos_total,
+                    "horizontal_mensais": horizontal_mensais,
+                    "horizontal_trimestrais": horizontal_trimestrais,
+                    "horizontal_anuais": horizontal_anuais,
+                    "horizontal_mensais_orcamento": horizontal_mensais_orcamento,
+                    "horizontal_trimestrais_orcamento": horizontal_trimestrais_orcamento,
+                    "horizontal_anuais_orcamento": horizontal_anuais_orcamento
                 })
             return classificacoes
 
