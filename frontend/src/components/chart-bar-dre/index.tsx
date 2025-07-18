@@ -27,24 +27,25 @@ interface WaterfallDataPoint {
   valorAcumulado: number
   tipo: 'positivo' | 'negativo' | 'total'
   displayValue: string
+  fill: string
 }
 
 const chartConfig = {
   valor: {
     label: "Valor",
-    color: "hsl(var(--chart-1))",
+    color: "var(--chart-1)",
   },
   positivo: {
     label: "Positivo",
-    color: "hsl(var(--chart-2))",
+    color: "#22c55e",
   },
   negativo: {
     label: "Negativo", 
-    color: "hsl(var(--chart-3))",
+    color: "#ef4444",
   },
   total: {
     label: "Total",
-    color: "hsl(var(--chart-4))",
+    color: "var(--chart-4)",
   }
 } satisfies ChartConfig
 
@@ -64,7 +65,7 @@ function formatCurrencyShort(value: number): string {
   return `${value < 0 ? "-" : ""}R$${formatted.replace(".", ",")}`
 }
 
-export function ChartWaterfallDre({ mesSelecionado }: ChartWaterfallDreProps) {
+export function ChartBarDre({ mesSelecionado }: ChartWaterfallDreProps) {
   const [chartData, setChartData] = useState<WaterfallDataPoint[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -122,12 +123,18 @@ export function ChartWaterfallDre({ mesSelecionado }: ChartWaterfallDreProps) {
 
           valorAcumulado += valor
           
+          // Determinar a cor baseada no tipo
+          const fill = tipo === 'positivo' ? '#22c55e' : 
+                      tipo === 'negativo' ? '#ef4444' : 
+                      '#22c55e' // fallback
+          
           return {
             nome: nome, // Manter nomes completos
             valor: Math.abs(valor),
             valorAcumulado,
             tipo,
-            displayValue: formatCurrencyShort(valor)
+            displayValue: formatCurrencyShort(valor),
+            fill
           }
         })
 
@@ -192,24 +199,13 @@ export function ChartWaterfallDre({ mesSelecionado }: ChartWaterfallDreProps) {
             fontSize={12}
             fontFamily="Geist, sans-serif"
           />
-          <ChartTooltip 
-            content={<ChartTooltipContent />}
-            formatter={(value, name, props) => [
-              props.payload.displayValue,
-              "Valor"
-            ]}
-            contentStyle={{ fontFamily: 'Geist, sans-serif' }}
-          />
+          <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
           <ReferenceLine y={0} stroke="hsl(var(--border))" strokeDasharray="2 2" />
           <Bar dataKey="valor" radius={4}>
             {chartData.map((entry, index) => (
               <Cell 
                 key={`cell-${index}`} 
-                fill={
-                  entry.tipo === 'positivo' ? '#22c55e' : // Verde
-                  entry.tipo === 'negativo' ? '#ef4444' : // Vermelho
-                  entry.valor >= 0 ? '#22c55e' : '#ef4444' // Fallback baseado no valor
-                } 
+                fill={entry.fill}
               />
             ))}
           </Bar>

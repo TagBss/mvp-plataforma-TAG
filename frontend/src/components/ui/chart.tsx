@@ -228,7 +228,7 @@ function ChartTooltipContent({
                   )}
                   <div
                     className={cn(
-                      "flex flex-1 justify-between leading-none",
+                      "flex flex-1 justify-between leading-none gap-2",
                       nestLabel ? "items-end" : "items-center"
                     )}
                   >
@@ -239,7 +239,7 @@ function ChartTooltipContent({
                       </span>
                     </div>
                     {typeof item.value === "number" && (
-                      <span className="text-foreground font-mono font-medium tabular-nums">
+                      <span className="text-foreground font-medium tabular-nums">
                         {formatCurrencyShort(item.value)}
                       </span>
                     )}

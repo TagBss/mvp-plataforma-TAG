@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { CardSkeleton, CardSkeletonLarge } from "@/components/ui/card-skeleton";
 import {  
+  ChartColumnBig,
   MinusCircle,
   PlusCircle,
   TrendingUp,
@@ -17,8 +18,10 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { FiltroMes } from "@/components/filtro-mes"
-import { ChartWaterfallDre } from "@/components/chart-waterfall-dre"
+import { ChartBarDre } from "@/components/chart-bar-dre"
 import { ChartAreaFaturamento } from "@/components/chart-area-faturamento"
+import { ChartAreaCustos } from "@/components/chart-area-custos"
+import { ChartAreaDespesas } from "@/components/chart-area-despesas"
 
 // Função para formatar no estilo curto (Mil / Mi)
 export function formatCurrencyShort(value: number, opts?: { noPrefix?: boolean }): string {
@@ -111,6 +114,53 @@ function getMoMIndicator(momData: MoMData[], mesSelecionado: string) {
   };
 }
 
+function getMoMIndicatorCustos(momData: MoMData[], mesSelecionado: string) {
+  if (!momData || momData.length === 0) return null;
+
+  // Se mesSelecionado for string vazia ("Todo o período"), não retorna MoM
+  if (!mesSelecionado) {
+    return null;
+  }
+
+  let index = -1;
+  if (mesSelecionado) {
+    index = momData.findIndex((item) => item.mes === mesSelecionado);
+  }
+  if (index === -1) {
+    index = momData.length - 1;
+  }
+  
+  const entry = momData[index];
+  const mesAnteriorRaw = momData[index - 1]?.mes || "--";
+  
+  // Para custos, calculamos baseado nos valores absolutos
+  const valorAtual = Math.abs(entry?.valor_atual ?? 0);
+  const valorAnterior = Math.abs(entry?.valor_anterior ?? 0);
+  
+  let variacao = null;
+  if (valorAnterior !== 0) {
+    variacao = ((valorAtual - valorAnterior) / valorAnterior) * 100;
+  }
+
+  // Formatar mesAnterior para "abr/25"
+  let mesAnterior = "--";
+  if (mesAnteriorRaw && mesAnteriorRaw !== "--" && mesAnteriorRaw.match(/^\d{4}-\d{2}$/)) {
+    const [ano, mes] = mesAnteriorRaw.split("-");
+    const mesNum = parseInt(mes, 10);
+    const anoCurto = ano.slice(-2);
+    mesAnterior = `${mesesAbreviados[mesNum]}/${anoCurto}`;
+  }
+
+  return {
+    percentage: variacao !== null ? Math.abs(variacao) : null,
+    isPositive: variacao !== null ? variacao > 0 : null,
+    mesAnterior,
+    // Para custos: aumento de valor absoluto = seta para cima (ruim), diminuição = seta para baixo (bom)
+    arrow: variacao !== null ? (variacao > 0 ? "↗" : "↙") : "",
+    hasValue: variacao !== null
+  };
+}
+
 export default function DashCompetencia() {
   console.log("🔥 COMPONENTE INICIADO");
   
@@ -125,6 +175,8 @@ export default function DashCompetencia() {
   const [faturamentoEvolucao, setFaturamentoEvolucao] = useState<Array<{ mes: string; faturamento: number }>>([]);
   const [custosValor, setCustosValor] = useState<number | null>(null);
   const [momCustos, setMomCustos] = useState<MoMData[]>([]);
+  const [custosEvolucao, setCustosEvolucao] = useState<Array<{ mes: string; custos: number }>>([]);
+  const [despesasEvolucao, setDespesasEvolucao] = useState<Array<{ mes: string; despesas: number }>>([]);
   const [lucroLiquidoValor, setLucroLiquidoValor] = useState<number | null>(null);
   const [momLucroLiquido, setMomLucroLiquido] = useState<MoMData[]>([]);
   const [lucratividadeValor, setLucratividadeValor] = useState<number | null>(null);
@@ -183,7 +235,57 @@ export default function DashCompetencia() {
       const valorCustoMerc = mes && custoMerc?.valores_mensais?.[mes] !== undefined 
         ? custoMerc.valores_mensais[mes] 
         : custoMerc?.valor ?? 0;
-      setCustosValor(valorCustoImport + valorCustoMerc);
+      setCustosValor(Math.abs(valorCustoImport + valorCustoMerc));
+
+      // Processar evolução dos custos (últimos 12 meses)
+      if (custoImport && custoMerc && custoImport.valores_mensais && custoMerc.valores_mensais) {
+        const mesesImport = Object.keys(custoImport.valores_mensais);
+        const mesesMerc = Object.keys(custoMerc.valores_mensais);
+        const todosMesesCustos = [...new Set([...mesesImport, ...mesesMerc])].sort();
+        
+        const evolucaoCustos = todosMesesCustos.slice(-12).map(mes => ({
+          mes,
+          custos: Math.abs((custoImport.valores_mensais[mes] || 0) + (custoMerc.valores_mensais[mes] || 0))
+        }));
+        setCustosEvolucao(evolucaoCustos);
+      } else {
+        setCustosEvolucao([]);
+      }
+
+      // Despesas (5 contas que compõem o EBITDA)
+      const despesasNomes = [
+        "Despesas Administrativa", 
+        "Despesas com Pessoal", 
+        "Despesas com Ocupação", 
+        "Despesas comercial", 
+        "Despesas com E-commerce"
+      ];
+      
+      const despesasLinhas = despesasNomes.map(nome => 
+        linhas.find((item) => item.nome === nome)
+      ).filter(linha => linha !== undefined);
+
+      // Processar evolução das despesas (últimos 12 meses)
+      if (despesasLinhas.length > 0) {
+        const todosMesesDespesas = new Set<string>();
+        despesasLinhas.forEach(linha => {
+          if (linha && linha.valores_mensais) {
+            Object.keys(linha.valores_mensais).forEach(mes => todosMesesDespesas.add(mes));
+          }
+        });
+        
+        const mesesOrdenadosDespesas = Array.from(todosMesesDespesas).sort();
+        const evolucaoDespesas = mesesOrdenadosDespesas.slice(-12).map(mes => ({
+          mes,
+          despesas: despesasLinhas.reduce((total, linha) => {
+            return total + Math.abs(linha?.valores_mensais?.[mes] || 0);
+          }, 0)
+        }));
+        setDespesasEvolucao(evolucaoDespesas);
+      } else {
+        setDespesasEvolucao([]);
+      }
+
       // Lucro Líquido (Resultado Líquido)
       const lucro = linhas.find((item) => item.nome === "Resultado Líquido");
       const valorLucro = mes && lucro?.valores_mensais?.[mes] !== undefined 
@@ -425,7 +527,7 @@ export default function DashCompetencia() {
                 <div className="sm:flex sm:justify-between sm:items-center">
                   <p className="text-lg sm:text-2xl">
                     {custosValor !== null ? (
-                      formatCurrencyShort(Math.abs(custosValor))
+                      formatCurrencyShort(-custosValor)
                     ) : (
                       "--"
                     )}
@@ -434,7 +536,7 @@ export default function DashCompetencia() {
                     {mesSelecionado === "" ? (
                       <p>vs período anterior <br />-- --</p>
                     ) : (() => {
-                      const mom = getMoMIndicator(momCustos, mesSelecionado);
+                      const mom = getMoMIndicatorCustos(momCustos, mesSelecionado);
                       return mom && mom.hasValue ? (
                         <p>
                           vs {mom.mesAnterior} <br />
@@ -551,9 +653,9 @@ export default function DashCompetencia() {
               <CardHeader>
                 <div className="flex items-center justify-center">
                   <CardTitle className="text-lg sm:text-xl select-none">
-                    Análise de Cascata DRE
+                    Resultados por hierarquia DRE
                   </CardTitle>
-                  <TrendingUp className="ml-auto w-4 h-4" />
+                  <ChartColumnBig className="ml-auto w-4 h-4" />
                 </div>
               </CardHeader>
 
@@ -567,11 +669,11 @@ export default function DashCompetencia() {
                   </CardDescription>
                 </div>
 
-                <ChartWaterfallDre mesSelecionado={mesSelecionado} />
+                <ChartBarDre mesSelecionado={mesSelecionado} />
               </CardContent>
               <CardFooter className="flex-col items-start gap-2 text-sm">
                 <CardDescription>
-                  <p>Análise de cascata DRE</p>
+                  <p>Análise por hierarquia DRE</p>
                 </CardDescription>
                 <div className="text-muted-foreground flex items-center gap-2 leading-none">
                   {mesSelecionado ? (
@@ -611,7 +713,6 @@ export default function DashCompetencia() {
                   <CardDescription>
                     <div className="flex gap-2 mb-10 leading-none font-medium">
                       Faturamento ao longo do tempo
-                      {mesSelecionado && ` - ${mesSelecionado} destacado`}
                     </div>
                   </CardDescription>
                 </div>
@@ -635,9 +736,88 @@ export default function DashCompetencia() {
         )}
       </section>
 
-      <section>
-        {/* Gráfico de custos competencia
-        Gráfico de despesas competencia */}
+      <section className="mt-4 flex flex-col lg:flex-row gap-4">
+        {(inicializando || loading) ? (
+          // Exibe skeleton enquanto carrega
+          <CardSkeletonLarge />
+        ) : (
+          // Exibe o gráfico de custos
+          <Card className="w-full">
+            <CardHeader>
+              <div className="flex items-center justify-center">
+                <CardTitle className="text-lg sm:text-xl select-none">
+                  Custos
+                </CardTitle>
+                <MinusCircle className="ml-auto w-4 h-4" />
+              </div>
+            </CardHeader>
+
+            <CardContent>
+              <div className="sm:flex sm:justify-between sm:items-center">
+                <CardDescription>
+                  <div className="flex gap-2 mb-10 leading-none font-medium">
+                    Custos ao longo do tempo
+                  </div>
+                </CardDescription>
+              </div>
+
+              <ChartAreaCustos data={custosEvolucao} mesSelecionado={mesSelecionado} />
+            </CardContent>
+            <CardFooter className="flex-col items-start gap-2 text-sm">
+              <CardDescription>
+                <p>Custos últimos 12M</p>
+              </CardDescription>
+              <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                {custosEvolucao.length > 0 ? (
+                  formatarPeriodo(custosEvolucao)
+                ) : (
+                  "Todo o período"
+                )}
+              </div>
+            </CardFooter>
+          </Card>
+        )}
+
+        {(inicializando || loading) ? (
+          // Exibe skeleton enquanto carrega
+          <CardSkeletonLarge />
+        ) : (
+          // Exibe o gráfico de despesas
+          <Card className="w-full">
+            <CardHeader>
+              <div className="flex items-center justify-center">
+                <CardTitle className="text-lg sm:text-xl select-none">
+                  Despesas
+                </CardTitle>
+                <MinusCircle className="ml-auto w-4 h-4" />
+              </div>
+            </CardHeader>
+
+            <CardContent>
+              <div className="sm:flex sm:justify-between sm:items-center">
+                <CardDescription>
+                  <div className="flex gap-2 mb-10 leading-none font-medium">
+                    Despesas ao longo do tempo
+                  </div>
+                </CardDescription>
+              </div>
+
+              <ChartAreaDespesas data={despesasEvolucao} mesSelecionado={mesSelecionado} />
+            </CardContent>
+            <CardFooter className="flex-col items-start gap-2 text-sm">
+              <CardDescription>
+                <p>Despesas últimos 12M</p>
+              </CardDescription>
+              <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                {despesasEvolucao.length > 0 ? (
+                  formatarPeriodo(despesasEvolucao)
+                ) : (
+                  "Todo o período"
+                )}
+              </div>
+            </CardFooter>
+          </Card>
+        )}
       </section>
 
       <section className="mt-8 text-center">

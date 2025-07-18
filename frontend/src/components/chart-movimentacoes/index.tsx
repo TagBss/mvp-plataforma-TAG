@@ -1,10 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react";
-import { ChartConfig, ChartContainer } from "../ui/chart";
-import { Bar, ComposedChart, CartesianGrid, XAxis, YAxis, Line, ResponsiveContainer, Tooltip } from "recharts";
-import { TooltipProps } from 'recharts';
-import { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../ui/chart";
+import { Bar, ComposedChart, CartesianGrid, XAxis, YAxis, Line, ResponsiveContainer } from "recharts";
 import { formatCurrencyShort } from "@/components/kpis-financeiro";
 
 // Interface para as props do shape da barra
@@ -15,24 +13,6 @@ interface BarShapeProps {
   height?: number;
   payload?: ChartDataItem;
 }
-
-// Tooltip customizada para valores resumidos
-function CustomTooltip({ active, payload, label }: TooltipProps<ValueType, NameType>) {
-  if (active && payload && payload.length) {
-    return (
-      <div style={{ background: '#18181b', borderRadius: 8, padding: 12, color: '#fff', border: '1px solid #333' }}>
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
-        {payload.map((entry) => (
-          <div key={entry.dataKey?.toString()} style={{ color: entry.color, marginBottom: 2 }}>
-            {entry.name}: <b>{formatCurrencyShort(Number(entry.value))}</b>
-          </div>
-        ))}
-      </div>
-    );
-  }
-  return null;
-}
-
 
 // Utilitário para formatar mês (YYYY-MM para "abr/25")
 const mesesAbreviados = [ '', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez' ];
@@ -161,7 +141,7 @@ export default function ChartMovimentacoes({ mesSelecionado }: ChartMovimentacoe
             axisLine={false}
           />
           <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => formatCurrencyShort(v, { noPrefix: true })} />
-          <Tooltip content={<CustomTooltip />} />
+          <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
           {/* <Legend /> */}
           <Bar
             dataKey="CAR"
