@@ -169,7 +169,7 @@ export function ChartBarDre({ mesSelecionado }: ChartWaterfallDreProps) {
           data={chartData}
           margin={{ top: 20, right: 20, left: 20, bottom: 20 }}
         >
-          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+          <CartesianGrid vertical={false} />
           <XAxis 
             dataKey="nome" 
             angle={-45}
@@ -183,6 +183,8 @@ export function ChartBarDre({ mesSelecionado }: ChartWaterfallDreProps) {
             tickFormatter={(value) => formatCurrencyShort(value, { noPrefix: true })}
             fontSize={12}
             fontFamily="Geist, sans-serif"
+            tickLine={false}
+            axisLine={false}
           />
           <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
           <ReferenceLine y={0} stroke="hsl(var(--border))" strokeDasharray="2 2" />

@@ -114,6 +114,8 @@ export function ChartCustosCompetencia({ mesSelecionado }: ChartCustosCompetenci
           dataKey="valor" 
           type="number" 
           tickFormatter={(v) => formatCurrencyShort(v, { noPrefix: true })}
+          tickLine={false}
+          axisLine={false}
         />
         <ChartTooltip
           cursor={false}
