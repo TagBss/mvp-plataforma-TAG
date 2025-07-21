@@ -61,7 +61,7 @@ export function ChartBarDre({ mesSelecionado }: ChartWaterfallDreProps) {
       setError(null)
       
       try {
-        const response = await fetch(`http://127.0.0.1:8000/dre`)
+        const response = await fetch(`https://mvp-plataforma-tag-3s9u.onrender.com/dre`)
         if (!response.ok) throw new Error("Erro ao buscar dados do backend")
         
         const data = await response.json()
