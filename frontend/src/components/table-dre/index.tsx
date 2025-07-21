@@ -173,8 +173,9 @@ export default function DreTable() {
     return (
       <div className="flex flex-col text-right">
         <span className={diff < 0 ? "text-red-500" : ""}>
-          {diff.toLocaleString("pt-BR", {
+          {Math.round(diff).toLocaleString("pt-BR", {
             minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
           })}
         </span>
         {diffPct && (
@@ -193,8 +194,9 @@ export default function DreTable() {
   ) => (
     <div className="flex flex-col text-right">
       <span className={valor < 0 ? "text-red-500" : ""}>
-        {valor.toLocaleString("pt-BR", {
+        {Math.round(valor).toLocaleString("pt-BR", {
           minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
         })}
       </span>
       {showVertical && verticalPct && (
@@ -214,8 +216,9 @@ export default function DreTable() {
   ) => (
     <div className="flex flex-col text-right">
       <span className={valor < 0 ? "text-red-500" : ""}>
-        {valor.toLocaleString("pt-BR", {
+        {Math.round(valor).toLocaleString("pt-BR", {
           minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
         })}
       </span>
       {showVertical && verticalPct && (
@@ -294,15 +297,15 @@ export default function DreTable() {
 
       const row: (string | number)[] = [item.nome]
       periodosFiltrados.forEach(p => {
-        const real = calcularValor(item, p)
-        const orcado = calcularOrcamento(item, p)
+        const real = Math.round(calcularValor(item, p))
+        const orcado = Math.round(calcularOrcamento(item, p))
         row.push(real)
         if (showOrcado) row.push(orcado)
         if (showDiferenca) row.push(real - orcado)
       })
-      row.push(total)
-      if (showOrcado) row.push(totalOrc)
-      if (showDiferenca) row.push(total - totalOrc)
+      row.push(Math.round(total))
+      if (showOrcado) row.push(Math.round(totalOrc))
+      if (showDiferenca) row.push(Math.round(total) - Math.round(totalOrc))
 
       const excelRow = ws.addRow(row)
       excelRow.font = { bold: true }
@@ -323,15 +326,15 @@ export default function DreTable() {
 
           const subRow: (string | number)[] = ["  " + sub.nome]
           periodosFiltrados.forEach(p => {
-            const real = calcularValor(sub, p)
-            const orcado = calcularOrcamento(sub, p)
+            const real = Math.round(calcularValor(sub, p))
+            const orcado = Math.round(calcularOrcamento(sub, p))
             subRow.push(real)
             if (showOrcado) subRow.push(orcado)
             if (showDiferenca) subRow.push(real - orcado)
           })
-          subRow.push(subTotal)
-          if (showOrcado) subRow.push(subTotalOrc)
-          if (showDiferenca) subRow.push(subTotal - subTotalOrc)
+          subRow.push(Math.round(subTotal))
+          if (showOrcado) subRow.push(Math.round(subTotalOrc))
+          if (showDiferenca) subRow.push(Math.round(subTotal) - Math.round(subTotalOrc))
 
           ws.addRow(subRow)
         })
@@ -449,7 +452,7 @@ if (loading || !filtroAno) return (
           <TableRow>
             <TableHead 
               rowSpan={showOrcado || showDiferenca ? 2 : 1} 
-              className="min-w-[300px] md:sticky md:left-0 md:z-20 bg-card border-r"
+              className="min-w-[300px] md:sticky md:left-0 md:z-10 bg-card border-r"
             >
               Descrição
             </TableHead>
@@ -539,7 +542,7 @@ if (loading || !filtroAno) return (
                   onClick={() => isExpandable && toggle(item.nome)}
                 >
                   <TableCell
-                    className={`py-3 md:sticky md:left-0 md:z-20 bg-card ${
+                    className={`py-3 md:sticky md:left-0 md:z-10 bg-card ${
                       isTotal ? "font-bold bg-muted" : ""
                     }`}
                   >
