@@ -198,6 +198,7 @@ export default function DfcTable() {
         <span className={diff < 0 ? "text-red-500" : ""}>
           {diff.toLocaleString("pt-BR", {
             minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
           })}
         </span>
         {diffPct && (
@@ -218,6 +219,7 @@ export default function DfcTable() {
       <span className={valor < 0 ? "text-red-500" : ""}>
         {valor.toLocaleString("pt-BR", {
           minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
         })}
       </span>
       {showVertical && verticalPct && (
@@ -239,6 +241,7 @@ export default function DfcTable() {
       <span className={valor < 0 ? "text-red-500" : ""}>
         {valor.toLocaleString("pt-BR", {
           minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
         })}
       </span>
       {showVertical && verticalPct && (
@@ -503,7 +506,7 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
           <TableRow>
             <TableHead 
               rowSpan={showOrcado || showDiferenca ? 2 : 1} 
-              className="min-w-[300px] md:sticky md:left-0 md:z-10 bg-background/98 border-r font-semibold"
+              className="min-w-[300px] md:sticky md:left-0 md:z-10 bg-background border-r font-semibold"
             >
               Descrição
             </TableHead>
@@ -530,32 +533,32 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
             <TableRow>
               {periodosFiltrados.map((p) => (
                 <React.Fragment key={`${p}-sub`}>
-                  <TableHead className="text-right min-w-[120px] bg-muted/20">
+                  <TableHead className="text-right min-w-[120px] bg-secondary/30">
                     Real
                   </TableHead>
                   {showOrcado && (
-                    <TableHead className="text-right min-w-[120px] bg-secondary/30">
+                    <TableHead className="text-right min-w-[120px] bg-muted/20">
                       Orçado
                     </TableHead>
                   )}
                   {showDiferenca && (
-                    <TableHead className="text-right min-w-[120px] bg-accent/30">
+                    <TableHead className="text-right min-w-[120px] bg-muted/20">
                       Dif.
                     </TableHead>
                   )}
                 </React.Fragment>
               ))}
               {/* Colunas do Total */}
-              <TableHead className="text-right min-w-[120px] bg-muted/20">
+              <TableHead className="text-right min-w-[120px] bg-secondary/30">
                 Real
               </TableHead>
               {showOrcado && (
-                <TableHead className="text-right min-w-[120px] bg-secondary/30">
+                <TableHead className="text-right min-w-[120px] bg-muted/20">
                   Orçado
                 </TableHead>
               )}
               {showDiferenca && (
-                <TableHead className="text-right min-w-[120px] bg-accent/30">
+                <TableHead className="text-right min-w-[120px] bg-muted/20">
                   Dif.
                 </TableHead>
               )}
@@ -573,10 +576,10 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                 <React.Fragment key={item.nome}>
                   {/* LINHA PRINCIPAL DAS MOVIMENTAÇÕES - CLICÁVEL PARA EXPANDIR */}
                   <TableRow 
-                    className="bg-primary/5 font-bold border-t-2 border-primary/20 cursor-pointer hover:bg-primary/8 transition-colors duration-200"
+                    className="bg-primary/5 font-bold cursor-pointer hover:bg-primary/8 transition-colors duration-200"
                     onClick={() => toggle("Movimentações")}
                   >
-                    <TableCell className="py-4 md:sticky md:left-0 md:z-10 bg-background/98 font-bold border-r border-border">
+                    <TableCell className="py-4 md:sticky md:left-0 md:z-10 bg-background font-bold border-r border-border">
                       <div className="flex items-center gap-2">
                         <ChevronDown
                           size={16}
@@ -651,7 +654,7 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                           className="cursor-pointer hover:bg-muted/20 bg-muted/12 font-semibold border-t border-muted/30 transition-colors duration-200"
                           onClick={() => toggle(totalizador.nome)}
                         >
-                          <TableCell className="py-4 md:sticky md:left-0 md:z-10 bg-background/98 font-semibold pl-4 border-r border-border">
+                          <TableCell className="py-4 md:sticky md:left-0 md:z-10 bg-background font-semibold pl-4 border-r border-border">
                             <div className="flex items-center gap-2">
                               <ChevronDown
                                 size={18}
@@ -659,7 +662,6 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                                   isOpen ? "rotate-0" : "-rotate-90"
                                 }`}
                               />
-                              <span className="text-sm font-medium text-muted-foreground">{totalizador.tipo}</span>
                               <span className="text-base font-semibold">{totalizador.nome}</span>
                             </div>
                           </TableCell>
@@ -759,7 +761,7 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                                   } bg-accent/5 border-t border-border/25 transition-colors duration-200`}
                                   onClick={() => isContaExpandable && toggle(`${totalizador.nome}-${conta.nome}`)}
                                 >
-                                  <TableCell className="sticky left-0 z-10 bg-background/98 pl-8 border-r border-border/20">
+                                  <TableCell className="sticky left-0 z-10 bg-background pl-8 border-r border-border/20">
                                     <div className="flex items-center gap-2">
                                       {isContaExpandable && (
                                         <ChevronDown
@@ -862,7 +864,7 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
                                         key={`${totalizador.nome}-${conta.nome}-${classificacao.nome}`} 
                                         className="bg-muted/4 border-t border-border/15 hover:bg-muted/8 transition-colors duration-200"
                                       >
-                                        <TableCell className="sticky left-0 z-10 bg-background/98 pl-16 text-sm border-r border-border/10">
+                                        <TableCell className="sticky left-0 z-10 bg-background pl-16 text-sm border-r border-border/10">
                                           <div className="flex items-center gap-2">
                                             <div className="w-1.5 h-1.5 rounded-full bg-primary/60" />
                                             <span className="text-muted-foreground">{classificacao.nome}</span>
@@ -946,8 +948,8 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
             } else {
               // Para "Saldo inicial" e "Saldo final", renderizar diretamente
               return (
-                <TableRow key={item.nome} className="bg-secondary/8 font-semibold border-t border-secondary/25 hover:bg-secondary/12 transition-colors duration-200">
-                  <TableCell className="py-4 md:sticky md:left-0 md:z-10 bg-background/98 font-semibold border-r border-border">
+                <TableRow key={item.nome} className="bg-secondary/8 font-semibold hover:bg-secondary/12 transition-colors duration-200">
+                  <TableCell className="py-4 md:sticky md:left-0 md:z-10 bg-background font-semibold border-r border-border">
                     <span className="text-base font-semibold text-secondary-foreground">{item.nome}</span>
                   </TableCell>
                   
