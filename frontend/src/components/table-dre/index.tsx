@@ -173,7 +173,7 @@ export default function DreTable() {
     return (
       <div className="flex flex-col text-right">
         <span className={diff < 0 ? "text-red-500" : ""}>
-          {Math.round(diff).toLocaleString("pt-BR", {
+          {diff.toLocaleString("pt-BR", {
             minimumFractionDigits: 0,
             maximumFractionDigits: 0,
           })}
@@ -194,7 +194,7 @@ export default function DreTable() {
   ) => (
     <div className="flex flex-col text-right">
       <span className={valor < 0 ? "text-red-500" : ""}>
-        {Math.round(valor).toLocaleString("pt-BR", {
+        {valor.toLocaleString("pt-BR", {
           minimumFractionDigits: 0,
           maximumFractionDigits: 0,
         })}
@@ -216,7 +216,7 @@ export default function DreTable() {
   ) => (
     <div className="flex flex-col text-right">
       <span className={valor < 0 ? "text-red-500" : ""}>
-        {Math.round(valor).toLocaleString("pt-BR", {
+        {valor.toLocaleString("pt-BR", {
           minimumFractionDigits: 0,
           maximumFractionDigits: 0,
         })}
@@ -452,7 +452,7 @@ if (loading || !filtroAno) return (
           <TableRow>
             <TableHead 
               rowSpan={showOrcado || showDiferenca ? 2 : 1} 
-              className="min-w-[300px] md:sticky md:left-0 md:z-10 bg-card border-r"
+              className="min-w-[300px] md:sticky md:left-0 md:z-10 bg-background border-r font-semibold"
             >
               Descrição
             </TableHead>
@@ -461,7 +461,7 @@ if (loading || !filtroAno) return (
                 key={p} 
                 colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)} 
                 rowSpan={showOrcado || showDiferenca ? 1 : 1}
-                className="text-center min-w-[120px] bg-muted/20 border-r"
+                className="text-center min-w-[120px] bg-muted/30 border-r font-semibold"
               >
                 {p}
               </TableHead>
@@ -469,7 +469,7 @@ if (loading || !filtroAno) return (
             <TableHead 
               colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)} 
               rowSpan={showOrcado || showDiferenca ? 1 : 1}
-              className="text-center min-w-[120px] bg-muted/20"
+              className="text-center min-w-[120px] bg-muted/30 font-semibold"
             >
               Total
             </TableHead>
@@ -479,32 +479,32 @@ if (loading || !filtroAno) return (
             <TableRow>
               {periodosFiltrados.map((p) => (
                 <React.Fragment key={`${p}-sub`}>
-                  <TableHead className="text-right min-w-[120px] bg-muted/20">
+                  <TableHead className="text-right min-w-[120px] bg-secondary/30">
                     Real
                   </TableHead>
                   {showOrcado && (
-                    <TableHead className="text-right min-w-[120px] bg-secondary/40">
+                    <TableHead className="text-right min-w-[120px] bg-muted/20">
                       Orçado
                     </TableHead>
                   )}
                   {showDiferenca && (
-                    <TableHead className="text-right min-w-[120px] bg-accent/20">
+                    <TableHead className="text-right min-w-[120px] bg-muted/20">
                       Dif.
                     </TableHead>
                   )}
                 </React.Fragment>
               ))}
               {/* Colunas do Total */}
-              <TableHead className="text-right min-w-[120px] bg-muted/20">
+              <TableHead className="text-right min-w-[120px] bg-secondary/30">
                 Real
               </TableHead>
               {showOrcado && (
-                <TableHead className="text-right min-w-[120px] bg-secondary/40">
+                <TableHead className="text-right min-w-[120px] bg-muted/20">
                   Orçado
                 </TableHead>
               )}
               {showDiferenca && (
-                <TableHead className="text-right min-w-[120px] bg-accent/20">
+                <TableHead className="text-right min-w-[120px] bg-muted/20">
                   Dif.
                 </TableHead>
               )}
@@ -538,11 +538,11 @@ if (loading || !filtroAno) return (
                 <TableRow
                   className={`${
                     isExpandable ? "cursor-pointer hover:bg-muted/50" : ""
-                  } ${isTotal ? "bg-muted" : "even:bg-muted/20"}`}
+                  } ${isTotal ? "bg-muted font-semibold" : "even:bg-muted/10 hover:bg-muted/20"} transition-colors duration-200`}
                   onClick={() => isExpandable && toggle(item.nome)}
                 >
                   <TableCell
-                    className={`py-3 md:sticky md:left-0 md:z-10 bg-card ${
+                    className={`py-3 md:sticky md:left-0 md:z-10 bg-background border-r border-border ${
                       isTotal ? "font-bold bg-muted" : ""
                     }`}
                   >
@@ -555,8 +555,8 @@ if (loading || !filtroAno) return (
                           }`}
                         />
                       )}
-                      <span className="text-sm">{item.tipo}</span>
-                      <span>{item.nome}</span>
+                      <span className={`text-sm ${isTotal ? "font-bold" : "text-muted-foreground"}`}>{item.tipo}</span>
+                      <span className={isTotal ? "font-bold text-base" : ""}>{item.nome}</span>
                     </div>
                   </TableCell>
 
@@ -610,11 +610,11 @@ if (loading || !filtroAno) return (
                   })}
 
                   {/* Colunas do Total - Real, Orçado, Dif. */}
-                  <TableCell className="py-3 text-right">
+                  <TableCell className={`py-3 text-right ${isTotal ? "font-bold" : ""}`}>
                     {renderValor(total, calcularAVTotalDinamica(total))}
                   </TableCell>
                   {showOrcado && (
-                    <TableCell className="py-3 text-right">
+                    <TableCell className={`py-3 text-right ${isTotal ? "font-bold" : ""}`}>
                       {renderValorOrcamento(
                         totalOrc,
                         item.vertical_orcamentos_total,
@@ -623,7 +623,7 @@ if (loading || !filtroAno) return (
                     </TableCell>
                   )}
                   {showDiferenca && (
-                    <TableCell className="py-3 text-right">
+                    <TableCell className={`py-3 text-right ${isTotal ? "font-bold" : ""}`}>
                       {renderValorDiferenca(total, totalOrc)}
                     </TableCell>
                   )}
@@ -646,11 +646,11 @@ if (loading || !filtroAno) return (
                         : sub.orcamentos_anuais
                     );
                     return (
-                      <TableRow key={`${item.nome}-${sub.nome}`} className="bg-muted/10">
-                        <TableCell className="sticky left-0 z-10 bg-muted pl-10 text-sm">
+                      <TableRow key={`${item.nome}-${sub.nome}`} className="bg-muted/8 hover:bg-muted/12 border-t border-border/15 transition-colors duration-200">
+                        <TableCell className="sticky left-0 z-10 bg-background pl-10 text-sm border-r border-border/10">
                           <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
-                            {sub.nome}
+                            <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60" />
+                            <span className="text-muted-foreground">{sub.nome}</span>
                           </div>
                         </TableCell>
 
@@ -660,7 +660,7 @@ if (loading || !filtroAno) return (
                           return (
                             <React.Fragment key={`${p}-${sub.nome}`}>
                               {/* Coluna Real */}
-                              <TableCell>
+                              <TableCell className="text-sm">
                                 {renderValor(
                                   real,
                                   periodo === "mes"
@@ -677,7 +677,7 @@ if (loading || !filtroAno) return (
                               </TableCell>
                               {/* Coluna Orçado */}
                               {showOrcado && (
-                                <TableCell>
+                                <TableCell className="text-sm">
                                   {renderValorOrcamento(
                                     orcado,
                                     periodo === "mes"
@@ -695,7 +695,7 @@ if (loading || !filtroAno) return (
                               )}
                               {/* Coluna Diferença */}
                               {showDiferenca && (
-                                <TableCell>
+                                <TableCell className="text-sm">
                                   {renderValorDiferenca(real, orcado)}
                                 </TableCell>
                               )}
@@ -703,11 +703,11 @@ if (loading || !filtroAno) return (
                           );
                         })}
                         {/* Colunas do Total para subitens - Real, Orçado, Dif. */}
-                        <TableCell className="text-right">
+                        <TableCell className="text-right text-sm">
                           {renderValor(subTotal, calcularAVTotalDinamica(subTotal))}
                         </TableCell>
                         {showOrcado && (
-                          <TableCell className="text-right">
+                          <TableCell className="text-right text-sm">
                             {renderValorOrcamento(
                               subTotalOrc,
                               sub.vertical_orcamentos_total,
@@ -716,7 +716,7 @@ if (loading || !filtroAno) return (
                           </TableCell>
                         )}
                         {showDiferenca && (
-                          <TableCell className="text-right">
+                          <TableCell className="text-right text-sm">
                             {renderValorDiferenca(subTotal, subTotalOrc)}
                           </TableCell>
                         )}
