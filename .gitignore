@@ -137,6 +137,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# db files
+backend/financial-data-roriz.xlsx
+
 # =============================================================================
 # NODE.JS / FRONTEND
 # =============================================================================
@@ -206,9 +209,8 @@ Desktop.ini
 # PROJECT-SPECIFIC
 # =============================================================================
 
-# Excel files de dados (manter apenas o principal)
+# Excel files de dados
 backend/financial-data-*.xlsx
-!backend/financial-data-roriz.xlsx
 
 # Logs
 *.log
