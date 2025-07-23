@@ -36,11 +36,13 @@ export function ChartCustosFinanceiro({ data }: { data?: Record<string, number> 
   const [chartData, setChartData] = useState<ChartData[]>([])
 
   useEffect(() => {
-    if (data) {
+    if (data && Object.keys(data).length > 0) {
       // Processar dados recebidos do pai
       const arr = Object.entries(data)
         .map(([classificacao, valor]) => ({ classificacao, valor }))
-        .sort((a, b) => b.valor - a.valor)
+        .filter(item => item.valor > 0) // Filtrar valores zero
+        .sort((a, b) => a.valor - b.valor) // Ordenar por valor crescente (melhor para maior)
+      
       setChartData(arr)
     } else {
       // Se não receber dados, exibir array vazio
@@ -48,8 +50,21 @@ export function ChartCustosFinanceiro({ data }: { data?: Record<string, number> 
     }
   }, [data])
 
-  if (!data) return <div>Carregando dados...</div>
-  if (!chartData.length) return <div>Nenhum dado para exibir.</div>
+  if (!data || Object.keys(data).length === 0) {
+    return (
+      <div className="flex items-center justify-center h-24 text-muted-foreground">
+        <p>Nenhum dado de custos disponível</p>
+      </div>
+    )
+  }
+  
+  if (!chartData.length) {
+    return (
+      <div className="flex items-center justify-center h-24 text-muted-foreground">
+        <p>Carregando dados de custos...</p>
+      </div>
+    )
+  }
 
   return (
     <ChartContainer config={chartConfig}>

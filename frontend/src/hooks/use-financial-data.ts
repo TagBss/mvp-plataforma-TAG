@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiCache } from '@/lib/api-cache';
 
-const API_BASE_URL = 'https://mvp-plataforma-tag-3s9u.onrender.com';
+const API_BASE_URL = 'http://127.0.0.1:8000';
 
 // Tipos das respostas da API
 export type MoMData = {

@@ -75,7 +75,7 @@ export default function DfcTable() {
   const [periodo, setPeriodo] = useState<"mes" | "trimestre" | "ano">("mes")
 
   useEffect(() => {
-    fetch("https://mvp-plataforma-tag-3s9u.onrender.com/dfc")
+    fetch("http://127.0.0.1:8000/dfc")
       .then(res => res.json())
       .then((result: DfcResponse | { error: string }) => {
         if ("error" in result) {
@@ -423,7 +423,7 @@ if (error) return <Card className="m-4"><CardHeader><CardTitle>{error}</CardTitl
       <CardHeader>
         <div className="flex flex-col lg:flex-row lg:flex-wrap lg:justify-between gap-2 lg:gap-4 overflow-x-auto">
           <div>
-            <CardTitle>DFC - Roriz Instrumentos</CardTitle>
+            <CardTitle>DFC</CardTitle>
             <CardDescription>
               Valores em Reais (R$)
             </CardDescription>

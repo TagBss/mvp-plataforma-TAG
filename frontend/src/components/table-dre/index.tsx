@@ -69,7 +69,7 @@ export default function DreTable() {
   const [periodo, setPeriodo] = useState<"mes" | "trimestre" | "ano">("mes")
 
   useEffect(() => {
-    fetch("https://mvp-plataforma-tag-3s9u.onrender.com/dre")
+    fetch("http://127.0.0.1:8000/dre")
       .then(res => res.json())
       .then((result: DreResponse | { error: string }) => {
         if ("error" in result) {
@@ -369,7 +369,7 @@ if (loading || !filtroAno) return (
       <CardHeader>
         <div className="flex flex-col lg:flex-row lg:flex-wrap lg:justify-between gap-2 lg:gap-4 overflow-x-auto">
           <div>
-            <CardTitle>DRE - Roriz Instrumentos</CardTitle>
+            <CardTitle>DRE</CardTitle>
             <CardDescription>
               Valores em Reais (R$)
             </CardDescription>

@@ -88,24 +88,29 @@ type SaldosEvolucaoData = {
   };
 };
 
-// Tipagem para DFC
+// Tipagem para DFC com estrutura hierárquica
+type DFCClassificacao = {
+  nome: string;
+  valor: number;
+  valores_mensais: Record<string, number>;
+  classificacoes?: DFCClassificacao[];
+};
+
+type DFCItem = {
+  tipo: string;
+  nome: string;
+  valor: number;
+  valores_mensais: Record<string, number>;
+  horizontal_mensais: Record<string, string>;
+  classificacoes?: DFCClassificacao[];
+};
+
 type DFCData = {
   success?: boolean;
   meses: string[];
   trimestres: string[];
   anos: number[];
-  data: Array<{
-    tipo: string;
-    nome: string;
-    valor: number;
-    valores_mensais: Record<string, number>;
-    horizontal_mensais: Record<string, string>;
-    classificacoes?: Array<{
-      nome: string;
-      valor: number;
-      valores_mensais: Record<string, number>;
-    }>;
-  }>;
+  data: DFCItem[];
 };
 
 // Função utilitária para formatar períodos de meses
@@ -182,7 +187,7 @@ function getMoMIndicator(momData: MoMData[], mesSelecionado: string) {
   };
 }
 
-const API_BASE_URL = 'https://mvp-plataforma-tag-3s9u.onrender.com';
+const API_BASE_URL = 'http://127.0.0.1:8000';
 
 export default function DashFinanceiro() {
   const [mesSelecionado, setMesSelecionado] = useState<string>("");
@@ -243,12 +248,33 @@ export default function DashFinanceiro() {
         const queryString = mesSelecionado ? `?mes=${mesSelecionado}` : '';
         console.log("🔄 Carregando dados com cache para:", mesSelecionado);
         
+        // Teste direto da API sem cache para verificação
+        try {
+          const response = await fetch(`${API_BASE_URL}/dfc`);
+          const directData = await response.json();
+          console.log("✅ DFC API funcionando:", directData ? "OK" : "Falha");
+        } catch (error) {
+          console.error("❌ Erro no fetch direto DFC:", error);
+        }
+        
         const [receberRes, pagarRes, movRes, dfcRes] = await Promise.all([
           apiCache.fetchWithCache<SaldoData>(`${API_BASE_URL}/receber${queryString}`),
           apiCache.fetchWithCache<SaldoData>(`${API_BASE_URL}/pagar${queryString}`),
           apiCache.fetchWithCache<MovimentacaoData>(`${API_BASE_URL}/movimentacoes${queryString}`),
           apiCache.fetchWithCache<DFCData>(`${API_BASE_URL}/dfc`),
         ]);
+
+        // Log apenas se houver problemas
+        if (!dfcRes || !dfcRes.data || dfcRes.data.length === 0) {
+          console.error("❌ DFC sem dados válidos:", dfcRes);
+        } else {
+          const custos = dfcRes.data.find(item => item.nome === "Custos");
+          if (!custos) {
+            console.warn("⚠️ Item 'Custos' não encontrado no DFC");
+          } else {
+            console.log("✅ Custos encontrados:", custos.nome, "valor:", custos.valor);
+          }
+        }
 
         setSaldoReceber(receberRes);
         setSaldoPagar(pagarRes);
@@ -314,40 +340,76 @@ export default function DashFinanceiro() {
   let custosMoM = null;
   let custosMesClass = {};
 
-  if (dfcData) {
-    // Encontrar o item "Custos" no nível DFC_n2
-    const custosItem = dfcData.find(item => item.nome === "Custos");
+  console.log("🔍 Debug Custos - DFC data:", dfcData?.length, "items");
+  console.log("🔍 Debug Custos - Mês selecionado:", mesSelecionado);
+
+  if (dfcData && Array.isArray(dfcData)) {
+    // Primeiro, tentar encontrar "Custos" diretamente no nível principal
+    let custosItem: DFCItem | DFCClassificacao | undefined = dfcData.find(item => item.nome === "Custos");
+    
+    // Se não encontrar, procurar dentro de "Movimentações" > "Operacional"
+    if (!custosItem) {
+      const movimentacoesItem = dfcData.find(item => item.nome === "Movimentações");
+      if (movimentacoesItem && movimentacoesItem.classificacoes) {
+        const operacionalItem = movimentacoesItem.classificacoes.find(item => item.nome === "Operacional");
+        if (operacionalItem && operacionalItem.classificacoes) {
+          custosItem = operacionalItem.classificacoes.find(item => item.nome === "Custos");
+        }
+      }
+    }
+
+    console.log("🔍 Debug Custos - Item encontrado:", custosItem ? "SIM" : "NÃO");
     
     if (custosItem) {
+      console.log("🔍 Debug Custos - Valor total:", custosItem.valor);
+      console.log("🔍 Debug Custos - Valores mensais:", custosItem.valores_mensais);
+      console.log("🔍 Debug Custos - Classificações:", custosItem.classificacoes?.length);
+
       if (!mesSelecionado) {
         // Todo o período - usar valor total
-        custosValor = Math.abs(custosItem.valor) || null;
+        custosValor = custosItem.valor !== undefined && custosItem.valor !== null ? Math.abs(custosItem.valor) : null;
+        console.log("🔍 Debug Custos - Valor período total:", custosValor);
         
         // Classificações para todo o período
-        if (custosItem.classificacoes) {
+        if (custosItem.classificacoes && Array.isArray(custosItem.classificacoes)) {
           custosMesClass = Object.fromEntries(
-            custosItem.classificacoes.map(classificacao => [
-              classificacao.nome,
-              Math.abs(classificacao.valor)
-            ])
+            custosItem.classificacoes
+              .filter(classificacao => 
+                classificacao.valor !== undefined && 
+                classificacao.valor !== null && 
+                Math.abs(classificacao.valor) > 0
+              )
+              .map(classificacao => [
+                classificacao.nome,
+                Math.abs(classificacao.valor)
+              ])
           );
+          console.log("🔍 Debug Custos - Classificações período:", Object.keys(custosMesClass));
         }
       } else {
         // Mês específico - usar valores_mensais
-        custosValor = Math.abs(custosItem.valores_mensais?.[mesSelecionado]) || null;
+        const valorMes = custosItem.valores_mensais?.[mesSelecionado];
+        custosValor = valorMes !== undefined && valorMes !== null ? Math.abs(valorMes) : null;
+        console.log("🔍 Debug Custos - Valor do mês", mesSelecionado, ":", valorMes, "-> processado:", custosValor);
         
         // Classificações para o mês específico
-        if (custosItem.classificacoes) {
+        if (custosItem.classificacoes && Array.isArray(custosItem.classificacoes)) {
           custosMesClass = Object.fromEntries(
-            custosItem.classificacoes.map(classificacao => [
-              classificacao.nome,
-              Math.abs(classificacao.valores_mensais?.[mesSelecionado] || 0)
-            ])
+            custosItem.classificacoes
+              .map(classificacao => {
+                const valorClassificacao = classificacao.valores_mensais?.[mesSelecionado];
+                return [
+                  classificacao.nome,
+                  valorClassificacao !== undefined && valorClassificacao !== null ? Math.abs(valorClassificacao) : 0
+                ];
+              })
+              .filter(([, valor]) => (typeof valor === 'number' && valor > 0)) // Filtrar valores zero
           );
+          console.log("🔍 Debug Custos - Classificações do mês:", Object.keys(custosMesClass));
         }
         
-        // Calcular MoM usando horizontal_mensais (equivalente ao MoM)
-        const horizontalMensal = custosItem.horizontal_mensais?.[mesSelecionado];
+        // Calcular MoM usando horizontal_mensais (equivalente ao MoM) - apenas para DFCItem
+        const horizontalMensal = 'horizontal_mensais' in custosItem ? custosItem.horizontal_mensais?.[mesSelecionado] : undefined;
         if (horizontalMensal && horizontalMensal !== "–") {
           const percentualMatch = horizontalMensal.match(/([+-]?)(\d+\.?\d*)%/);
           if (percentualMatch) {
@@ -360,10 +422,31 @@ export default function DashFinanceiro() {
           }
         }
       }
+    } else {
+      console.log("🔍 Debug Custos - Itens disponíveis no nível principal:", dfcData.map(item => item.nome));
+      
+      // Debug adicional para mostrar a estrutura hierárquica
+      const movimentacoesItem = dfcData.find(item => item.nome === "Movimentações");
+      if (movimentacoesItem) {
+        console.log("🔍 Debug Custos - Classificações em Movimentações:", movimentacoesItem.classificacoes?.map(item => item.nome));
+        const operacionalItem = movimentacoesItem.classificacoes?.find(item => item.nome === "Operacional");
+        if (operacionalItem) {
+          console.log("🔍 Debug Custos - Classificações em Operacional:", operacionalItem.classificacoes?.map(item => item.nome));
+        }
+      }
     }
+  } else {
+    console.log("🔍 Debug Custos - DFC data inválido:", typeof dfcData, dfcData);
   }
 
   const isLoading = !inicializado || loading;
+  const hasCustosData = custosValor !== null && custosValor !== undefined;
+
+  console.log("🔍 Debug Custos - Resultado final:");
+  console.log("🔍 Debug Custos - custosValor:", custosValor);
+  console.log("🔍 Debug Custos - hasCustosData:", hasCustosData);
+  console.log("🔍 Debug Custos - isLoading:", isLoading);
+  console.log("🔍 Debug Custos - custosMesClass:", custosMesClass);
 
   return (
     <main className="p-4">
@@ -659,7 +742,7 @@ export default function DashFinanceiro() {
               <CardContent>
                 <div className="sm:flex sm:justify-between sm:items-center">
                   <p className="text-lg sm:text-2xl">
-                    {custosValor !== null ? (
+                    {hasCustosData && custosValor !== null ? (
                       formatCurrencyShort(custosValor)
                     ) : (
                       "--"

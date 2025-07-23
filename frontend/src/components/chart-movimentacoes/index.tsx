@@ -134,15 +134,15 @@ export default function ChartMovimentacoes({
         }
 
         const [carRes, capRes, movRes] = await Promise.all([
-          fetch("https://mvp-plataforma-tag-3s9u.onrender.com/receber", { 
+          fetch("http://127.0.0.1:8000/receber", { 
             signal: controller.signal,
             headers: { 'Cache-Control': 'max-age=300' } // 5 min cache HTTP
           }).then(r => r.json()),
-          fetch("https://mvp-plataforma-tag-3s9u.onrender.com/pagar", { 
+          fetch("http://127.0.0.1:8000/pagar", { 
             signal: controller.signal,
             headers: { 'Cache-Control': 'max-age=300' }
           }).then(r => r.json()),
-          fetch("https://mvp-plataforma-tag-3s9u.onrender.com/movimentacoes", { 
+          fetch("http://127.0.0.1:8000/movimentacoes", { 
             signal: controller.signal,
             headers: { 'Cache-Control': 'max-age=300' }
           }).then(r => r.json()),

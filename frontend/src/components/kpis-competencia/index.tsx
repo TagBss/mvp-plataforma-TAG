@@ -197,7 +197,7 @@ export default function DashCompetencia() {
     setLoading(true);
     try {
       // SEMPRE buscar sem filtro de mês para ter dados históricos completos
-      const response = await fetch(`https://mvp-plataforma-tag-3s9u.onrender.com/dre`);
+      const response = await fetch(`http://127.0.0.1:8000/dre`);
       const data = await response.json();
       // Aceita tanto data.data quanto data diretamente
       let linhas: DreLinha[] = [];
@@ -420,7 +420,7 @@ export default function DashCompetencia() {
   useEffect(() => {
     const init = async () => {
       try {
-        const response = await fetch(`https://mvp-plataforma-tag-3s9u.onrender.com/dre`);
+        const response = await fetch(`http://127.0.0.1:8000/dre`);
         const data = await response.json();
         // Compatibilidade: aceita data.data.meses_disponiveis, data.meses, ou meses direto na raiz
         let meses: string[] = [];
@@ -456,7 +456,7 @@ export default function DashCompetencia() {
       <section className="py-4 flex justify-between items-center">
         <FiltroMes 
           onSelect={handleMudancaMes} 
-          endpoint="https://mvp-plataforma-tag-3s9u.onrender.com/dre"
+          endpoint="http://127.0.0.1:8000/dre"
           value={mesSelecionado}
         />
       </section>
