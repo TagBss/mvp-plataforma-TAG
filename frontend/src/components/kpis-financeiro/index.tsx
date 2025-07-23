@@ -88,16 +88,24 @@ type SaldosEvolucaoData = {
   };
 };
 
-// Tipagem para custos
-type CustosData = {
-  success: boolean;
-  data: {
-    total_geral: number;
-    total_geral_classificacao: Record<string, number>;
-    custos_mes: Record<string, number>;
-    custos_mes_classificacao: Record<string, Record<string, number>>;
-    mom_analysis?: MoMData[];
-  };
+// Tipagem para DFC
+type DFCData = {
+  success?: boolean;
+  meses: string[];
+  trimestres: string[];
+  anos: number[];
+  data: Array<{
+    tipo: string;
+    nome: string;
+    valor: number;
+    valores_mensais: Record<string, number>;
+    horizontal_mensais: Record<string, string>;
+    classificacoes?: Array<{
+      nome: string;
+      valor: number;
+      valores_mensais: Record<string, number>;
+    }>;
+  }>;
 };
 
 // Função utilitária para formatar períodos de meses
@@ -186,7 +194,7 @@ export default function DashFinanceiro() {
   const [saldoPagar, setSaldoPagar] = useState<SaldoData | null>(null);
   const [movimentacoes, setMovimentacoes] = useState<MovimentacaoData | null>(null);
   const [saldosEvolucao, setSaldosEvolucao] = useState<SaldosEvolucaoData | null>(null);
-  const [custos, setCustos] = useState<CustosData | null>(null);
+  const [dfc, setDfc] = useState<DFCData | null>(null);
 
   // Inicializar dados básicos
   useEffect(() => {
@@ -235,17 +243,17 @@ export default function DashFinanceiro() {
         const queryString = mesSelecionado ? `?mes=${mesSelecionado}` : '';
         console.log("🔄 Carregando dados com cache para:", mesSelecionado);
         
-        const [receberRes, pagarRes, movRes, custosRes] = await Promise.all([
+        const [receberRes, pagarRes, movRes, dfcRes] = await Promise.all([
           apiCache.fetchWithCache<SaldoData>(`${API_BASE_URL}/receber${queryString}`),
           apiCache.fetchWithCache<SaldoData>(`${API_BASE_URL}/pagar${queryString}`),
           apiCache.fetchWithCache<MovimentacaoData>(`${API_BASE_URL}/movimentacoes${queryString}`),
-          apiCache.fetchWithCache<CustosData>(`${API_BASE_URL}/custos-visao-financeiro`),
+          apiCache.fetchWithCache<DFCData>(`${API_BASE_URL}/dfc`),
         ]);
 
         setSaldoReceber(receberRes);
         setSaldoPagar(pagarRes);
         setMovimentacoes(movRes);
-        setCustos(custosRes);
+        setDfc(dfcRes);
 
         console.log("✅ Dados carregados com sucesso");
       } catch (error) {
@@ -300,34 +308,57 @@ export default function DashFinanceiro() {
     saldo_final 
   })) || [];
 
-  // Calcular custos
-  const custosData = custos?.data;
+  // Extrair dados de custos do DFC
+  const dfcData = dfc?.data;
   let custosValor = null;
   let custosMoM = null;
   let custosMesClass = {};
 
-  if (custosData) {
-    if (!mesSelecionado) {
-      custosValor = custosData.total_geral || null;
-      custosMesClass = custosData.total_geral_classificacao || {};
-    } else {
-      custosValor = custosData.custos_mes?.[mesSelecionado] || null;
-      custosMesClass = Object.fromEntries(
-        Object.entries(custosData.custos_mes_classificacao || {}).map(([classificacao, meses]) => {
-          if (typeof meses === 'object' && meses !== null) {
-            return [classificacao, (meses as Record<string, number>)[mesSelecionado] ?? 0];
+  if (dfcData) {
+    // Encontrar o item "Custos" no nível DFC_n2
+    const custosItem = dfcData.find(item => item.nome === "Custos");
+    
+    if (custosItem) {
+      if (!mesSelecionado) {
+        // Todo o período - usar valor total
+        custosValor = Math.abs(custosItem.valor) || null;
+        
+        // Classificações para todo o período
+        if (custosItem.classificacoes) {
+          custosMesClass = Object.fromEntries(
+            custosItem.classificacoes.map(classificacao => [
+              classificacao.nome,
+              Math.abs(classificacao.valor)
+            ])
+          );
+        }
+      } else {
+        // Mês específico - usar valores_mensais
+        custosValor = Math.abs(custosItem.valores_mensais?.[mesSelecionado]) || null;
+        
+        // Classificações para o mês específico
+        if (custosItem.classificacoes) {
+          custosMesClass = Object.fromEntries(
+            custosItem.classificacoes.map(classificacao => [
+              classificacao.nome,
+              Math.abs(classificacao.valores_mensais?.[mesSelecionado] || 0)
+            ])
+          );
+        }
+        
+        // Calcular MoM usando horizontal_mensais (equivalente ao MoM)
+        const horizontalMensal = custosItem.horizontal_mensais?.[mesSelecionado];
+        if (horizontalMensal && horizontalMensal !== "–") {
+          const percentualMatch = horizontalMensal.match(/([+-]?)(\d+\.?\d*)%/);
+          if (percentualMatch) {
+            const sinal = percentualMatch[1] === "-" ? -1 : 1;
+            const percentual = parseFloat(percentualMatch[2]) * sinal;
+            custosMoM = {
+              variacao_absoluta: null, // Não temos valor absoluto no DFC
+              variacao_percentual: percentual
+            };
           }
-          return [classificacao, 0];
-        })
-      );
-      
-      const momArr = custosData.mom_analysis || [];
-      const momObj = momArr.find((item) => item.mes === mesSelecionado);
-      if (momObj) {
-        custosMoM = {
-          variacao_absoluta: momObj.variacao_absoluta,
-          variacao_percentual: momObj.variacao_percentual
-        };
+        }
       }
     }
   }

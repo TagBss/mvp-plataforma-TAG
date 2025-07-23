@@ -31,53 +31,24 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-// Permite receber dados via props para filtro dinâmico
+// Recebe dados de custos via props (já processados pelo componente pai)
 export function ChartCustosFinanceiro({ data }: { data?: Record<string, number> }) {
-  // Se receber data via props, usa ela, senão busca do backend (modo antigo)
   const [chartData, setChartData] = useState<ChartData[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (data) {
-      // Recebeu dados filtrados do pai
+      // Processar dados recebidos do pai
       const arr = Object.entries(data)
         .map(([classificacao, valor]) => ({ classificacao, valor }))
         .sort((a, b) => b.valor - a.valor)
       setChartData(arr)
-      setLoading(false)
-      setError(null)
-      return
+    } else {
+      // Se não receber dados, exibir array vazio
+      setChartData([])
     }
-    // Modo antigo: busca do backend (todo o período)
-    async function fetchData() {
-      setLoading(true)
-      setError(null)
-      try {
-        const res = await fetch("https://mvp-plataforma-tag-3s9u.onrender.com/custos-visao-financeiro");
-        if (!res.ok) throw new Error("Erro ao buscar dados do backend")
-        const json = await res.json()
-        if (!json.success) throw new Error(json.error || "Erro desconhecido")
-        const total = json.data.total_geral_classificacao as Record<string, number>
-        const arr = Object.entries(total)
-          .map(([classificacao, valor]) => ({ classificacao, valor }))
-          .sort((a, b) => b.valor - a.valor)
-        setChartData(arr)
-      } catch (e: unknown) {
-        if (e instanceof Error) {
-          setError(e.message)
-        } else {
-          setError("Erro desconhecido")
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchData()
   }, [data])
 
-  if (loading) return <div>Carregando...</div>
-  if (error) return <div>Erro: {error}</div>
+  if (!data) return <div>Carregando dados...</div>
   if (!chartData.length) return <div>Nenhum dado para exibir.</div>
 
   return (
