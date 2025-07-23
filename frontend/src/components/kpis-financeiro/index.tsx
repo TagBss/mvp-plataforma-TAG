@@ -702,5 +702,3 @@ export default function DashFinanceiro() {
     </main>
   );
 }
-
-// teste commit
