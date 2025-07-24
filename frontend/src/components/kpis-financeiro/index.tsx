@@ -64,15 +64,6 @@ type SaldoData = {
   };
 };
 
-// Tipagem para movimentações
-type MovimentacaoData = {
-  success: boolean;
-  data: {
-    saldo_total: number;
-    mom_analysis: MoMData[];
-  };
-};
-
 // Tipagem para evolução de saldos
 type SaldosEvolucaoData = {
   success: boolean;
@@ -197,7 +188,6 @@ export default function DashFinanceiro() {
   // Estados dos dados
   const [saldoReceber, setSaldoReceber] = useState<SaldoData | null>(null);
   const [saldoPagar, setSaldoPagar] = useState<SaldoData | null>(null);
-  const [movimentacoes, setMovimentacoes] = useState<MovimentacaoData | null>(null);
   const [saldosEvolucao, setSaldosEvolucao] = useState<SaldosEvolucaoData | null>(null);
   const [dfc, setDfc] = useState<DFCData | null>(null);
 
@@ -206,15 +196,17 @@ export default function DashFinanceiro() {
     const inicializar = async () => {
       try {
         
-        const [receberRes, pagarRes, saldosRes] = await Promise.all([
+        const [receberRes, pagarRes, saldosRes, dfcRes] = await Promise.all([
           apiCache.fetchWithCache<SaldoData>(`${API_BASE_URL}/receber`),
           apiCache.fetchWithCache<SaldoData>(`${API_BASE_URL}/pagar`),
-          apiCache.fetchWithCache<SaldosEvolucaoData>(`${API_BASE_URL}/saldos-evolucao`),
+          apiCache.fetchWithCache<SaldosEvolucaoData>(`${API_BASE_URL}/saldos-evolucao`),  
+          apiCache.fetchWithCache<DFCData>(`${API_BASE_URL}/dfc`),
         ]);
 
         setSaldoReceber(receberRes);
         setSaldoPagar(pagarRes);
         setSaldosEvolucao(saldosRes);
+        setDfc(dfcRes);
 
         // Definir mês padrão
         if (receberRes.success && receberRes.data?.meses_disponiveis && receberRes.data.meses_disponiveis.length > 0) {
@@ -244,10 +236,9 @@ export default function DashFinanceiro() {
       try {
         const queryString = mesSelecionado ? `?mes=${mesSelecionado}` : '';
         
-        const [receberRes, pagarRes, movRes, dfcRes] = await Promise.all([
+        const [receberRes, pagarRes, dfcRes] = await Promise.all([
           apiCache.fetchWithCache<SaldoData>(`${API_BASE_URL}/receber${queryString}`),
           apiCache.fetchWithCache<SaldoData>(`${API_BASE_URL}/pagar${queryString}`),
-          apiCache.fetchWithCache<MovimentacaoData>(`${API_BASE_URL}/movimentacoes${queryString}`),
           apiCache.fetchWithCache<DFCData>(`${API_BASE_URL}/dfc`),
         ]);
 
@@ -256,14 +247,17 @@ export default function DashFinanceiro() {
           console.error("❌ DFC sem dados válidos:", dfcRes);
         } else {
           const custos = dfcRes.data.find(item => item.nome === "Custos");
+          const movimentacoes = dfcRes.data.find(item => item.nome === "Movimentações");
           if (!custos) {
             console.warn("⚠️ Item 'Custos' não encontrado no DFC");
+          }
+          if (!movimentacoes) {
+            console.warn("⚠️ Item 'Movimentações' não encontrado no DFC");
           }
         }
 
         setSaldoReceber(receberRes);
         setSaldoPagar(pagarRes);
-        setMovimentacoes(movRes);
         setDfc(dfcRes);
 
       } catch (error) {
@@ -286,7 +280,55 @@ export default function DashFinanceiro() {
   const pmp = saldoPagar?.data?.pmp || null;
   const momReceber = saldoReceber?.data?.mom_analysis || [];
   const momPagar = saldoPagar?.data?.mom_analysis || [];
-  const momMovimentacoes = movimentacoes?.data?.mom_analysis || [];
+  
+  // Extrair dados de movimentações do DFC
+  const dfcData = dfc?.data;
+  let movimentacoesValor = null;
+  let momMovimentacoes: MoMData[] = [];
+
+  if (dfcData && Array.isArray(dfcData)) {
+    const movimentacoesItem = dfcData.find(item => item.nome === "Movimentações");
+    
+    if (movimentacoesItem) {
+      if (!mesSelecionado) {
+        // Todo o período - usar valor total
+        movimentacoesValor = movimentacoesItem.valor;
+      } else {
+        // Mês específico - usar valores_mensais
+        movimentacoesValor = movimentacoesItem.valores_mensais?.[mesSelecionado] || null;
+      }
+
+      // Converter horizontal_mensais para formato MoM
+      if (movimentacoesItem.horizontal_mensais) {
+        const mesesOrdenados = Object.keys(movimentacoesItem.valores_mensais || {}).sort();
+        momMovimentacoes = mesesOrdenados.map((mes, idx) => {
+          const valorAtual = movimentacoesItem.valores_mensais?.[mes] || 0;
+          const valorAnterior = idx > 0 ? (movimentacoesItem.valores_mensais?.[mesesOrdenados[idx-1]] || null) : null;
+          const horizontalStr = movimentacoesItem.horizontal_mensais?.[mes];
+          
+          let variacaoPercentual = null;
+          let variacaoAbsoluta = null;
+          
+          if (horizontalStr && horizontalStr !== "–" && valorAnterior !== null) {
+            const percentualMatch = horizontalStr.match(/([+-]?)(\d+\.?\d*)%/);
+            if (percentualMatch) {
+              const sinal = percentualMatch[1] === "-" ? -1 : 1;
+              variacaoPercentual = parseFloat(percentualMatch[2]) * sinal;
+              variacaoAbsoluta = valorAtual - valorAnterior;
+            }
+          }
+
+          return {
+            mes,
+            valor_atual: valorAtual,
+            valor_anterior: valorAnterior,
+            variacao_absoluta: variacaoAbsoluta,
+            variacao_percentual: variacaoPercentual
+          };
+        });
+      }
+    }
+  }
   
   // Calcular saldo final e MoM
   const saldoFinalData = saldosEvolucao?.data?.evolucao;
@@ -319,20 +361,20 @@ export default function DashFinanceiro() {
   })) || [];
 
   // Extrair dados de custos do DFC
-  const dfcData = dfc?.data;
   let custosValor = null;
   let custosMoM = null;
   let custosMesClass = {};
 
   if (dfcData && Array.isArray(dfcData)) {
+    // Processar dados de custos
     // Primeiro, tentar encontrar "Custos" diretamente no nível principal
     let custosItem: DFCItem | DFCClassificacao | undefined = dfcData.find(item => item.nome === "Custos");
     
     // Se não encontrar, procurar dentro de "Movimentações" > "Operacional"
     if (!custosItem) {
-      const movimentacoesItem = dfcData.find(item => item.nome === "Movimentações");
-      if (movimentacoesItem && movimentacoesItem.classificacoes) {
-        const operacionalItem = movimentacoesItem.classificacoes.find(item => item.nome === "Operacional");
+      const movimentacoesItemCustos = dfcData.find(item => item.nome === "Movimentações");
+      if (movimentacoesItemCustos && movimentacoesItemCustos.classificacoes) {
+        const operacionalItem = movimentacoesItemCustos.classificacoes.find(item => item.nome === "Operacional");
         if (operacionalItem && operacionalItem.classificacoes) {
           custosItem = operacionalItem.classificacoes.find(item => item.nome === "Custos");
         }
@@ -397,11 +439,54 @@ export default function DashFinanceiro() {
     } else {
       
       // Debug adicional para mostrar a estrutura hierárquica
-      const movimentacoesItem = dfcData.find(item => item.nome === "Movimentações");
-      if (movimentacoesItem) {
-        const operacionalItem = movimentacoesItem.classificacoes?.find(item => item.nome === "Operacional");
+      const movimentacoesItemDebug = dfcData.find(item => item.nome === "Movimentações");
+      if (movimentacoesItemDebug) {
+        const operacionalItem = movimentacoesItemDebug.classificacoes?.find(item => item.nome === "Operacional");
         if (operacionalItem) {
         }
+      }
+    }
+
+    // Processar dados de movimentações
+    const movimentacoesItem = dfcData.find(item => item.nome === "Movimentações");
+    
+    if (movimentacoesItem) {
+      if (!mesSelecionado) {
+        // Todo o período - usar valor total
+        movimentacoesValor = movimentacoesItem.valor;
+      } else {
+        // Mês específico - usar valores_mensais
+        movimentacoesValor = movimentacoesItem.valores_mensais?.[mesSelecionado] || null;
+      }
+
+      // Converter horizontal_mensais para formato MoM
+      if (movimentacoesItem.horizontal_mensais) {
+        const mesesOrdenados = Object.keys(movimentacoesItem.valores_mensais || {}).sort();
+        momMovimentacoes = mesesOrdenados.map((mes, idx) => {
+          const valorAtual = movimentacoesItem.valores_mensais?.[mes] || 0;
+          const valorAnterior = idx > 0 ? (movimentacoesItem.valores_mensais?.[mesesOrdenados[idx-1]] || null) : null;
+          const horizontalStr = movimentacoesItem.horizontal_mensais?.[mes];
+          
+          let variacaoPercentual = null;
+          let variacaoAbsoluta = null;
+          
+          if (horizontalStr && horizontalStr !== "–" && valorAnterior !== null) {
+            const percentualMatch = horizontalStr.match(/([+-]?)(\d+\.?\d*)%/);
+            if (percentualMatch) {
+              const sinal = percentualMatch[1] === "-" ? -1 : 1;
+              variacaoPercentual = parseFloat(percentualMatch[2]) * sinal;
+              variacaoAbsoluta = valorAtual - valorAnterior;
+            }
+          }
+
+          return {
+            mes,
+            valor_atual: valorAtual,
+            valor_anterior: valorAnterior,
+            variacao_absoluta: variacaoAbsoluta,
+            variacao_percentual: variacaoPercentual
+          };
+        });
       }
     }
   } else {
@@ -582,8 +667,8 @@ export default function DashFinanceiro() {
               <CardContent>
                 <div className="sm:flex sm:justify-between sm:items-center">
                   <p className="text-lg sm:text-2xl">
-                    {movimentacoes?.data?.saldo_total !== undefined ? (
-                      formatCurrencyShort(movimentacoes.data.saldo_total)
+                    {movimentacoesValor !== null ? (
+                      formatCurrencyShort(movimentacoesValor)
                     ) : (
                       "--"
                     )}

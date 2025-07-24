@@ -775,6 +775,43 @@ def get_dfc_data():
         # Adicionar os 4 totalizadores como classificações de "Movimentações"
         movimentacoes["classificacoes"] = [operacional, investimento, financiamento, movimentacao_entre_contas]
 
+        # Calcular análise horizontal (MoM) para movimentações
+        # Horizontal mensais
+        horizontal_mensais = {}
+        for i, mes in enumerate(meses_unicos):
+            if i == 0:
+                horizontal_mensais[mes] = "–"
+            else:
+                horizontal_mensais[mes] = calcular_analise_horizontal(
+                    movimentacoes["valores_mensais"][mes], 
+                    movimentacoes["valores_mensais"][meses_unicos[i-1]]
+                )
+        movimentacoes["horizontal_mensais"] = horizontal_mensais
+
+        # Horizontal trimestrais
+        horizontal_trimestrais = {}
+        for i, tri in enumerate(trimestres_unicos):
+            if i == 0:
+                horizontal_trimestrais[tri] = "–"
+            else:
+                horizontal_trimestrais[tri] = calcular_analise_horizontal(
+                    movimentacoes["valores_trimestrais"][tri], 
+                    movimentacoes["valores_trimestrais"][trimestres_unicos[i-1]]
+                )
+        movimentacoes["horizontal_trimestrais"] = horizontal_trimestrais
+
+        # Horizontal anuais
+        horizontal_anuais = {}
+        for i, ano in enumerate(anos_unicos):
+            if i == 0:
+                horizontal_anuais[str(ano)] = "–"
+            else:
+                horizontal_anuais[str(ano)] = calcular_analise_horizontal(
+                    movimentacoes["valores_anuais"][str(ano)], 
+                    movimentacoes["valores_anuais"][str(anos_unicos[i-1])]
+                )
+        movimentacoes["horizontal_anuais"] = horizontal_anuais
+
         # 1. SALDO INICIAL (0 no primeiro mês, saldo final do mês anterior nos demais)
         saldo_inicial = criar_item_nivel_0("Saldo inicial", "=")
         
@@ -1063,71 +1100,6 @@ def get_caixa_saldo(mes: str = None):
 @router.get("/pagar")
 def get_pagar_saldo(mes: str = None):
     return calcular_saldo("CAP", mes)
-
-# Novo cálculo e endpoint para movimentações (CAP + CAR)
-@router.get("/movimentacoes")
-def get_movimentacoes(mes: str = None):
-    """
-    Retorna a soma dos saldos de CAP e CAR, incluindo saldo_total, mom_analysis e meses_disponiveis.
-    """
-    try:
-        # Calcula CAP e CAR separadamente
-        cap = calcular_saldo("CAP", mes)
-        car = calcular_saldo("CAR", mes)
-
-        # Se algum dos dois retornou erro, retorna erro
-        if not cap.get("success") or not car.get("success"):
-            return {"error": "Erro ao calcular movimentações"}
-
-        # Soma os saldos
-        saldo_total = (cap["data"].get("saldo_total", 0) or 0) + (car["data"].get("saldo_total", 0) or 0)
-        total_passado = (cap["data"].get("total_passado", 0) or 0) + (car["data"].get("total_passado", 0) or 0)
-        total_futuro = (cap["data"].get("total_futuro", 0) or 0) + (car["data"].get("total_futuro", 0) or 0)
-
-        # Unir meses disponíveis
-        meses_disponiveis = sorted(list(set(cap["data"].get("meses_disponiveis", [])) | set(car["data"].get("meses_disponiveis", []))))
-        anos_disponiveis = sorted(list(set(cap["data"].get("anos_disponiveis", [])) | set(car["data"].get("anos_disponiveis", []))))
-
-        # Unir mom_analysis por mês (soma dos valores de cada mês)
-        mom_cap = {item["mes"]: item for item in cap["data"].get("mom_analysis", [])}
-        mom_car = {item["mes"]: item for item in car["data"].get("mom_analysis", [])}
-        all_meses = sorted(set(mom_cap.keys()) | set(mom_car.keys()))
-        mom_analysis = []
-        for mes in all_meses:
-            cap_item = mom_cap.get(mes, {})
-            car_item = mom_car.get(mes, {})
-            valor_atual = (cap_item.get("valor_atual", 0) or 0) + (car_item.get("valor_atual", 0) or 0)
-            valor_anterior = None
-            if cap_item.get("valor_anterior") is not None and car_item.get("valor_anterior") is not None:
-                valor_anterior = cap_item["valor_anterior"] + car_item["valor_anterior"]
-            
-            variacao_absoluta = None
-            variacao_percentual = None
-            if valor_anterior is not None:
-                variacao_absoluta = valor_atual - valor_anterior
-                variacao_percentual = (variacao_absoluta / valor_anterior * 100) if valor_anterior != 0 else None
-            
-            mom_analysis.append({
-                "mes": mes,
-                "valor_atual": valor_atual,
-                "valor_anterior": valor_anterior,
-                "variacao_absoluta": variacao_absoluta,
-                "variacao_percentual": variacao_percentual
-            })
-
-        return {
-            "success": True,
-            "data": {
-                "saldo_total": round(saldo_total, 2),
-                "total_passado": round(total_passado, 2),
-                "total_futuro": round(total_futuro, 2),
-                "meses_disponiveis": meses_disponiveis,
-                "anos_disponiveis": anos_disponiveis,
-                "mom_analysis": mom_analysis
-            }
-        }
-    except Exception as e:
-        return {"error": f"Erro ao calcular movimentações: {str(e)}"}
 
 # Novo endpoint para evolução de saldos (saldo inicial, movimentação, saldo final)
 @router.get("/saldos-evolucao")
