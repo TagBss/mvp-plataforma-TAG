@@ -31,19 +31,6 @@ export type MovimentacoesResponse = {
   };
 };
 
-export type SaldosEvolucaoResponse = {
-  success: boolean;
-  data: {
-    evolucao: Array<{
-      mes: string;
-      saldo_inicial: number;
-      movimentacao: number;
-      saldo_final: number;
-      variacao_absoluta?: number | null;
-      variacao_percentual?: number | null;
-    }>;
-  };
-};
 
 export type CustosResponse = {
   success: boolean;
@@ -88,7 +75,6 @@ export function useFinancialData() {
   const [saldoReceber, setSaldoReceber] = useState<SaldoResponse | null>(null);
   const [saldoPagar, setSaldoPagar] = useState<SaldoResponse | null>(null);
   const [movimentacoes, setMovimentacoes] = useState<MovimentacoesResponse | null>(null);
-  const [saldosEvolucao, setSaldosEvolucao] = useState<SaldosEvolucaoResponse | null>(null);
   const [custos, setCustos] = useState<CustosResponse | null>(null);
   const [dreData, setDreData] = useState<DreResponse | null>(null);
   const [dfcData, setDfcData] = useState<DfcResponse | null>(null);
@@ -99,15 +85,13 @@ export function useFinancialData() {
     setError(null);
 
     try {
-      const [receberRes, pagarRes, saldosRes] = await Promise.all([
+      const [receberRes, pagarRes] = await Promise.all([
         apiCache.fetchWithCache<SaldoResponse>(`${API_BASE_URL}/receber`),
         apiCache.fetchWithCache<SaldoResponse>(`${API_BASE_URL}/pagar`),
-        apiCache.fetchWithCache<SaldosEvolucaoResponse>(`${API_BASE_URL}/saldos-evolucao`),
       ]);
 
       setSaldoReceber(receberRes);
       setSaldoPagar(pagarRes);
-      setSaldosEvolucao(saldosRes);
 
       return {
         mesesDisponiveis: receberRes.data?.meses_disponiveis || [],
@@ -186,7 +170,6 @@ export function useFinancialData() {
     saldoReceber,
     saldoPagar,
     movimentacoes,
-    saldosEvolucao,
     custos,
     dreData,
     dfcData,
@@ -208,7 +191,6 @@ export function useKpisFinanceiro(mesSelecionado: string | null) {
     saldoReceber,
     saldoPagar,
     movimentacoes,
-    saldosEvolucao,
     custos,
     loadBasicData,
     loadDataByMonth,
@@ -239,7 +221,6 @@ export function useKpisFinanceiro(mesSelecionado: string | null) {
     saldoReceber,
     saldoPagar,
     movimentacoes,
-    saldosEvolucao,
     custos,
   };
 }

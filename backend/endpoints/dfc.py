@@ -166,8 +166,7 @@ def get_dfc_data():
             ("Intangível", "-"),
             ("Marcas e Patentes", "-"),
             ("Recebimento de Empréstimos", "+"),
-            ("Receitas não operacionais", "+"),
-            ("Despesas não operacionais", "-"),
+            ("Receitas / Despesas não operacionais", "+/-"),
             ("Pagamento de Empréstimos", "-"),
             ("Parcelamentos de Impostos", "-"),
             ("Aporte de capital", "+"),
@@ -318,8 +317,7 @@ def get_dfc_data():
                 + valores_dict["Imobilizado"] + valores_dict["Intangível"] + valores_dict["Marcas e Patentes"]
             )
             financiamento = (
-                valores_dict["Recebimento de Empréstimos"] + valores_dict["Receitas não operacionais"] + valores_dict["Despesas não operacionais"]
-                + valores_dict["Pagamento de Empréstimos"] + valores_dict["Parcelamentos de Impostos"] + valores_dict["Aporte de capital"]
+                valores_dict["Recebimento de Empréstimos"] + valores_dict["Receitas / Despesas não operacionais"] + valores_dict["Pagamento de Empréstimos"] + valores_dict["Parcelamentos de Impostos"] + valores_dict["Aporte de capital"]
                 + valores_dict["Distribuição de lucro"] + valores_dict["Aplicação Automática"] + valores_dict["Resgate Automático"]
             )
             movimentacao = (
@@ -652,12 +650,12 @@ def get_dfc_data():
         # 3. FINANCIAMENTO
         financiamento = criar_totalizador(
             "Financiamento",
-            ["Recebimento de Empréstimos", "Receitas não operacionais", "Despesas não operacionais", "Pagamento de Empréstimos", 
+            ["Recebimento de Empréstimos", "Receitas / Despesas não operacionais", "Pagamento de Empréstimos",
              "Parcelamentos de Impostos", "Aporte de capital", "Distribuição de lucro", "Aplicação Automática", "Resgate Automático"],
             lambda v: (
-                v["Recebimento de Empréstimos"] + v["Receitas não operacionais"] + v["Despesas não operacionais"] 
-                + v["Pagamento de Empréstimos"] + v["Parcelamentos de Impostos"] + v["Aporte de capital"] 
-                + v["Distribuição de lucro"] + v["Aplicação Automática"] + v["Resgate Automático"]
+                v["Recebimento de Empréstimos"] + v["Receitas / Despesas não operacionais"] + v["Pagamento de Empréstimos"]
+                + v["Parcelamentos de Impostos"] + v["Aporte de capital"] + v["Distribuição de lucro"]
+                + v["Aplicação Automática"] + v["Resgate Automático"]
             )
         )
 
@@ -855,6 +853,79 @@ def get_dfc_data():
         
         saldo_inicial["orcamento_total"] = 0
         
+        # Calcular análise horizontal para saldo inicial
+        # Horizontal mensais
+        horizontal_mensais_inicial = {}
+        for i, mes in enumerate(meses_unicos):
+            if i == 0:
+                horizontal_mensais_inicial[mes] = "–"
+            else:
+                horizontal_mensais_inicial[mes] = calcular_analise_horizontal(
+                    saldo_inicial["valores_mensais"][mes], 
+                    saldo_inicial["valores_mensais"][meses_unicos[i-1]]
+                )
+        saldo_inicial["horizontal_mensais"] = horizontal_mensais_inicial
+
+        # Horizontal trimestrais
+        horizontal_trimestrais_inicial = {}
+        for i, tri in enumerate(trimestres_unicos):
+            if i == 0:
+                horizontal_trimestrais_inicial[tri] = "–"
+            else:
+                horizontal_trimestrais_inicial[tri] = calcular_analise_horizontal(
+                    saldo_inicial["valores_trimestrais"][tri], 
+                    saldo_inicial["valores_trimestrais"][trimestres_unicos[i-1]]
+                )
+        saldo_inicial["horizontal_trimestrais"] = horizontal_trimestrais_inicial
+
+        # Horizontal anuais
+        horizontal_anuais_inicial = {}
+        for i, ano in enumerate(anos_unicos):
+            if i == 0:
+                horizontal_anuais_inicial[str(ano)] = "–"
+            else:
+                horizontal_anuais_inicial[str(ano)] = calcular_analise_horizontal(
+                    saldo_inicial["valores_anuais"][str(ano)], 
+                    saldo_inicial["valores_anuais"][str(anos_unicos[i-1])]
+                )
+        saldo_inicial["horizontal_anuais"] = horizontal_anuais_inicial
+
+        # Horizontal orçamento mensais
+        horizontal_orcamentos_mensais_inicial = {}
+        for i, mes in enumerate(meses_unicos):
+            if i == 0:
+                horizontal_orcamentos_mensais_inicial[mes] = "–"
+            else:
+                horizontal_orcamentos_mensais_inicial[mes] = calcular_analise_horizontal(
+                    saldo_inicial["orcamentos_mensais"][mes], 
+                    saldo_inicial["orcamentos_mensais"][meses_unicos[i-1]]
+                )
+        saldo_inicial["horizontal_orcamentos_mensais"] = horizontal_orcamentos_mensais_inicial
+
+        # Horizontal orçamento trimestrais
+        horizontal_orcamentos_trimestrais_inicial = {}
+        for i, tri in enumerate(trimestres_unicos):
+            if i == 0:
+                horizontal_orcamentos_trimestrais_inicial[tri] = "–"
+            else:
+                horizontal_orcamentos_trimestrais_inicial[tri] = calcular_analise_horizontal(
+                    saldo_inicial["orcamentos_trimestrais"][tri], 
+                    saldo_inicial["orcamentos_trimestrais"][trimestres_unicos[i-1]]
+                )
+        saldo_inicial["horizontal_orcamentos_trimestrais"] = horizontal_orcamentos_trimestrais_inicial
+
+        # Horizontal orçamento anuais
+        horizontal_orcamentos_anuais_inicial = {}
+        for i, ano in enumerate(anos_unicos):
+            if i == 0:
+                horizontal_orcamentos_anuais_inicial[str(ano)] = "–"
+            else:
+                horizontal_orcamentos_anuais_inicial[str(ano)] = calcular_analise_horizontal(
+                    saldo_inicial["orcamentos_anuais"][str(ano)], 
+                    saldo_inicial["orcamentos_anuais"][str(anos_unicos[i-1])]
+                )
+        saldo_inicial["horizontal_orcamentos_anuais"] = horizontal_orcamentos_anuais_inicial
+        
         result.append(saldo_inicial)
 
         # 2. Adicionar as movimentações
@@ -889,6 +960,79 @@ def get_dfc_data():
             saldo_final["orcamentos_anuais"][str(ano)] = saldo_inicial["orcamentos_anuais"][str(ano)] + movimentacoes["orcamentos_anuais"][str(ano)]
         
         saldo_final["orcamento_total"] = movimentacoes["orcamento_total"]
+        
+        # Calcular análise horizontal para saldo final
+        # Horizontal mensais
+        horizontal_mensais_final = {}
+        for i, mes in enumerate(meses_unicos):
+            if i == 0:
+                horizontal_mensais_final[mes] = "–"
+            else:
+                horizontal_mensais_final[mes] = calcular_analise_horizontal(
+                    saldo_final["valores_mensais"][mes], 
+                    saldo_final["valores_mensais"][meses_unicos[i-1]]
+                )
+        saldo_final["horizontal_mensais"] = horizontal_mensais_final
+
+        # Horizontal trimestrais
+        horizontal_trimestrais_final = {}
+        for i, tri in enumerate(trimestres_unicos):
+            if i == 0:
+                horizontal_trimestrais_final[tri] = "–"
+            else:
+                horizontal_trimestrais_final[tri] = calcular_analise_horizontal(
+                    saldo_final["valores_trimestrais"][tri], 
+                    saldo_final["valores_trimestrais"][trimestres_unicos[i-1]]
+                )
+        saldo_final["horizontal_trimestrais"] = horizontal_trimestrais_final
+
+        # Horizontal anuais
+        horizontal_anuais_final = {}
+        for i, ano in enumerate(anos_unicos):
+            if i == 0:
+                horizontal_anuais_final[str(ano)] = "–"
+            else:
+                horizontal_anuais_final[str(ano)] = calcular_analise_horizontal(
+                    saldo_final["valores_anuais"][str(ano)], 
+                    saldo_final["valores_anuais"][str(anos_unicos[i-1])]
+                )
+        saldo_final["horizontal_anuais"] = horizontal_anuais_final
+
+        # Horizontal orçamento mensais
+        horizontal_orcamentos_mensais_final = {}
+        for i, mes in enumerate(meses_unicos):
+            if i == 0:
+                horizontal_orcamentos_mensais_final[mes] = "–"
+            else:
+                horizontal_orcamentos_mensais_final[mes] = calcular_analise_horizontal(
+                    saldo_final["orcamentos_mensais"][mes], 
+                    saldo_final["orcamentos_mensais"][meses_unicos[i-1]]
+                )
+        saldo_final["horizontal_orcamentos_mensais"] = horizontal_orcamentos_mensais_final
+
+        # Horizontal orçamento trimestrais
+        horizontal_orcamentos_trimestrais_final = {}
+        for i, tri in enumerate(trimestres_unicos):
+            if i == 0:
+                horizontal_orcamentos_trimestrais_final[tri] = "–"
+            else:
+                horizontal_orcamentos_trimestrais_final[tri] = calcular_analise_horizontal(
+                    saldo_final["orcamentos_trimestrais"][tri], 
+                    saldo_final["orcamentos_trimestrais"][trimestres_unicos[i-1]]
+                )
+        saldo_final["horizontal_orcamentos_trimestrais"] = horizontal_orcamentos_trimestrais_final
+
+        # Horizontal orçamento anuais
+        horizontal_orcamentos_anuais_final = {}
+        for i, ano in enumerate(anos_unicos):
+            if i == 0:
+                horizontal_orcamentos_anuais_final[str(ano)] = "–"
+            else:
+                horizontal_orcamentos_anuais_final[str(ano)] = calcular_analise_horizontal(
+                    saldo_final["orcamentos_anuais"][str(ano)], 
+                    saldo_final["orcamentos_anuais"][str(anos_unicos[i-1])]
+                )
+        saldo_final["horizontal_orcamentos_anuais"] = horizontal_orcamentos_anuais_final
         
         result.append(saldo_final)
 
@@ -1101,62 +1245,4 @@ def get_caixa_saldo(mes: str = None):
 def get_pagar_saldo(mes: str = None):
     return calcular_saldo("CAP", mes)
 
-# Novo endpoint para evolução de saldos (saldo inicial, movimentação, saldo final)
-@router.get("/saldos-evolucao")
-def get_saldos_evolucao():
-    """
-    Retorna a evolução de saldos mês a mês: saldo inicial, movimentação (CAP + CAR), saldo final.
-    O saldo inicial do primeiro mês é zero, saldo final = saldo inicial + movimentação.
-    O saldo inicial do mês seguinte é o saldo final do mês anterior.
-    """
-    try:
-        cap = calcular_saldo("CAP")
-        car = calcular_saldo("CAR")
-        if not cap.get("success") or not car.get("success"):
-            return {"error": "Erro ao calcular evolução de saldos"}
 
-        mom_cap = {item["mes"]: item for item in cap["data"].get("mom_analysis", [])}
-        mom_car = {item["mes"]: item for item in car["data"].get("mom_analysis", [])}
-        all_meses = sorted(set(mom_cap.keys()) | set(mom_car.keys()))
-
-        evolucao = []
-        saldo_inicial = 0.0
-        saldo_final_anterior = None
-        
-        for idx, mes in enumerate(all_meses):
-            cap_item = mom_cap.get(mes, {})
-            car_item = mom_car.get(mes, {})
-            movimentacao = (cap_item.get("valor_atual", 0) or 0) + (car_item.get("valor_atual", 0) or 0)
-            saldo_final = saldo_inicial + movimentacao
-            
-            # Calcular variações MoM para o saldo final
-            variacao_absoluta = None
-            variacao_percentual = None
-            if saldo_final_anterior is not None:
-                variacao_absoluta = saldo_final - saldo_final_anterior
-                if saldo_final_anterior != 0:
-                    variacao_percentual = (variacao_absoluta / abs(saldo_final_anterior)) * 100
-                else:
-                    variacao_percentual = None
-            
-            evolucao.append({
-                "mes": mes,
-                "saldo_inicial": round(saldo_inicial, 2),
-                "movimentacao": round(movimentacao, 2),
-                "saldo_final": round(saldo_final, 2),
-                "variacao_absoluta": round(variacao_absoluta, 2) if variacao_absoluta is not None else None,
-                "variacao_percentual": round(variacao_percentual, 2) if variacao_percentual is not None else None
-            })
-            
-            saldo_final_anterior = saldo_final
-            saldo_inicial = saldo_final
-
-        return {
-            "success": True,
-            "data": {
-                "evolucao": evolucao,
-                "meses_disponiveis": all_meses
-            }
-        }
-    except Exception as e:
-        return {"error": f"Erro ao calcular evolução de saldos: {str(e)}"}

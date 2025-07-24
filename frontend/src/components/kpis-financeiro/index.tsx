@@ -64,21 +64,6 @@ type SaldoData = {
   };
 };
 
-// Tipagem para evolução de saldos
-type SaldosEvolucaoData = {
-  success: boolean;
-  data: {
-    evolucao: Array<{
-      mes: string;
-      saldo_inicial: number;
-      movimentacao: number;
-      saldo_final: number;
-      variacao_absoluta?: number | null;
-      variacao_percentual?: number | null;
-    }>;
-  };
-};
-
 // Tipagem para DFC com estrutura hierárquica
 type DFCClassificacao = {
   nome: string;
@@ -188,7 +173,6 @@ export default function DashFinanceiro() {
   // Estados dos dados
   const [saldoReceber, setSaldoReceber] = useState<SaldoData | null>(null);
   const [saldoPagar, setSaldoPagar] = useState<SaldoData | null>(null);
-  const [saldosEvolucao, setSaldosEvolucao] = useState<SaldosEvolucaoData | null>(null);
   const [dfc, setDfc] = useState<DFCData | null>(null);
 
   // Inicializar dados básicos
@@ -196,16 +180,14 @@ export default function DashFinanceiro() {
     const inicializar = async () => {
       try {
         
-        const [receberRes, pagarRes, saldosRes, dfcRes] = await Promise.all([
+        const [receberRes, pagarRes, dfcRes] = await Promise.all([
           apiCache.fetchWithCache<SaldoData>(`${API_BASE_URL}/receber`),
           apiCache.fetchWithCache<SaldoData>(`${API_BASE_URL}/pagar`),
-          apiCache.fetchWithCache<SaldosEvolucaoData>(`${API_BASE_URL}/saldos-evolucao`),  
           apiCache.fetchWithCache<DFCData>(`${API_BASE_URL}/dfc`),
         ]);
 
         setSaldoReceber(receberRes);
         setSaldoPagar(pagarRes);
-        setSaldosEvolucao(saldosRes);
         setDfc(dfcRes);
 
         // Definir mês padrão
@@ -329,36 +311,69 @@ export default function DashFinanceiro() {
       }
     }
   }
-  
-  // Calcular saldo final e MoM
-  const saldoFinalData = saldosEvolucao?.data?.evolucao;
+  // Extrair dados de saldo final do DFC
   let saldoFinal = null;
   let saldoFinalMoM = null;
-  
-  if (saldoFinalData && saldoFinalData.length > 0) {
-    if (mesSelecionado) {
-      const found = saldoFinalData.find((item) => item.mes === mesSelecionado);
-      saldoFinal = found?.saldo_final || null;
-      saldoFinalMoM = {
-        variacao_absoluta: found?.variacao_absoluta || null,
-        variacao_percentual: found?.variacao_percentual || null
-      };
-    } else {
-      const last = saldoFinalData[saldoFinalData.length - 1];
-      saldoFinal = last.saldo_final;
-      saldoFinalMoM = {
-        variacao_absoluta: last.variacao_absoluta || null,
-        variacao_percentual: last.variacao_percentual || null
-      };
+  let saldosEvolucaoChart: Array<{ mes: string, saldo_inicial: number, saldo_final: number }> = [];
+
+  if (dfcData && Array.isArray(dfcData)) {
+    // Encontrar itens "Saldo inicial" e "Saldo final"
+    const saldoInicialItem = dfcData.find(item => item.nome === "Saldo inicial");
+    const saldoFinalItem = dfcData.find(item => item.nome === "Saldo final");
+    
+    if (saldoFinalItem && saldoInicialItem) {
+      // Calcular saldo final para o mês selecionado ou último disponível
+      if (mesSelecionado && saldoFinalItem.valores_mensais[mesSelecionado] !== undefined) {
+        saldoFinal = saldoFinalItem.valores_mensais[mesSelecionado];
+        
+        // Extrair MoM do horizontal_mensais do saldo final
+        const momString = saldoFinalItem.horizontal_mensais?.[mesSelecionado];
+        if (momString && momString !== "–") {
+          // Parsing do formato "+12,5%" ou "-5,2%"
+          const match = momString.match(/([+-]?\d+(?:,\d+)?)/);
+          if (match) {
+            const percentValue = parseFloat(match[1].replace(',', '.'));
+            const valorAnterior = saldoFinal / (1 + percentValue / 100);
+            saldoFinalMoM = {
+              variacao_absoluta: saldoFinal - valorAnterior,
+              variacao_percentual: percentValue
+            };
+          }
+        }
+      } else {
+        // Usar último mês disponível
+        const mesesDisponiveis = Object.keys(saldoFinalItem.valores_mensais).sort();
+        if (mesesDisponiveis.length > 0) {
+          const ultimoMes = mesesDisponiveis[mesesDisponiveis.length - 1];
+          saldoFinal = saldoFinalItem.valores_mensais[ultimoMes];
+          
+          // Extrair MoM do último mês
+          const momString = saldoFinalItem.horizontal_mensais?.[ultimoMes];
+          if (momString && momString !== "–") {
+            const match = momString.match(/([+-]?\d+(?:,\d+)?)/);
+            if (match) {
+              const percentValue = parseFloat(match[1].replace(',', '.'));
+              const valorAnterior = saldoFinal / (1 + percentValue / 100);
+              saldoFinalMoM = {
+                variacao_absoluta: saldoFinal - valorAnterior,
+                variacao_percentual: percentValue
+              };
+            }
+          }
+        }
+      }
+
+      // Criar dados para gráfico (últimos 12 meses)
+      const mesesDisponiveis = Object.keys(saldoFinalItem.valores_mensais).sort();
+      const ultimosMeses = mesesDisponiveis.slice(-12);
+      
+      saldosEvolucaoChart = ultimosMeses.map(mes => ({
+        mes,
+        saldo_inicial: saldoInicialItem.valores_mensais[mes] || 0,
+        saldo_final: saldoFinalItem.valores_mensais[mes] || 0
+      }));
     }
   }
-
-  // Dados para gráficos
-  const saldosEvolucaoChart = saldoFinalData?.slice(-12).map(({ mes, saldo_inicial, saldo_final }) => ({ 
-    mes, 
-    saldo_inicial, 
-    saldo_final 
-  })) || [];
 
   // Extrair dados de custos do DFC
   let custosValor = null;
