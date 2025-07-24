@@ -1149,19 +1149,34 @@ def get_saldos_evolucao():
 
         evolucao = []
         saldo_inicial = 0.0
+        saldo_final_anterior = None
+        
         for idx, mes in enumerate(all_meses):
             cap_item = mom_cap.get(mes, {})
             car_item = mom_car.get(mes, {})
             movimentacao = (cap_item.get("valor_atual", 0) or 0) + (car_item.get("valor_atual", 0) or 0)
             saldo_final = saldo_inicial + movimentacao
             
+            # Calcular variações MoM para o saldo final
+            variacao_absoluta = None
+            variacao_percentual = None
+            if saldo_final_anterior is not None:
+                variacao_absoluta = saldo_final - saldo_final_anterior
+                if saldo_final_anterior != 0:
+                    variacao_percentual = (variacao_absoluta / abs(saldo_final_anterior)) * 100
+                else:
+                    variacao_percentual = None
+            
             evolucao.append({
                 "mes": mes,
                 "saldo_inicial": round(saldo_inicial, 2),
                 "movimentacao": round(movimentacao, 2),
-                "saldo_final": round(saldo_final, 2)
+                "saldo_final": round(saldo_final, 2),
+                "variacao_absoluta": round(variacao_absoluta, 2) if variacao_absoluta is not None else None,
+                "variacao_percentual": round(variacao_percentual, 2) if variacao_percentual is not None else None
             })
             
+            saldo_final_anterior = saldo_final
             saldo_inicial = saldo_final
 
         return {
