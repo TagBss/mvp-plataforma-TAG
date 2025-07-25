@@ -784,49 +784,6 @@ export default function DashCompetencia() {
           // Exibe skeleton enquanto carrega
           <CardSkeletonLarge />
         ) : (
-          // Exibe o gráfico de despesas
-          <Card className="w-full">
-            <CardHeader>
-              <div className="flex items-center justify-center">
-                <CardTitle className="text-lg sm:text-xl select-none">
-                  Despesas
-                </CardTitle>
-                <MinusCircle className="ml-auto w-4 h-4" />
-              </div>
-            </CardHeader>
-
-            <CardContent>
-              <div className="sm:flex sm:justify-between sm:items-center">
-                <CardDescription>
-                  <div className="flex gap-2 mb-10 leading-none font-medium">
-                    Despesas ao longo do tempo
-                  </div>
-                </CardDescription>
-              </div>
-
-              <ChartAreaDespesas data={despesasEvolucao} mesSelecionado={mesSelecionado} />
-            </CardContent>
-            <CardFooter className="flex-col items-start gap-2 text-sm">
-              <CardDescription>
-                <p>Despesas últimos 12M</p>
-              </CardDescription>
-              <div className="text-muted-foreground flex items-center gap-2 leading-none">
-                {despesasEvolucao.length > 0 ? (
-                  formatarPeriodo(despesasEvolucao)
-                ) : (
-                  "Todo o período"
-                )}
-              </div>
-            </CardFooter>
-          </Card>
-        )}
-      </section>
-
-      <section className="mt-4 flex flex-col lg:flex-row gap-4">
-        {(inicializando || loading) ? (
-          // Exibe skeleton enquanto carrega
-          <CardSkeletonLarge />
-        ) : (
           // Exibe o gráfico de ranking de custos
           <Card className="w-full">
             <CardHeader>
@@ -864,6 +821,49 @@ export default function DashCompetencia() {
                     };
                     return formatar(mesSelecionado);
                   })()
+                ) : (
+                  "Todo o período"
+                )}
+              </div>
+            </CardFooter>
+          </Card>
+        )}
+      </section>
+
+      <section className="mt-4 flex flex-col lg:flex-row gap-4">
+        {(inicializando || loading) ? (
+          // Exibe skeleton enquanto carrega
+          <CardSkeletonLarge />
+        ) : (
+          // Exibe o gráfico de despesas
+          <Card className="w-full">
+            <CardHeader>
+              <div className="flex items-center justify-center">
+                <CardTitle className="text-lg sm:text-xl select-none">
+                  Despesas
+                </CardTitle>
+                <MinusCircle className="ml-auto w-4 h-4" />
+              </div>
+            </CardHeader>
+
+            <CardContent>
+              <div className="sm:flex sm:justify-between sm:items-center">
+                <CardDescription>
+                  <div className="flex gap-2 mb-10 leading-none font-medium">
+                    Despesas ao longo do tempo
+                  </div>
+                </CardDescription>
+              </div>
+
+              <ChartAreaDespesas data={despesasEvolucao} mesSelecionado={mesSelecionado} />
+            </CardContent>
+            <CardFooter className="flex-col items-start gap-2 text-sm">
+              <CardDescription>
+                <p>Despesas últimos 12M</p>
+              </CardDescription>
+              <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                {despesasEvolucao.length > 0 ? (
+                  formatarPeriodo(despesasEvolucao)
                 ) : (
                   "Todo o período"
                 )}

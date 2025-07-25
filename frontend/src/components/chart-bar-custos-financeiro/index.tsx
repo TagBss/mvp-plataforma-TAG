@@ -11,6 +11,7 @@ import {
 export const description = "A bar chart with a custom label"
 
 import { useEffect, useState } from "react"
+import { formatCurrencyShort } from "../kpis-competencia"
 
 type ChartData = {
   classificacao: string
@@ -85,7 +86,13 @@ export function ChartCustosFinanceiro({ data }: { data?: Record<string, number> 
           interval={0}
           reversed
         />
-        <XAxis dataKey="valor" type="number" hide />
+        <XAxis 
+                  dataKey="valor" 
+                  type="number" 
+                  tickFormatter={(v) => formatCurrencyShort(v, { noPrefix: true })}
+                  tickLine={false}
+                  axisLine={false}
+                />
         <ChartTooltip
           cursor={false}
           content={<ChartTooltipContent indicator="line" />}
