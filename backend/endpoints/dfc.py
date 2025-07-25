@@ -1183,8 +1183,6 @@ def calcular_saldo(origem: str, mes_filtro: str = None):
             mask = (
                 df_con["origem"] == "CAR"
                 ) & (
-                (df_con["DFC_n2"].fillna("") == "Recebimentos Operacionais")
-                ) & (
                 data_caixa_col.notna()
                 ) & (
                 df_con["competencia"].notna()
@@ -1194,7 +1192,10 @@ def calcular_saldo(origem: str, mes_filtro: str = None):
                 df_pmr["data_caixa"] = data_caixa_col[mask]
                 df_pmr["competencia"] = pd.to_datetime(df_pmr["competencia"])
                 df_pmr["diferenca_dias"] = (df_pmr["data_caixa"] - df_pmr["competencia"]).dt.days
-                pmr = df_pmr["diferenca_dias"].mean()
+                # PMR ponderado pelo valor
+                df_pmr_valid = df_pmr.dropna(subset=["diferenca_dias", "valor"])
+                if not df_pmr_valid.empty and df_pmr_valid["valor"].sum() != 0:
+                    pmr = (df_pmr_valid["diferenca_dias"] * df_pmr_valid["valor"]).sum() / df_pmr_valid["valor"].sum()
 
         # Calcular PMP (Prazo Médio de Pagamento)
         if origem == "CAP" and data_caixa_col is not None and "competencia" in df_con.columns:
@@ -1212,7 +1213,10 @@ def calcular_saldo(origem: str, mes_filtro: str = None):
                 df_pmp["data_caixa"] = data_caixa_col[mask]
                 df_pmp["competencia"] = pd.to_datetime(df_pmp["competencia"])
                 df_pmp["diferenca_dias"] = (df_pmp["data_caixa"] - df_pmp["competencia"]).dt.days
-                pmp = df_pmp["diferenca_dias"].mean()
+                # PMP ponderado pelo valor
+                df_pmp_valid = df_pmp.dropna(subset=["diferenca_dias", "valor"])
+                if not df_pmp_valid.empty and df_pmp_valid["valor"].sum() != 0:
+                    pmp = (df_pmp_valid["diferenca_dias"] * df_pmp_valid["valor"]).sum() / df_pmp_valid["valor"].sum()
 
         return {
             "success": True,
@@ -1244,5 +1248,3 @@ def get_caixa_saldo(mes: str = None):
 @router.get("/pagar")
 def get_pagar_saldo(mes: str = None):
     return calcular_saldo("CAP", mes)
-
-
