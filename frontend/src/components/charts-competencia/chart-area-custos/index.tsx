@@ -6,25 +6,25 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import { formatCurrencyShort } from "../kpis-competencia"
+import { formatCurrencyShort } from "../../kpis-competencia"
 
-export interface AreaChartFaturamentoProps {
+export interface AreaChartCustosProps {
   data: Array<{
     mes: string
-    faturamento: number
+    custos: number
   }>
   config?: {
-    faturamento?: { label: string; color: string }
+    custos?: { label: string; color: string }
   }
   mesSelecionado?: string;
 }
 
-export function ChartAreaFaturamento({ data, config, mesSelecionado }: AreaChartFaturamentoProps) {
+export function ChartCustosCompetencia({ data, config, mesSelecionado }: AreaChartCustosProps) {
   // Cores e labels padrão, pode sobrescrever via config
   const chartConfig = {
-    faturamento: {
-      label: config?.faturamento?.label || "Faturamento",
-      color: config?.faturamento?.color || "var(--chart-5)",
+    custos: {
+      label: config?.custos?.label || "Custos",
+      color: config?.custos?.color || "var(--chart-2)",
     },
   };
 
@@ -45,9 +45,9 @@ export function ChartAreaFaturamento({ data, config, mesSelecionado }: AreaChart
         cx={cx}
         cy={cy}
         r={6}
-        fill="var(--chart-5)"
+        fill="var(--chart-2)"
         strokeWidth={3}
-        style={{ filter: 'drop-shadow(0 0 6px var(--chart-5))' }}
+        style={{ filter: 'drop-shadow(0 0 6px var(--chart-2))' }}
       />
     );
   };
@@ -65,7 +65,11 @@ export function ChartAreaFaturamento({ data, config, mesSelecionado }: AreaChart
           axisLine={false}
           tickMargin={8}
           width={60}
-          tickFormatter={(v) => formatCurrencyShort(v, { noPrefix: true })}
+          tickFormatter={(v) => formatCurrencyShort(Math.abs(v), { noPrefix: true })}
+          domain={[
+            (dataMin: number) => dataMin * 0.8, // -20%
+            (dataMax: number) => dataMax * 1.2   // +20%
+          ]}
         />
         <XAxis
           dataKey="mes"
@@ -86,26 +90,26 @@ export function ChartAreaFaturamento({ data, config, mesSelecionado }: AreaChart
         />
         <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
         <defs>
-          <linearGradient id="fillFaturamento" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id="fillCustos" x1="0" y1="0" x2="0" y2="1">
             <stop
               offset="5%"
-              stopColor={chartConfig.faturamento.color}
+              stopColor={chartConfig.custos.color}
               stopOpacity={0.8}
             />
             <stop
               offset="95%"
-              stopColor={chartConfig.faturamento.color}
+              stopColor={chartConfig.custos.color}
               stopOpacity={0.1}
             />
           </linearGradient>
         </defs>
         <Area
-          dataKey="faturamento"
-          name={chartConfig.faturamento.label}
+          dataKey="custos"
+          name={chartConfig.custos.label}
           type="natural"
-          fill="url(#fillFaturamento)"
+          fill="url(#fillCustos)"
           fillOpacity={0.4}
-          stroke={chartConfig.faturamento.color}
+          stroke={chartConfig.custos.color}
           stackId="a"
           dot={CustomizedDot}
         />

@@ -7,7 +7,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import { formatCurrencyShort } from "../kpis-financeiro"
+import { formatCurrencyShort } from "../../kpis-financeiro"
 
 
 export interface AreaChartSaldoProps {

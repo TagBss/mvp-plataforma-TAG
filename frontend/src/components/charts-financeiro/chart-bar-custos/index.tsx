@@ -11,7 +11,7 @@ import {
 export const description = "A bar chart with a custom label"
 
 import { useEffect, useState } from "react"
-import { formatCurrencyShort } from "../kpis-competencia"
+import { formatCurrencyShort } from "../../kpis-competencia"
 
 type ChartData = {
   classificacao: string

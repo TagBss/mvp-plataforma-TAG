@@ -1,6 +1,6 @@
 "use client";
 
-import { ChartAreaSaldoFinal } from "@/components/chart-area-saldo-final";
+import { ChartAreaSaldoFinal } from "@/components/charts-financeiro/chart-area-saldo-final";
 import {
   Card,
   CardContent,
@@ -22,8 +22,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { FiltroMes } from "@/components/filtro-mes"
-import ChartMovimentacoes from "@/components/chart-movimentacoes";
-import { ChartCustosFinanceiro } from "../chart-bar-custos-financeiro";
+import ChartMovimentacoes from "@/components/charts-financeiro/chart-movimentacoes";
+import { ChartCustosFinanceiro } from "../charts-financeiro/chart-bar-custos";
 import { apiCache } from "@/lib/api-cache";
 
 // Função para formatar no estilo curto (Mil / Mi)
@@ -163,7 +163,7 @@ function getMoMIndicator(momData: MoMData[], mesSelecionado: string) {
   };
 }
 
-const API_BASE_URL = 'http://127.0.0.1:8000';
+const API_BASE_URL = 'https://mvp-plataforma-tag-3s9u.onrender.com';
 
 export default function DashFinanceiro() {
   const [mesSelecionado, setMesSelecionado] = useState<string>("");
