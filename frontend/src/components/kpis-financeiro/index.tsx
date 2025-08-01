@@ -163,7 +163,7 @@ function getMoMIndicator(momData: MoMData[], mesSelecionado: string) {
   };
 }
 
-const API_BASE_URL = 'https://mvp-plataforma-tag-3s9u.onrender.com';
+const API_BASE_URL = 'http://127.0.0.1:8000';
 
 export default function DashFinanceiro() {
   const [mesSelecionado, setMesSelecionado] = useState<string>("");
