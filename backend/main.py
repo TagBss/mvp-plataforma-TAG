@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import shutil
 from endpoints.dre import router as dre_router
 from endpoints.dfc import router as dfc_router
+from auth import auth_router
 
 
 # --- CACHE GLOBAL PARA O DATAFRAME ---
@@ -63,6 +64,7 @@ app.add_middleware(
 )
 
 # Incluir routers dos endpoints
+app.include_router(auth_router, tags=["Authentication"])
 app.include_router(dre_router, tags=["DRE"])
 app.include_router(dfc_router, tags=["DFC"])
 

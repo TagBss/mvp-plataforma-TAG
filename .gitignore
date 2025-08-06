@@ -216,3 +216,13 @@ Desktop.ini
 # Optimization test files
 test_optimizations.py
 *_optimization_*.py
+
+# =============================================================================
+# BACKUP FILES
+# =============================================================================
+
+# Backup directories
+backup/
+backup-*/
+backup_*/
+*backup*/
