@@ -1,18 +1,49 @@
+"use client";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "../ui/card";
+import { CardSkeleton, CardSkeletonLarge } from "../ui/card-skeleton";
+import {  
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  ArrowUpDown,
+  PlusCircle,
+  MinusCircle,
+  Package,
+  Hourglass,
+} from "lucide-react";
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "../ui/card";
-import { Button } from "../ui/button";
-import { TrendingUp, TrendingDown, Wallet, Package, ArrowUpDown, Hourglass, PlusCircle, MinusCircle, AlertTriangle, RefreshCw } from "lucide-react";
-import { formatCurrencyShort } from "../../utils/formatters";
+import { FiltroMes } from "../filtro-mes";
 import { ChartAreaSaldoFinal } from "../charts-financeiro/chart-area-saldo-final";
 import { ChartCustosFinanceiro } from "../charts-financeiro/chart-bar-custos";
 import ChartMovimentacoes from "../charts-financeiro/chart-movimentacoes";
-import { FiltroMes } from "../filtro-mes";
 import { api } from "../../services/api";
-import { ErrorBoundary, FinancialDataErrorFallback } from '../error-boundary';
-import { DashboardSkeleton, KPIsSkeleton, ChartSkeleton, FinancialTableSkeleton } from '../loading-skeletons';
-import { useToast, useFinancialToast } from '../toast';
 
-// Tipos
+// Função para formatar no estilo curto (Mil / Mi)
+export function formatCurrencyShort(value: number, opts?: { noPrefix?: boolean }): string {
+  const absValue = Math.abs(value);
+  let formatted = "";
+
+  if (absValue >= 1_000_000) {
+    formatted = `${(absValue / 1_000_000).toFixed(1)} Mi`;
+  } else if (absValue >= 1_000) {
+    formatted = `${(absValue / 1_000).toFixed(1)} Mil`;
+  } else {
+    formatted = absValue.toFixed(0);
+  }
+
+  const prefix = opts?.noPrefix ? "" : "R$ ";
+  return `${prefix}${value < 0 ? "-" : ""}${formatted.replace(".", ",")}`;
+}
+
+// Tipagem para MoM (análise horizontal)
 type MoMData = {
   mes: string;
   valor_atual: number;
@@ -21,6 +52,7 @@ type MoMData = {
   variacao_percentual: number | null;
 };
 
+// Tipagem para dados de saldo
 type SaldoData = {
   success: boolean;
   data: {
@@ -32,6 +64,7 @@ type SaldoData = {
   };
 };
 
+// Tipagem para dados DFC
 type DFCItem = {
   tipo: string;
   nome: string;
@@ -49,171 +82,94 @@ type DFCData = {
   data: DFCItem[];
 };
 
-// Hook para gerenciar estados de carregamento dos dados financeiros
-export function useFinancialDataState() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const financialToast = useFinancialToast();
+// Função utilitária para formatar períodos de meses
+const mesesAbreviados = ['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
-  const startLoading = () => {
-    setIsLoading(true);
-    setHasError(false);
-    setError(null);
+function formatarPeriodo(dados: Array<{ mes: string }>) {
+  if (dados.length === 0) return "Todo o período";
+  
+  const primeiro = dados[0].mes;
+  const ultimo = dados[dados.length - 1].mes;
+  
+  const formatar = (mes: string) => {
+    if (!mes.match(/^\d{4}-\d{2}$/)) return mes;
+    const [ano, m] = mes.split("-");
+    const mesNum = parseInt(m, 10);
+    return `${mesesAbreviados[mesNum]}/${ano.slice(-2)}`;
   };
+  
+  return `${formatar(primeiro)} - ${formatar(ultimo)}`;
+}
 
-  const stopLoading = () => {
-    setIsLoading(false);
-  };
+function getMoMIndicator(momData: MoMData[], mesSelecionado: string) {
+  if (!momData || momData.length === 0) return null;
 
-  const handleError = (error: Error | string) => {
-    const errorObj = typeof error === 'string' ? new Error(error) : error;
-    setError(errorObj);
-    setHasError(true);
-    setIsLoading(false);
-    financialToast.dataError(errorObj.message);
-  };
+  // Se mesSelecionado for string vazia ("Todo o período"), não retorna MoM
+  if (!mesSelecionado) {
+    return null;
+  }
 
-  const handleSuccess = (message?: string, count?: number) => {
-    setHasError(false);
-    setError(null);
-    setIsLoading(false);
-    
-    if (message && count !== undefined) {
-      financialToast.dataLoaded(count);
-    }
-  };
+  let index = -1;
+  if (mesSelecionado) {
+    index = momData.findIndex((item) => item.mes === mesSelecionado);
+  }
+  if (index === -1) {
+    index = momData.length - 1;
+  }
+  
+  const entry = momData[index];
+  const mesAnteriorRaw = momData[index - 1]?.mes || "--";
+  const variacao = entry?.variacao_percentual ?? null;
 
-  const retry = () => {
-    setHasError(false);
-    setError(null);
-  };
+  // Formatar mesAnterior para "abr/25"
+  let mesAnterior = "--";
+  if (mesAnteriorRaw && mesAnteriorRaw !== "--" && mesAnteriorRaw.match(/^\d{4}-\d{2}$/)) {
+    const [ano, mes] = mesAnteriorRaw.split("-");
+    const mesNum = parseInt(mes, 10);
+    const anoCurto = ano.slice(-2);
+    mesAnterior = `${mesesAbreviados[mesNum]}/${anoCurto}`;
+  }
 
   return {
-    isLoading,
-    hasError,
-    error,
-    startLoading,
-    stopLoading,
-    handleError,
-    handleSuccess,
-    retry
+    percentage: variacao !== null ? Math.abs(variacao) : null,
+    isPositive: variacao !== null ? variacao > 0 : null,
+    mesAnterior,
+    arrow: variacao !== null ? (variacao > 0 ? "↗" : "↙") : "",
+    hasValue: variacao !== null
   };
 }
 
-// Componente KPI melhorado com error handling
-export function KPICardWithErrorHandling({
-  title,
-  value,
-  description,
-  icon: Icon,
-  trend,
-  isLoading = false,
-  error
-}: {
-  title: string;
-  value: string | number;
-  description?: string;
-  icon?: any;
-  trend?: 'up' | 'down' | 'neutral';
-  isLoading?: boolean;
-  error?: Error | null;
-}) {
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div className="h-4 w-[100px] bg-muted animate-pulse rounded" />
-          <div className="h-4 w-4 bg-muted animate-pulse rounded" />
-        </CardHeader>
-        <CardContent>
-          <div className="h-8 w-[120px] bg-muted animate-pulse rounded mb-1" />
-          <div className="h-3 w-[80px] bg-muted animate-pulse rounded" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card className="border-destructive">
-        <CardContent className="p-6 text-center">
-          <AlertTriangle className="mx-auto h-6 w-6 text-destructive mb-2" />
-          <p className="text-sm text-destructive">Erro ao carregar {title}</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const getTrendIcon = () => {
-    switch (trend) {
-      case 'up':
-        return <TrendingUp className="h-4 w-4 text-green-500" />;
-      case 'down':
-        return <TrendingDown className="h-4 w-4 text-red-500" />;
-      default:
-        return Icon ? <Icon className="h-4 w-4" /> : null;
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        {getTrendIcon()}
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {description && (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// Fallback específico para gráficos
-function ChartErrorFallback({ resetError }: { resetError: () => void }) {
-  return (
-    <Card className="border-destructive">
-      <CardContent className="p-6 text-center">
-        <AlertTriangle className="mx-auto h-8 w-8 text-destructive mb-2" />
-        <p className="text-sm text-muted-foreground mb-4">
-          Erro ao carregar gráfico
-        </p>
-        <Button size="sm" onClick={resetError}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Tentar Novamente
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Componente principal melhorado
 export default function DashFinanceiro() {
-  const financialState = useFinancialDataState();
-  const financialToast = useFinancialToast();
-  const toast = useToast();
-
-  // Estados dos dados
+  console.log("🔥 COMPONENTE FINANCEIRO INICIADO");
+  
+  // Estados principais
+  const [mesSelecionado, setMesSelecionado] = useState<string>("");
+  const [inicializando, setInicializando] = useState(true);
+  const [loading, setLoading] = useState(false);
+  
+  // Estados dos KPIs
   const [saldoReceber, setSaldoReceber] = useState<SaldoData | null>(null);
   const [saldoPagar, setSaldoPagar] = useState<SaldoData | null>(null);
   const [dfcData, setDfcData] = useState<DFCData | null>(null);
-  const [mesSelecionado, setMesSelecionado] = useState<string | null>(null);
-  const [inicializado, setInicializado] = useState(false);
+  
+  // Estados para gráficos
+  const [saldoEvolucao, setSaldoEvolucao] = useState<Array<{ mes: string; saldo_final: number }>>([]);
+  const [movimentacoesData, setMovimentacoesData] = useState<MoMData[]>([]);
+  const [custosData, setCustosData] = useState<Record<string, number>>({});
+  
+  // Handler para mudança de mês
+  const handleMudancaMes = (novoMes: string) => {
+    console.log("🔄 Mudando para:", novoMes);
+    setMesSelecionado(novoMes);
+  };
 
-  // Função para carregar dados
-  const carregarDados = async () => {
-    if (!inicializado || mesSelecionado === null || mesSelecionado === undefined) {
-      return;
-    }
-
+  // Função para carregar dados dos KPIs a partir dos endpoints
+  const carregarDados = async (mes: string) => {
+    setLoading(true);
     try {
-      financialState.startLoading();
+      const queryString = mes ? `?mes=${mes}` : '';
       
-      const queryString = mesSelecionado ? `?mes=${mesSelecionado}` : '';
-      
+      // Carregar dados dos endpoints
       const [receberRes, pagarRes, dfcRes] = await Promise.all([
         api.get(`/receber${queryString}`),
         api.get(`/pagar${queryString}`),
@@ -224,147 +180,465 @@ export default function DashFinanceiro() {
       setSaldoPagar(pagarRes.data);
       setDfcData(dfcRes.data);
 
-      // Success toast
-      const totalRegistros = (receberRes.data?.data?.mom_analysis?.length || 0) + 
-                           (pagarRes.data?.data?.mom_analysis?.length || 0) + 
-                           (dfcRes.data?.data?.length || 0);
-      
-      financialState.handleSuccess('Dados carregados', totalRegistros);
-      
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-      financialState.handleError(error as Error);
+      // Processar evolução do saldo (últimos 12 meses)
+      if (dfcRes.data?.data) {
+        // Encontrar itens "Saldo inicial" e "Saldo final" no DFC
+        const saldoInicialItem = dfcRes.data.data.find((item: DFCItem) => item.nome === "Saldo inicial");
+        const saldoFinalItem = dfcRes.data.data.find((item: DFCItem) => item.nome === "Saldo final");
+        
+        if (saldoFinalItem && saldoInicialItem) {
+          // Criar dados para gráfico (últimos 12 meses)
+          const mesesDisponiveis = Object.keys(saldoFinalItem.valores_mensais).sort();
+          const ultimosMeses = mesesDisponiveis.slice(-12);
+          
+          const evolucao = ultimosMeses.map(mes => ({
+            mes,
+            saldo_final: saldoFinalItem.valores_mensais[mes] || 0
+          }));
+          setSaldoEvolucao(evolucao);
+        } else {
+          setSaldoEvolucao([]);
+        }
+      } else {
+        setSaldoEvolucao([]);
+      }
+
+      // Processar dados de movimentações do DFC
+      let movimentacoesData: MoMData[] = [];
+      if (dfcRes.data?.data) {
+        const movimentacoesItem = dfcRes.data.data.find((item: DFCItem) => item.nome === "Movimentações");
+        
+        if (movimentacoesItem && movimentacoesItem.horizontal_mensais) {
+          const mesesOrdenados = Object.keys(movimentacoesItem.valores_mensais || {}).sort();
+          movimentacoesData = mesesOrdenados.map((mes, idx) => {
+            const valorAtual = movimentacoesItem.valores_mensais?.[mes] || 0;
+            const valorAnterior = idx > 0 ? (movimentacoesItem.valores_mensais?.[mesesOrdenados[idx-1]] || null) : null;
+            const horizontalStr = movimentacoesItem.horizontal_mensais?.[mes];
+            
+            let variacaoPercentual = null;
+            let variacaoAbsoluta = null;
+            
+            if (horizontalStr && horizontalStr !== "–" && valorAnterior !== null) {
+              const percentualMatch = horizontalStr.match(/([+-]?)(\d+\.?\d*)%/);
+              if (percentualMatch) {
+                const sinal = percentualMatch[1] === "-" ? -1 : 1;
+                variacaoPercentual = parseFloat(percentualMatch[2]) * sinal;
+                variacaoAbsoluta = valorAtual - valorAnterior;
+              }
+            }
+
+            return {
+              mes,
+              valor_atual: valorAtual,
+              valor_anterior: valorAnterior,
+              variacao_absoluta: variacaoAbsoluta,
+              variacao_percentual: variacaoPercentual
+            };
+          });
+        }
+      }
+      setMovimentacoesData(movimentacoesData);
+
+      // Processar dados de custos do DFC
+      if (dfcRes.data?.data) {
+        // Primeiro, tentar encontrar "Custos" diretamente no nível principal
+        let custosItem = dfcRes.data.data.find((item: DFCItem) => item.nome === "Custos");
+        
+        // Se não encontrar, procurar dentro de "Movimentações" > "Operacional"
+        if (!custosItem) {
+          const movimentacoesItemCustos = dfcRes.data.data.find((item: DFCItem) => item.nome === "Movimentações");
+          
+          if (movimentacoesItemCustos && movimentacoesItemCustos.classificacoes) {
+            const operacionalItem = movimentacoesItemCustos.classificacoes.find((item: any) => item.nome === "Operacional");
+            
+            if (operacionalItem && operacionalItem.classificacoes) {
+              custosItem = operacionalItem.classificacoes.find((item: any) => item.nome === "Custos");
+            }
+          }
+        }
+
+        if (custosItem) {
+          const custosPorClassificacao: Record<string, number> = {};
+          
+          if (custosItem.classificacoes && Array.isArray(custosItem.classificacoes)) {
+            custosItem.classificacoes.forEach((classificacao: any) => {
+              const valor = mes && classificacao.valores_mensais?.[mes] !== undefined
+                ? classificacao.valores_mensais[mes]
+                : classificacao.valor || 0;
+              
+              if (Math.abs(valor) > 0) {
+                custosPorClassificacao[classificacao.nome] = Math.abs(valor);
+              }
+            });
+          }
+          
+          setCustosData(custosPorClassificacao);
+        } else {
+          setCustosData({});
+        }
+      } else {
+        setCustosData({});
+      }
+
+    } catch (e) {
+      console.error("❌ Erro ao carregar dados:", e);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Inicialização
+  // Inicialização: buscar meses disponíveis do endpoint /receber
   useEffect(() => {
-    const mesesDisponiveis = ['2024-12', '2024-11', '2024-10', '2024-09', '2024-08'];
-    if (!inicializado) {
-      setMesSelecionado(mesesDisponiveis[0]);
-      setInicializado(true);
+    const init = async () => {
+      try {
+        const response = await api.get('/receber');
+        const data = response.data;
+        
+        // Compatibilidade: aceita data.data.meses_disponiveis, data.meses, ou meses direto na raiz
+        let meses: string[] = [];
+        if (data?.data?.meses_disponiveis && Array.isArray(data.data.meses_disponiveis) && data.data.meses_disponiveis.length > 0) {
+          meses = data.data.meses_disponiveis;
+        } else if (data?.meses && Array.isArray(data.meses) && data.meses.length > 0) {
+          meses = data.meses;
+        } else if (Array.isArray(data) && data.length > 0 && typeof data[0] === "string") {
+          meses = data;
+        }
+        
+        if (meses.length > 0) {
+          const ultimoMes = meses[meses.length - 1];
+          setMesSelecionado(ultimoMes);
+        }
+        setInicializando(false);
+      } catch {
+        setInicializando(false);
+      }
+    };
+    init();
+  }, []);
+
+  // Carregar dados quando mês muda OU "Todo o período"
+  useEffect(() => {
+    console.log("🔄 UseEffect de carregamento:", mesSelecionado, inicializando);
+    if (!inicializando) {
+      carregarDados(mesSelecionado);
     }
-  }, [inicializado]);
-
-  // Carregar dados quando mês muda
-  useEffect(() => {
-    carregarDados();
-  }, [mesSelecionado, inicializado]);
-
-  // Manipulador de mudança de mês
-  const handleMesChange = (novoMes: string) => {
-    setMesSelecionado(novoMes);
-    toast.info(`Carregando dados para ${novoMes}...`);
-  };
-
-  // Se está carregando, mostrar skeleton
-  if (financialState.isLoading) {
-    return <DashboardSkeleton />;
-  }
+  }, [mesSelecionado, inicializando]);
 
   return (
-    <ErrorBoundary fallback={FinancialDataErrorFallback}>
-      <div className="space-y-6 p-6">
-        {/* Header com filtros */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Dashboard Financeiro</h1>
+    <main className="p-4">
+      <section className="py-4 flex justify-between items-center">
           <FiltroMes 
-            value={mesSelecionado || ''} 
-            onSelect={handleMesChange}
-            endpoint="receber"
-          />
+          onSelect={handleMudancaMes} 
+          endpoint="http://127.0.0.1:8000/receber"
+          value={mesSelecionado}
+        />
+      </section>
+      
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {(inicializando || loading) ? (
+          // Exibe skeletons enquanto carrega
+          <>
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+          </>
+        ) : (
+          // Exibe os cards reais após carregar
+          <>
+            {/* Contas a Receber */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-center">
+                  <CardTitle className="text-lg sm:text-xl select-none">
+                    Contas a Receber
+                  </CardTitle>
+                  <PlusCircle className="ml-auto w-4 h-4" />
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                <div className="sm:flex sm:justify-between sm:items-center">
+                  <p className="text-lg sm:text-2xl">
+                    {saldoReceber?.data?.saldo_total !== undefined ? (
+                      formatCurrencyShort(saldoReceber.data.saldo_total)
+                    ) : (
+                      "--"
+                    )}
+                  </p>
+                  <CardDescription>
+                    {mesSelecionado === "" ? (
+                      <p>vs período anterior <br />-- --</p>
+                    ) : (() => {
+                      const mom = getMoMIndicator(saldoReceber?.data?.mom_analysis || [], mesSelecionado);
+                      return mom && mom.hasValue ? (
+                        <p>
+                          vs {mom.mesAnterior} <br />
+                          <span>
+                            {mom.arrow} {mom.percentage?.toFixed(1)}%
+                          </span>
+                        </p>
+                      ) : (
+                        <p>vs mês anterior <br />-- --</p>
+                      );
+                    })()}
+                  </CardDescription>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Contas a Pagar */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-center">
+                  <CardTitle className="text-lg sm:text-xl select-none">
+                    Contas a Pagar
+                  </CardTitle>
+                  <MinusCircle className="ml-auto w-4 h-4" />
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                <div className="sm:flex sm:justify-between sm:items-center">
+                  <p className="text-lg sm:text-2xl">
+                    {saldoPagar?.data?.saldo_total !== undefined ? (
+                      formatCurrencyShort(saldoPagar.data.saldo_total)
+                    ) : (
+                      "--"
+                    )}
+                  </p>
+                  <CardDescription>
+                    {mesSelecionado === "" ? (
+                      <p>vs período anterior <br />-- --</p>
+                    ) : (() => {
+                      const mom = getMoMIndicator(saldoPagar?.data?.mom_analysis || [], mesSelecionado);
+                      return mom && mom.hasValue ? (
+                        <p>
+                          vs {mom.mesAnterior} <br />
+                          <span>
+                            {mom.arrow} {mom.percentage?.toFixed(1)}%
+                          </span>
+                        </p>
+                      ) : (
+                        <p>vs mês anterior <br />-- --</p>
+                      );
+                    })()}
+                  </CardDescription>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Saldo Líquido */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-center">
+                  <CardTitle className="text-lg sm:text-xl select-none">
+                    Saldo Líquido
+                  </CardTitle>
+                  <Wallet className="ml-auto w-4 h-4" />
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                <div className="sm:flex sm:justify-between sm:items-center">
+                  <p className="text-lg sm:text-2xl">
+                    {saldoReceber?.data?.saldo_total !== undefined && saldoPagar?.data?.saldo_total !== undefined ? (
+                      formatCurrencyShort(saldoReceber.data.saldo_total - saldoPagar.data.saldo_total)
+                    ) : (
+                      "--"
+                    )}
+                  </p>
+                  <CardDescription>
+                    <p>Disponível hoje</p>
+                  </CardDescription>
         </div>
+              </CardContent>
+            </Card>
 
-        {/* KPIs Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <KPICardWithErrorHandling
-            title="Contas a Receber"
-            value={saldoReceber?.data?.saldo_total ? 
-              formatCurrencyShort(saldoReceber.data.saldo_total) : '--'}
-            description={saldoReceber?.data?.pmr ? `PMR: ${saldoReceber.data.pmr}` : ''}
-            icon={TrendingUp}
-            trend="up"
-            isLoading={financialState.isLoading}
-            error={financialState.error}
-          />
-          
-          <KPICardWithErrorHandling
-            title="Contas a Pagar"
-            value={saldoPagar?.data?.saldo_total ? 
-              formatCurrencyShort(saldoPagar.data.saldo_total) : '--'}
-            description={saldoPagar?.data?.pmp ? `PMP: ${saldoPagar.data.pmp}` : ''}
-            icon={TrendingDown}
-            trend="down"
-            isLoading={financialState.isLoading}
-            error={financialState.error}
-          />
+            {/* PMR */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-center">
+                  <CardTitle className="text-lg sm:text-xl select-none">
+                    PMR
+                  </CardTitle>
+                  <Hourglass className="ml-auto w-4 h-4" />
+                </div>
+              </CardHeader>
 
-          <KPICardWithErrorHandling
-            title="Saldo Líquido"
-            value={saldoReceber?.data?.saldo_total && saldoPagar?.data?.saldo_total ? 
-              formatCurrencyShort(saldoReceber.data.saldo_total - saldoPagar.data.saldo_total) : '--'}
-            description="Disponível hoje"
-            icon={Wallet}
-            trend="neutral"
-            isLoading={financialState.isLoading}
-            error={financialState.error}
-          />
-
-          <KPICardWithErrorHandling
-            title="Fluxo do Mês"
-            value="--"
-            description="Previsão mensal"
-            icon={ArrowUpDown}
-            trend="neutral"
-            isLoading={financialState.isLoading}
-            error={financialState.error}
-          />
-        </div>
-
-        {/* Charts Row */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <ErrorBoundary fallback={ChartErrorFallback}>
-            {financialState.isLoading ? (
-              <ChartSkeleton />
-            ) : (
-              saldoReceber?.data?.mom_analysis && (
-                <ChartAreaSaldoFinal 
-                  data={saldoReceber.data.mom_analysis.map(item => ({
-                    mes: item.mes,
-                    saldo_final: item.valor_atual
-                  }))} 
-                  mesSelecionado={mesSelecionado || ''}
-                />
-              )
-            )}
-          </ErrorBoundary>
-
-          <ErrorBoundary fallback={ChartErrorFallback}>
-            {financialState.isLoading ? (
-              <ChartSkeleton />
-            ) : (
-              <ChartMovimentacoes 
-                mesSelecionado={mesSelecionado || ''}
-                momReceber={saldoReceber?.data?.mom_analysis}
-                momPagar={saldoPagar?.data?.mom_analysis}
-              />
-            )}
-          </ErrorBoundary>
-        </div>
-
-        {/* Error state retry button */}
-        {financialState.hasError && (
-          <div className="text-center py-8">
-            <Button onClick={() => {
-              financialState.retry();
-              carregarDados();
-            }}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Tentar Carregar Novamente
-            </Button>
-          </div>
+              <CardContent>
+                <div className="sm:flex sm:justify-between sm:items-center">
+                  <p className="text-lg sm:text-2xl">
+                    {saldoReceber?.data?.pmr || "--"}
+                  </p>
+                  <CardDescription>
+                    <p>Prazo médio recebimento</p>
+                  </CardDescription>
+                </div>
+              </CardContent>
+            </Card>
+          </>
         )}
-      </div>
-    </ErrorBoundary>
+      </section>
+
+      <section className="mt-4 flex flex-col lg:flex-row gap-4">
+        {(inicializando || loading) ? (
+          // Exibe skeletons enquanto carrega
+          <>
+            <CardSkeletonLarge />
+            <CardSkeletonLarge />
+          </>
+        ) : (
+          // Exibe os cards reais após carregar
+          <>
+            {/* Gráfico de Saldo */}
+            <Card className="w-full">
+              <CardHeader>
+                <div className="flex items-center justify-center">
+                  <CardTitle className="text-lg sm:text-xl select-none">
+                    Evolução do Saldo
+                  </CardTitle>
+                  <TrendingUp className="ml-auto w-4 h-4" />
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                <div className="sm:flex sm:justify-between sm:items-center">
+                  <CardDescription>
+                    <div className="flex gap-2 mb-10 leading-none font-medium">
+                      Saldo ao longo do tempo
+                      {mesSelecionado && ` - ${mesSelecionado}`}
+                    </div>
+                  </CardDescription>
+        </div>
+
+                <ChartAreaSaldoFinal 
+                  data={saldoEvolucao} 
+                  mesSelecionado={mesSelecionado} 
+                />
+              </CardContent>
+              <CardFooter className="flex-col items-start gap-2 text-sm">
+                <CardDescription>
+                  <p>Evolução do saldo financeiro</p>
+                </CardDescription>
+                <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                  {saldoEvolucao.length > 0 ? (
+                    formatarPeriodo(saldoEvolucao)
+                  ) : (
+                    "Todo o período"
+                  )}
+                </div>
+              </CardFooter>
+            </Card>
+            
+            {/* Gráfico de Movimentações */}
+            <Card className="w-full">
+              <CardHeader>
+                <div className="flex items-center justify-center">
+                  <CardTitle className="text-lg sm:text-xl select-none">
+                    Movimentações
+                  </CardTitle>
+                  <ArrowUpDown className="ml-auto w-4 h-4" />
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                <div className="sm:flex sm:justify-between sm:items-center">
+                  <CardDescription>
+                    <div className="flex gap-2 mb-10 leading-none font-medium">
+                      Entradas e saídas
+                    </div>
+                  </CardDescription>
+                </div>
+
+              <ChartMovimentacoes 
+                  mesSelecionado={mesSelecionado}
+                  momReceber={saldoReceber?.data?.mom_analysis || []}
+                  momPagar={saldoPagar?.data?.mom_analysis || []}
+                  momMovimentacoes={movimentacoesData}
+                />
+              </CardContent>
+              <CardFooter className="flex-col items-start gap-2 text-sm">
+                <CardDescription>
+                  <p>Movimentações financeiras</p>
+                </CardDescription>
+                <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                  {mesSelecionado ? (
+                    (() => {
+                      const formatar = (mes: string) => {
+                        if (!mes.match(/^\d{4}-\d{2}$/)) return mes;
+                        const [ano, m] = mes.split("-");
+                        const mesNum = parseInt(m, 10);
+                        return `${mesesAbreviados[mesNum]}/${ano.slice(-2)}`;
+                      };
+                      return formatar(mesSelecionado);
+                    })()
+                  ) : (
+                    "Todo o período"
+                  )}
+                </div>
+              </CardFooter>
+            </Card>
+          </>
+        )}
+      </section>
+
+      <section className="mt-4 flex flex-col lg:flex-row gap-4">
+        {(inicializando || loading) ? (
+          // Exibe skeleton enquanto carrega
+          <CardSkeletonLarge />
+        ) : (
+          // Exibe o gráfico de custos
+          <Card className="w-full">
+            <CardHeader>
+              <div className="flex items-center justify-center">
+                <CardTitle className="text-lg sm:text-xl select-none">
+                  Custos
+                </CardTitle>
+                <Package className="ml-auto w-4 h-4" />
+              </div>
+            </CardHeader>
+
+            <CardContent>
+              <div className="sm:flex sm:justify-between sm:items-center">
+                <CardDescription>
+                  <div className="flex gap-2 mb-10 leading-none font-medium">
+                    Custos por classificação
+                  </div>
+                </CardDescription>
+        </div>
+
+              <ChartCustosFinanceiro data={custosData} />
+            </CardContent>
+            <CardFooter className="flex-col items-start gap-2 text-sm">
+              <CardDescription>
+                <p>Classificação de custos por valor</p>
+              </CardDescription>
+              <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                {mesSelecionado ? (
+                  (() => {
+                    const formatar = (mes: string) => {
+                      if (!mes.match(/^\d{4}-\d{2}$/)) return mes;
+                      const [ano, m] = mes.split("-");
+                      const mesNum = parseInt(m, 10);
+                      return `${mesesAbreviados[mesNum]}/${ano.slice(-2)}`;
+                    };
+                    return formatar(mesSelecionado);
+                  })()
+                ) : (
+                  "Todo o período"
+                )}
+          </div>
+            </CardFooter>
+          </Card>
+        )}
+      </section>
+
+      <section className="mt-8 text-center">
+        <p className="text-sm text-gray-600">
+          Dados atualizados em tempo real via endpoints financeiros
+        </p>
+      </section>
+    </main>
   );
 }

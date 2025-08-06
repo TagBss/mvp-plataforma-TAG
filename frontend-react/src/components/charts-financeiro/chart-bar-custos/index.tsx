@@ -1,11 +1,33 @@
+"use client"
+
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts"
 import { useEffect, useState } from "react"
 import { formatCurrencyShort } from "../../../utils/formatters"
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "../../ui/chart"
 
 type ChartData = {
   classificacao: string
   valor: number
 }
+
+const chartConfig = {
+  desktop: {
+    label: "Desktop",
+    color: "#3b82f6",
+  },
+  mobile: {
+    label: "Mobile",
+    color: "#3b82f6",
+  },
+  label: {
+    color: "#ffffff",
+  },
+} satisfies ChartConfig
 
 // Recebe dados de custos via props (já processados pelo componente pai)
 export function ChartCustosFinanceiro({ data }: { data?: Record<string, number> }) {
@@ -17,7 +39,7 @@ export function ChartCustosFinanceiro({ data }: { data?: Record<string, number> 
       const arr = Object.entries(data)
         .map(([classificacao, valor]) => ({ classificacao, valor }))
         .filter(item => item.valor > 0) // Filtrar valores zero
-        .sort((a, b) => a.valor - b.valor) // Ordenar por valor crescente (melhor para maior)
+        .sort((a, b) => a.valor - b.valor) // Ordenar por valor crescente (menor primeiro)
       
       setChartData(arr)
     } else {
@@ -43,13 +65,12 @@ export function ChartCustosFinanceiro({ data }: { data?: Record<string, number> 
   }
 
   return (
-    <div className="w-full">
+    <ChartContainer config={chartConfig}>
       <BarChart
+        accessibilityLayer
         data={chartData}
         layout="vertical"
         margin={{ right: 16 }}
-        width={500}
-        height={300}
       >
         <CartesianGrid horizontal={false} />
         <YAxis
@@ -69,22 +90,26 @@ export function ChartCustosFinanceiro({ data }: { data?: Record<string, number> 
           tickLine={false}
           axisLine={false}
         />
+        <ChartTooltip
+          cursor={false}
+          content={<ChartTooltipContent indicator="line" />}
+        />
         <Bar
           dataKey="valor"
+          layout="vertical"
           fill="#3b82f6"
-          radius={[0, 4, 4, 0]}
+          radius={4}
         >
           <LabelList
-            dataKey="valor"
-            position="right"
-            formatter={(value: any) => formatCurrencyShort(Number(value), { noPrefix: true })}
-            style={{
-              fontSize: '12px',
-              fill: '#6b7280',
-            }}
+            dataKey="classificacao"
+            position="insideLeft"
+            offset={8}
+            className="fill-gray-600"
+            fontSize={10}
+            width={400}
           />
         </Bar>
       </BarChart>
-    </div>
+    </ChartContainer>
   )
 } 

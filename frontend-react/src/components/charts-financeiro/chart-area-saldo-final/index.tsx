@@ -1,26 +1,30 @@
+"use client"
+
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { formatCurrencyShort } from "../../../utils/formatters"
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "../../ui/chart"
 
 export interface AreaChartSaldoProps {
   data: Array<{
     mes: string
     saldo_final: number
   }>
-  config?: {
-    saldo_final?: { label: string; color: string }
-  }
   mesSelecionado?: string;
 }
 
-export function ChartAreaSaldoFinal({ data, config, mesSelecionado }: AreaChartSaldoProps) {
-  // Cores e labels padrão, pode sobrescrever via config
-  const chartConfig = {
-    saldo_final: {
-      label: config?.saldo_final?.label || "Saldo Final",
-      color: config?.saldo_final?.color || "#3b82f6", // blue-500
-    },
-  };
+const chartConfig = {
+  saldo_final: {
+    label: "Saldo Final",
+    color: "#3b82f6",
+  },
+} satisfies ChartConfig
 
+export function ChartAreaSaldoFinal({ data, mesSelecionado }: AreaChartSaldoProps) {
   // Componente customizado para renderizar pontos destacados
   type DotProps = {
     cx?: number;
@@ -38,20 +42,27 @@ export function ChartAreaSaldoFinal({ data, config, mesSelecionado }: AreaChartS
         cx={cx}
         cy={cy}
         r={6}
-        fill={chartConfig.saldo_final.color}
+        fill="#3b82f6"
         strokeWidth={3}
         style={{ filter: 'drop-shadow(0 0 6px #3b82f6)' }}
       />
     );
   };
 
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-24 text-muted-foreground">
+        <p>Nenhum dado de saldo disponível</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-[200px] w-full">
+    <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
       <AreaChart
+        accessibilityLayer
         data={data}
         margin={{ left: 22, right: 22 }}
-        width={500}
-        height={200}
       >
         <CartesianGrid vertical={false} />
         <YAxis
@@ -82,35 +93,32 @@ export function ChartAreaSaldoFinal({ data, config, mesSelecionado }: AreaChartS
             return value;
           }}
         />
+        <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
         <defs>
           <linearGradient id="fillSaldoFinal" x1="0" y1="0" x2="0" y2="1">
             <stop
               offset="5%"
-              stopColor={chartConfig.saldo_final.color}
+              stopColor="#3b82f6"
               stopOpacity={0.8}
             />
             <stop
               offset="95%"
-              stopColor={chartConfig.saldo_final.color}
+              stopColor="#3b82f6"
               stopOpacity={0.1}
             />
           </linearGradient>
         </defs>
         <Area
-          type="monotone"
           dataKey="saldo_final"
-          stroke={chartConfig.saldo_final.color}
-          strokeWidth={2}
+          name="Saldo Final"
+          type="natural"
           fill="url(#fillSaldoFinal)"
-          dot={<CustomizedDot />}
-          activeDot={{
-            r: 8,
-            fill: chartConfig.saldo_final.color,
-            stroke: "#fff",
-            strokeWidth: 2,
-          }}
+          fillOpacity={0.4}
+          stroke="#3b82f6"
+          stackId="a"
+          dot={CustomizedDot}
         />
       </AreaChart>
-    </div>
+    </ChartContainer>
   );
 } 

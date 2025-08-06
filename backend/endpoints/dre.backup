@@ -2,7 +2,6 @@ from fastapi import APIRouter
 import pandas as pd
 import time
 import os
-import re
 from financial_utils import (
     calcular_analise_vertical, calcular_analise_horizontal, 
     calcular_realizado_vs_orcado, calcular_totalizadores,
@@ -10,6 +9,9 @@ from financial_utils import (
     agregar_por_periodo_superior, calcular_analises_completas,
     formatar_item_financeiro
 )
+import pandas as pd
+import time
+import os
 
 # --- CACHE GLOBAL PARA O DATAFRAME ---
 _df_cache = {
@@ -18,102 +20,6 @@ _df_cache = {
     "last_mtime": 0,
 }
 CACHE_TIMEOUT = 60  # segundos
-
-def extrair_tipo_operacao(texto):
-    """Extrai o tipo de operação (+/-) de um texto como '( + ) Faturamento'"""
-    if pd.isna(texto) or not isinstance(texto, str):
-        return "="
-    
-    # Padrões para diferentes formatos
-    padroes = [
-        r'\(\s*\+/\s*-\s*\)',  # ( + / - ) - deve vir primeiro
-        r'\(\s*\+\s*/\s*-\s*\)',  # ( + / - ) - variação
-        r'\(\s*\+\s*\)',  # ( + )
-        r'\(\s*-\s*\)',   # ( - )
-        r'\(\s*=\s*\)',   # ( = )
-        r'\(\+/\-\)',     # (+/-)
-        r'\(\+\)',        # (+)
-        r'\(-\)',          # (-)
-        r'\(=\)',         # (=)
-    ]
-    
-    for padrao in padroes:
-        if re.search(padrao, texto):
-            if '+' in padrao and '-' in padrao:
-                return "+/-"
-            elif '+' in padrao:
-                return "+"
-            elif '-' in padrao:
-                return "-"
-            elif '=' in padrao:
-                return "="
-    
-    return "="
-
-def extrair_nome_conta(texto):
-    """Extrai o nome da conta removendo os parênteses e tipos"""
-    if pd.isna(texto) or not isinstance(texto, str):
-        return ""
-    
-    # Remove os padrões de tipo
-    padroes_remover = [
-        r'\(\s*\+/\s*-\s*\)\s*',  # ( + / - ) - deve vir primeiro
-        r'\(\s*\+\s*/\s*-\s*\)\s*',  # ( + / - ) - variação
-        r'\(\s*\+\s*\)\s*',  # ( + )
-        r'\(\s*-\s*\)\s*',   # ( - )
-        r'\(\s*=\s*\)\s*',   # ( = )
-        r'\(\+/\-\)\s*',     # (+/-)
-        r'\(\+\)\s*',        # (+)
-        r'\(-\)\s*',          # (-)
-        r'\(=\)\s*',         # (=)
-    ]
-    
-    nome = texto
-    for padrao in padroes_remover:
-        nome = re.sub(padrao, '', nome)
-    
-    return nome.strip()
-
-def carregar_estrutura_dre(filename="financial-data-roriz.xlsx"):
-    """Carrega a estrutura DRE da aba dre_n2 da planilha"""
-    try:
-        # Ler a aba dre_n2
-        df_estrutura = pd.read_excel(filename, sheet_name="dre_n2")
-        
-        if df_estrutura.empty:
-            print("⚠️ Aba dre_n2 está vazia")
-            return []
-        
-        # Verificar se as colunas necessárias existem
-        if "dre_n2" not in df_estrutura.columns or "dre_n1" not in df_estrutura.columns:
-            print("⚠️ Colunas dre_n2 ou dre_n1 não encontradas na aba dre_n2")
-            return []
-        
-        estrutura = []
-        for _, row in df_estrutura.iterrows():
-            dre_n2 = row["dre_n2"]
-            dre_n1 = row["dre_n1"]
-            
-            if pd.isna(dre_n2) or pd.isna(dre_n1):
-                continue
-                
-            tipo = extrair_tipo_operacao(dre_n2)
-            nome_conta = extrair_nome_conta(dre_n2)
-            nome_totalizador = extrair_nome_conta(dre_n1)
-            
-            if nome_conta and nome_totalizador:
-                estrutura.append({
-                    "nome": nome_conta,
-                    "tipo": tipo,
-                    "totalizador": nome_totalizador
-                })
-        
-        print(f"📋 Estrutura DRE carregada: {len(estrutura)} contas")
-        return estrutura
-        
-    except Exception as e:
-        print(f"❌ Erro ao carregar estrutura DRE: {e}")
-        return []
 
 def get_cached_df(filename="financial-data-roriz.xlsx"):
     global _df_cache
@@ -129,7 +35,7 @@ def get_cached_df(filename="financial-data-roriz.xlsx"):
         or now - _df_cache["last_loaded"] > CACHE_TIMEOUT
     ):
         try:
-            df = pd.read_excel(filename, sheet_name="base")
+            df = pd.read_excel(filename)
             _df_cache["df"] = df
             _df_cache["last_loaded"] = now
             _df_cache["last_mtime"] = mtime
@@ -145,15 +51,11 @@ from fastapi import Request
 def get_dre_data(request: Request):
     filename = "financial-data-roriz.xlsx"
 
+
     try:
         df = get_cached_df(filename)
         if df is None:
             return {"error": "Erro ao ler o arquivo Excel."}
-
-        # Carregar estrutura DRE dinamicamente
-        estrutura_dre = carregar_estrutura_dre(filename)
-        if not estrutura_dre:
-            return {"error": "Não foi possível carregar a estrutura DRE da planilha"}
 
         # Filtro por mês, se fornecido na query string
         mes_param = request.query_params.get("mes")
@@ -168,7 +70,7 @@ def get_dre_data(request: Request):
                 return {"error": "Coluna de competência não encontrada para filtro de mês."}
 
         # Validação das colunas obrigatórias (incluindo 'origem')
-        required_columns = ["DRE_n2", "valor_original", "classificacao", "origem", "competencia"]
+        required_columns = ["DRE_n2", "valor_original", "classificacao", "origem"]
         if not all(col in df.columns for col in required_columns):
             return {"error": f"A planilha deve conter as colunas: {', '.join(required_columns)}"}
 
@@ -248,8 +150,25 @@ def get_dre_data(request: Request):
                 for conta, valor in total_orc_por_mes[mes].items():
                     total_geral_orc[conta] = total_geral_orc.get(conta, 0) + valor
 
-        # Usar estrutura dinâmica ao invés da lista manual
-        contas_dre = [(item["nome"], item["tipo"]) for item in estrutura_dre]
+        contas_dre = [
+            ("Faturamento", "+"),
+            ("Tributos e deduções sobre a receita", "-"),
+            ("Custo com Importação", "-"),
+            ("Custo com Mercadoria Interna", "-"),
+            ("Despesas Administrativa", "-"),
+            ("Despesas com Pessoal", "-"),
+            ("Despesas com Ocupação", "-"),
+            ("Despesas comercial", "-"),
+            ("Despesas com E-commerce", "-"),
+            ("Depreciação", "-"),
+            ("Amortização", "-"),
+            ("Receitas Financeiras", "+"),
+            ("Despesas Financeiras", "-"),
+            ("Receitas não operacionais", "+"),
+            ("Despesas não operacionais", "-"),
+            ("IRPJ", "-"),
+            ("CSLL", "-")
+        ]
 
         valores_mensais = {
             mes: {nome: total_real_por_mes.get(mes, {}).get(nome, 0.0) for nome, _ in contas_dre}
@@ -702,57 +621,70 @@ def get_dre_data(request: Request):
                 "classificacoes": get_classificacoes(nome)
             }
 
-        # Criar estrutura dinâmica baseada nos totalizadores
         result = []
-        
-        # Obter todos os totalizadores únicos da estrutura
-        totalizadores_unicos = list(set(item["totalizador"] for item in estrutura_dre))
-        
-        # Criar totalizadores dinamicamente
-        totalizadores_criados = {}
-        for totalizador_nome in totalizadores_unicos:
-            # Encontrar todas as contas que pertencem a este totalizador
-            contas_do_totalizador = [item for item in estrutura_dre if item["totalizador"] == totalizador_nome]
-            
-            if not contas_do_totalizador:
-                continue
-            
-            # Criar função de cálculo dinâmica
-            def func_calculo(valores_dict):
-                total = 0
-                for conta in contas_do_totalizador:
-                    nome_conta = conta["nome"]
-                    if nome_conta in valores_dict:
-                        total += valores_dict[nome_conta]
-                return total
-            
-            # Criar o totalizador
-            totalizador = calcular_linha(totalizador_nome, func_calculo)
-            
-            # Adicionar as contas filhas como classificações
-            classificacoes = []
-            for conta in contas_do_totalizador:
-                nome = conta["nome"]
-                tipo = conta["tipo"]
-                conta_item = criar_linha_conta(nome, tipo)
-                classificacoes.append(conta_item)
-            
-            totalizador["classificacoes"] = classificacoes
-            totalizadores_criados[totalizador_nome] = totalizador
-            result.append(totalizador)
+        result.append(criar_linha_conta("Faturamento", "+"))
+        result.append(calcular_linha("Receita Bruta", lambda v: v["Faturamento"]))
+        result.append(criar_linha_conta("Tributos e deduções sobre a receita", "-"))
+        result.append(calcular_linha("Receita Líquida", lambda v: v["Faturamento"] + v["Tributos e deduções sobre a receita"]))
+
+        for nome in ["Custo com Importação", "Custo com Mercadoria Interna"]:
+            result.append(criar_linha_conta(nome, "-"))
+
+        result.append(calcular_linha("Resultado Bruto", lambda v: (
+            v["Faturamento"] + v["Tributos e deduções sobre a receita"] + v["Custo com Importação"] + v["Custo com Mercadoria Interna"]
+        )))
+
+        for nome in ["Despesas Administrativa", "Despesas com Pessoal", "Despesas com Ocupação", "Despesas comercial", "Despesas com E-commerce"]:
+            result.append(criar_linha_conta(nome, "-"))
+
+        result.append(calcular_linha("EBITDA", lambda v: (
+            v["Faturamento"] + v["Tributos e deduções sobre a receita"] + v["Custo com Importação"] + v["Custo com Mercadoria Interna"]
+            + v["Despesas Administrativa"] + v["Despesas com Pessoal"]
+            + v["Despesas com Ocupação"] + v["Despesas comercial"] + v["Despesas com E-commerce"]
+        )))
+
+        for nome in ["Depreciação", "Amortização"]:
+            result.append(criar_linha_conta(nome, "-"))
+
+        result.append(calcular_linha("EBIT", lambda v: (
+            v["Faturamento"] + v["Tributos e deduções sobre a receita"] + v["Custo com Importação"] + v["Custo com Mercadoria Interna"]
+            + v["Despesas Administrativa"] + v["Despesas com Pessoal"]
+            + v["Despesas com Ocupação"] + v["Despesas comercial"] + v["Despesas com E-commerce"]
+            + v["Depreciação"] + v["Amortização"]
+        )))
+
+        for nome in ["Receitas Financeiras", "Despesas Financeiras",
+                     "Receitas não operacionais", "Despesas não operacionais"]:
+            result.append(criar_linha_conta(nome, "+" if "Receitas" in nome else "-"))
+
+        result.append(calcular_linha("Resultado Financeiro", lambda v: (
+            v["Faturamento"] + v["Tributos e deduções sobre a receita"] + v["Custo com Importação"] + v["Custo com Mercadoria Interna"]
+            + v["Despesas Administrativa"] + v["Despesas com Pessoal"]
+            + v["Despesas com Ocupação"] + v["Despesas comercial"] + v["Despesas com E-commerce"]
+            + v["Depreciação"] + v["Amortização"]
+            + v["Receitas Financeiras"] + v["Despesas Financeiras"]
+            + v["Receitas não operacionais"] + v["Despesas não operacionais"]
+        )))
+
+        for nome in ["IRPJ", "CSLL"]:
+            result.append(criar_linha_conta(nome, "-"))
+
+        result.append(calcular_linha("Resultado Líquido", lambda v: (
+            v["Faturamento"] + v["Tributos e deduções sobre a receita"] + v["Custo com Importação"] + v["Custo com Mercadoria Interna"]
+            + v["Despesas Administrativa"] + v["Despesas com Pessoal"]
+            + v["Despesas com Ocupação"] + v["Despesas comercial"] + v["Despesas com E-commerce"]
+            + v["Depreciação"] + v["Amortização"]
+            + v["Receitas Financeiras"] + v["Despesas Financeiras"]
+            + v["Receitas não operacionais"] + v["Despesas não operacionais"]
+            + v["IRPJ"] + v["CSLL"]
+        )))
 
         # Calcular análise vertical para as classificações
         for item in result:
             if "classificacoes" in item and item["classificacoes"]:
                 for classificacao in item["classificacoes"]:
-                    # Encontrar o faturamento para cálculo da análise vertical
-                    faturamento_total = valores_totais.get("Faturamento", 0)
-                    if faturamento_total == 0:
-                        # Se não encontrar "Faturamento", usar o primeiro valor disponível
-                        faturamento_total = next(iter(valores_totais.values()), 0)
-                    
                     classificacao["vertical_total"] = calcular_analise_vertical(
-                        classificacao["valor"], faturamento_total
+                        classificacao["valor"], valores_totais["Faturamento"]
                     )
 
         return {

@@ -1,15 +1,14 @@
-import { useEffect, useState } from "react";
-import { Bar, ComposedChart, CartesianGrid, XAxis, YAxis, Line } from "recharts";
-import { formatCurrencyShort } from "../../../utils/formatters";
+"use client"
 
-// Interface para as props do shape da barra
-interface BarShapeProps {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  payload?: ChartDataItem;
-}
+import { useEffect, useState } from "react";
+import { Bar, ComposedChart, CartesianGrid, XAxis, YAxis, Line, ResponsiveContainer } from "recharts";
+import { formatCurrencyShort } from "../../../utils/formatters";
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "../../ui/chart";
 
 // Utilitário para formatar mês (YYYY-MM para "abr/25")
 const mesesAbreviados = [ '', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez' ];
@@ -33,7 +32,7 @@ type ChartDataItem = {
   mesLabel: string;
   CAR: number;
   CAP: number;
-  Movimentacoes: number;
+  Saldo: number;
 };
 
 interface ChartMovimentacoesProps {
@@ -44,11 +43,26 @@ interface ChartMovimentacoesProps {
   momMovimentacoes?: MomAnalysisItem[];
 }
 
+const chartConfig = {
+  CAR: {
+    label: "Receber (CAR)",
+    color: "#2563eb",
+  },
+  CAP: {
+    label: "Pagar (CAP)",
+    color: "#60a5fa",
+  },
+  Saldo: {
+    label: "Saldo",
+    color: "#ff651a",
+  },
+} satisfies ChartConfig;
+
 export default function ChartMovimentacoes({ 
   mesSelecionado, 
   momReceber, 
   momPagar,
-  momMovimentacoes 
+  momMovimentacoes
 }: ChartMovimentacoesProps) {
   const [chartData, setChartData] = useState<ChartDataItem[]>([]);
 
@@ -77,92 +91,125 @@ export default function ChartMovimentacoes({
   };
 
   useEffect(() => {
-    // Usar dados que já vêm prontos do DFC via props
-    if (momReceber && momPagar && momMovimentacoes) {
+    // Sempre usar dados de receber/pagar para as barras, e movimentações para a linha
+    if (momReceber && momPagar) {
       const carMap = momReceber.reduce<Record<string, MomAnalysisItem>>((acc, cur) => { acc[cur.mes] = cur; return acc; }, {});
       const capMap = momPagar.reduce<Record<string, MomAnalysisItem>>((acc, cur) => { acc[cur.mes] = cur; return acc; }, {});
-      const movMap = momMovimentacoes.reduce<Record<string, MomAnalysisItem>>((acc, cur) => { acc[cur.mes] = cur; return acc; }, {});
       
       // Unir todos os meses únicos
       const allMeses = Array.from(new Set([
         ...Object.keys(carMap),
         ...Object.keys(capMap),
-        ...Object.keys(movMap),
       ])).sort();
       
       // Pegar os últimos 12 meses
       const ultimos12 = allMeses.slice(-12);
       
-      // Montar array para o gráfico usando dados que já vêm prontos
+      // Montar array para o gráfico
       const data: ChartDataItem[] = ultimos12.map(mes => {
-        const car = carMap[mes]?.valor_atual || 0;
-        const cap = capMap[mes]?.valor_atual || 0;
-        const mov = movMap[mes]?.valor_atual || 0;
+        const car = carMap[mes]?.valor_atual ?? 0;
+        const cap = capMap[mes]?.valor_atual ?? 0;
+        
+        // Se temos dados de movimentações do DFC, usar para a linha de saldo
+        let saldo = car - cap; // Fallback
+        if (momMovimentacoes && momMovimentacoes.length > 0) {
+          const movimentacaoItem = momMovimentacoes.find(item => item.mes === mes);
+          if (movimentacaoItem) {
+            saldo = movimentacaoItem.valor_atual;
+          }
+        }
         
         return {
           mes,
           mesLabel: formatMes(mes),
           CAR: car,
-          CAP: cap,
-          Movimentacoes: mov,
+          CAP: Math.abs(cap), // CAP sempre positivo para visualização
+          Saldo: saldo,
         };
       });
-      
+
       setChartData(data);
+    } else {
+      // Se não receber dados, exibir array vazio
+      setChartData([]);
     }
   }, [momReceber, momPagar, momMovimentacoes]);
 
   if (!chartData.length) {
     return (
       <div className="flex items-center justify-center h-24 text-muted-foreground">
-        <p>Carregando dados de movimentações...</p>
+        <p>Nenhum dado de movimentações disponível</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full">
-      <ComposedChart
-        data={chartData}
-        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-        width={500}
-        height={300}
-      >
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis 
-          dataKey="mesLabel" 
-          tickLine={false}
-          axisLine={false}
-        />
-        <YAxis 
-          tickFormatter={(v) => formatCurrencyShort(v, { noPrefix: true })}
-          tickLine={false}
-          axisLine={false}
-        />
-        <Bar 
-          dataKey="CAR" 
-          fill="#3b82f6" 
-          radius={[4, 4, 0, 0]}
-        />
-        <Bar 
-          dataKey="CAP" 
-          fill="#ef4444" 
-          radius={[4, 4, 0, 0]}
-        />
-        <Line 
-          type="monotone" 
-          dataKey="Movimentacoes" 
-          stroke="#ff651a" 
-          strokeWidth={2}
-          dot={<CustomizedLineDot />}
-          activeDot={{
-            r: 8,
-            fill: "#ff651a",
-            stroke: "#fff",
-            strokeWidth: 2,
-          }}
-        />
-      </ComposedChart>
-    </div>
+    <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
+      <ResponsiveContainer width="100%" height={250}>
+        <ComposedChart data={chartData}>
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey="mesLabel"
+            tickLine={false}
+            tickMargin={10}
+            axisLine={false}
+          />
+          <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => formatCurrencyShort(v, { noPrefix: true })} />
+          <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+          <Bar
+            dataKey="CAR"
+            fill="#2563eb"
+            radius={4}
+            name="Receber (CAR)"
+            shape={(props: any) => {
+              const { x, y, width, height, payload } = props;
+              const isSelected = mesSelecionado && payload?.mes === mesSelecionado;
+              return (
+                <rect
+                  x={x}
+                  y={y}
+                  width={width}
+                  height={height}
+                  rx={4}
+                  fill={isSelected ? '#f59e42' : '#2563eb'}
+                  stroke={isSelected ? '#f59e42' : undefined}
+                  strokeWidth={isSelected ? 3 : 0}
+                />
+              );
+            }}
+          />
+          <Bar
+            dataKey="CAP"
+            fill="#60a5fa"
+            radius={4}
+            name="Pagar (CAP)"
+            shape={(props: any) => {
+              const { x, y, width, height, payload } = props;
+              const isSelected = mesSelecionado && payload?.mes === mesSelecionado;
+              return (
+                <rect
+                  x={x}
+                  y={y}
+                  width={width}
+                  height={height}
+                  rx={4}
+                  fill={isSelected ? '#f9c38b' : '#60a5fa'}
+                  stroke={isSelected ? '#f9c38b' : undefined}
+                  strokeWidth={isSelected ? 3 : 0}
+                />
+              );
+            }}
+          />
+          <Line
+            type="monotone"
+            dataKey="Saldo"
+            stroke="#ff651a"
+            strokeWidth={3}
+            dot={CustomizedLineDot}
+            name="Saldo"
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </ChartContainer>
   );
 } 
