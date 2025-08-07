@@ -12,7 +12,6 @@ import { CardSkeleton, CardSkeletonLarge } from "../ui/card-skeleton";
 import {  
   TrendingUp,
   TrendingDown,
-  Wallet,
   ArrowUpDown,
   PlusCircle,
   MinusCircle,
@@ -428,33 +427,6 @@ export default function DashFinanceiro() {
               </CardContent>
             </Card>
 
-            {/* Saldo Líquido */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-center">
-                  <CardTitle className="text-lg sm:text-xl select-none">
-                    Saldo Líquido
-                  </CardTitle>
-                  <Wallet className="ml-auto w-4 h-4" />
-                </div>
-              </CardHeader>
-
-              <CardContent>
-                <div className="sm:flex sm:justify-between sm:items-center">
-                  <p className="text-lg sm:text-2xl">
-                    {saldoReceber?.data?.saldo_total !== undefined && saldoPagar?.data?.saldo_total !== undefined ? (
-                      formatCurrencyShort(saldoReceber.data.saldo_total - saldoPagar.data.saldo_total)
-                    ) : (
-                      "--"
-                    )}
-                  </p>
-                  <CardDescription>
-                    <p>Disponível hoje</p>
-                  </CardDescription>
-        </div>
-              </CardContent>
-            </Card>
-
             {/* PMR */}
             <Card>
               <CardHeader>
@@ -464,6 +436,9 @@ export default function DashFinanceiro() {
                   </CardTitle>
                   <Hourglass className="ml-auto w-4 h-4" />
                 </div>
+                <CardDescription className="flex items-start">
+                  <p className="text-xs text-muted-foreground opacity-70 select-none">Prazo médio de recebimento</p>
+                </CardDescription>
               </CardHeader>
 
               <CardContent>
@@ -472,7 +447,33 @@ export default function DashFinanceiro() {
                     {saldoReceber?.data?.pmr || "--"}
                   </p>
                   <CardDescription>
-                    <p>Prazo médio recebimento</p>
+                    <p>Todo o período</p>
+                  </CardDescription>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* PMP */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-center">
+                  <CardTitle className="text-lg sm:text-xl select-none">
+                    PMP
+                  </CardTitle>
+                  <Hourglass className="ml-auto w-4 h-4" />
+                </div>
+                <CardDescription className="flex items-start">
+                  <p className="text-xs text-muted-foreground opacity-70 select-none">Prazo médio de pagamento</p>
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent>
+                <div className="sm:flex sm:justify-between sm:items-center">
+                  <p className="text-lg sm:text-2xl">
+                    {saldoPagar?.data?.pmp || "--"}
+                  </p>
+                  <CardDescription>
+                    <p>Todo o período</p>
                   </CardDescription>
                 </div>
               </CardContent>

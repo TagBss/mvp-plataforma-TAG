@@ -350,7 +350,10 @@ export default function DfcTable() {
     return (
       <React.Fragment key={item.nome}>
         <TableRow className={item.tipo === "+" ? "font-semibold bg-muted/20" : ""}>
-          <TableCell style={{ paddingLeft: `${level * 20 + 16}px` }}>
+          <TableCell 
+            style={{ paddingLeft: `${level * 20 + 16}px` }}
+            className="py-3 md:sticky md:left-0 md:z-10 bg-background border-r border-border"
+          >
             <div className="flex items-center gap-2">
               {hasChildren && (
                 <button
@@ -528,35 +531,50 @@ export default function DfcTable() {
             </DropdownMenu>
           </div>
 
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={showVertical}
-                onCheckedChange={setShowVertical}
-              />
-              Análise Vertical
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={showHorizontal}
-                onCheckedChange={setShowHorizontal}
-              />
-              Análise Horizontal
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={showOrcado}
-                onCheckedChange={setShowOrcado}
-              />
-              Orçado
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={showDiferenca}
-                onCheckedChange={setShowDiferenca}
-              />
-              Diferença
-            </label>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">Indicadores:</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  Opções de Análise
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => setShowVertical(!showVertical)}>
+                  <Checkbox
+                    checked={showVertical}
+                    onCheckedChange={setShowVertical}
+                    className="mr-2"
+                  />
+                  Análise Vertical
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowHorizontal(!showHorizontal)}>
+                  <Checkbox
+                    checked={showHorizontal}
+                    onCheckedChange={setShowHorizontal}
+                    className="mr-2"
+                  />
+                  Análise Horizontal
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowOrcado(!showOrcado)}>
+                  <Checkbox
+                    checked={showOrcado}
+                    onCheckedChange={setShowOrcado}
+                    className="mr-2"
+                  />
+                  Orçado
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowDiferenca(!showDiferenca)}>
+                  <Checkbox
+                    checked={showDiferenca}
+                    onCheckedChange={setShowDiferenca}
+                    className="mr-2"
+                  />
+                  Diferença
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <Button onClick={toggleAll} variant="outline" size="sm">
@@ -565,14 +583,14 @@ export default function DfcTable() {
         </div>
 
         {/* Tabela */}
-        <div className="border rounded-md">
+        <div className="relative overflow-auto max-h-[80vh] px-6">
           <Table>
             <TableHeader>
               {/* Primeira linha do cabeçalho - períodos */}
               <TableRow>
                 <TableHead 
                   rowSpan={showOrcado || showDiferenca ? 2 : 1} 
-                  className="w-[300px] md:sticky md:left-0 md:z-10 bg-background border-r font-semibold"
+                  className="min-w-[300px] md:sticky md:left-0 md:z-10 bg-background border-r font-semibold"
                 >
                   Descrição
                 </TableHead>
