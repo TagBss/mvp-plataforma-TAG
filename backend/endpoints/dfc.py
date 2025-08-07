@@ -1,140 +1,16 @@
 from fastapi import APIRouter
-from financial_utils import (
-    calcular_analise_vertical, calcular_analise_horizontal, 
-    calcular_realizado_vs_orcado, calcular_totalizadores,
-    processar_periodos_financeiros, calcular_valores_por_periodo,
-    agregar_por_periodo_superior, calcular_analises_completas,
-    formatar_item_financeiro
+from helpers.cache_helper import get_cached_df
+from helpers.structure_helper import carregar_estrutura_dfc, extrair_nome_conta
+from helpers.data_processor import processar_dados_financeiros, separar_realizado_orcamento, calcular_totais_por_periodo, calcular_totalizadores
+from helpers.analysis_helper import calcular_analises_completas
+from helpers.dfc_helper import (
+    criar_linha_conta_dfc, criar_item_nivel_0_dfc, calcular_saldo_dfc,
+    preparar_dados_por_periodo, calcular_totalizadores_por_periodo,
+    obter_totalizadores_ordenados, criar_totalizadores_dinamicos,
+    calcular_analises_horizontais_movimentacoes
 )
 import pandas as pd
-import time
-import os
-import re
-
-# --- CACHE GLOBAL PARA O DATAFRAME ---
-_df_cache = {
-    "df": None,
-    "last_loaded": 0,
-    "last_mtime": 0,
-}
-CACHE_TIMEOUT = 300  # 5 minutos ao invés de 1 minuto
-
-# --- FUNÇÕES PARA ESTRUTURAS DINÂMICAS ---
-def extrair_tipo_operacao(texto):
-    """Extrai o tipo de operação de um texto como '( + ) Recebimentos Operacionais'"""
-    if not texto or pd.isna(texto):
-        return "="
-    
-    texto = str(texto).strip()
-    
-    # Padrões para diferentes tipos de operação
-    padroes = [
-        r'\(\s*\+\s*/\s*-\s*\)',  # ( + / - )
-        r'\(\s*\+\s*\)',          # ( + )
-        r'\(\s*-\s*\)',           # ( - )
-        r'\(\s*=\s*\)',           # ( = )
-        r'\(\+/-\)',              # (+/-)
-        r'\(\+\)',                # (+)
-        r'\(-\)',                  # (-)
-        r'\(=\)',                 # (=)
-    ]
-    
-    for padrao in padroes:
-        match = re.search(padrao, texto)
-        if match:
-            tipo = match.group()
-            # Limpar o tipo encontrado
-            tipo = re.sub(r'[()\s]', '', tipo)
-            return tipo
-    
-    return "="
-
-def extrair_nome_conta(texto):
-    """Extrai o nome da conta removendo os parênteses e tipos"""
-    if not texto or pd.isna(texto):
-        return ""
-    
-    texto = str(texto).strip()
-    
-    # Remover todos os padrões de tipo de operação
-    padroes_para_remover = [
-        r'\(\s*\+\s*/\s*-\s*\)',  # ( + / - )
-        r'\(\s*\+\s*\)',          # ( + )
-        r'\(\s*-\s*\)',           # ( - )
-        r'\(\s*=\s*\)',           # ( = )
-        r'\(\+/-\)',              # (+/-)
-        r'\(\+\)',                # (+)
-        r'\(-\)',                  # (-)
-        r'\(=\)',                 # (=)
-    ]
-    
-    for padrao in padroes_para_remover:
-        texto = re.sub(padrao, '', texto)
-    
-    return texto.strip()
-
-def carregar_estrutura_dfc(filename):
-    """Carrega a estrutura DFC da aba dfc_n2 da planilha"""
-    try:
-        df_estrutura = pd.read_excel(filename, sheet_name="dfc_n2")
-        
-        estrutura = []
-        for _, row in df_estrutura.iterrows():
-            dfc_n2 = str(row.get('dfc_n2', ''))
-            dfc_n1 = str(row.get('dfc_n1', ''))
-            
-            if dfc_n2 and dfc_n2 != 'nan':
-                nome = extrair_nome_conta(dfc_n2)
-                tipo = extrair_tipo_operacao(dfc_n2)
-                totalizador = extrair_nome_conta(dfc_n1) if dfc_n1 and dfc_n1 != 'nan' else ""
-                
-                estrutura.append({
-                    "nome": nome,
-                    "tipo": tipo,
-                    "totalizador": totalizador
-                })
-        
-        return estrutura
-    except Exception as e:
-        print(f"❌ Erro ao carregar estrutura DFC: {e}")
-        return []
-
-def get_cached_df(filename="financial-data-roriz.xlsx"):
-    global _df_cache
-    try:
-        mtime = os.path.getmtime(filename)
-    except Exception:
-        return None
-    now = time.time()
-    # Recarrega se: nunca carregado, arquivo mudou, ou timeout
-    if (
-        _df_cache["df"] is None
-        or _df_cache["last_mtime"] != mtime
-        or now - _df_cache["last_loaded"] > CACHE_TIMEOUT
-    ):
-        try:
-            print(f"📂 Carregando arquivo Excel: {filename}")
-            start_time = time.time()
-            
-            # Otimizar leitura do Excel - especificar aba "base"
-            df = pd.read_excel(
-                filename,
-                sheet_name="base",  # Especificar aba "base"
-                engine='openpyxl',  # Engine mais rápida
-                na_values=['', 'NaN', 'N/A', 'null'],  # Valores nulos explícitos
-            )
-            
-            end_time = time.time()
-            print(f"⏱️ Arquivo carregado em {end_time - start_time:.2f}s")
-            print(f"📊 Dados carregados: {len(df)} linhas, {len(df.columns)} colunas")
-            
-            _df_cache["df"] = df
-            _df_cache["last_loaded"] = now
-            _df_cache["last_mtime"] = mtime
-        except Exception as e:
-            print(f"❌ Erro ao carregar Excel: {e}")
-            _df_cache["df"] = None
-    return _df_cache["df"]
+import traceback
 
 router = APIRouter()
 
@@ -147,7 +23,7 @@ def get_dfc_data():
         if df is None:
             return {"error": "Erro ao ler o arquivo Excel."}
 
-        # Validação das colunas obrigatórias (incluindo 'origem')
+        # Validação das colunas obrigatórias
         required_columns = ["DFC_n2", "valor", "classificacao", "origem", "data"]
         if not all(col in df.columns for col in required_columns):
             return {"error": f"A planilha deve conter as colunas: {', '.join(required_columns)}"}
@@ -156,79 +32,19 @@ def get_dfc_data():
         if not date_column:
             return {"error": "Coluna de competência não encontrada"}
 
-        df[date_column] = pd.to_datetime(df[date_column], errors="coerce")
-        df["mes_ano"] = df[date_column].dt.to_period("M").astype(str)
-        df["ano"] = df[date_column].dt.year
-        df["trimestre"] = df[date_column].dt.to_period("Q").apply(lambda p: f"{p.year}-T{p.quarter}")
+        # Processar dados financeiros
+        df, meses_unicos, anos_unicos, trimestres_unicos = processar_dados_financeiros(df, date_column, "valor")
 
-        df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
-        df = df.dropna(subset=[date_column, "valor"])
-
-        meses_unicos = sorted(df["mes_ano"].dropna().unique())
-        anos_unicos = sorted(set(int(a) for a in df["ano"].dropna().unique()))
-        trimestres_unicos = sorted(df["trimestre"].dropna().unique())
-
-        # Separar realizado e orçamento com validação
-        df_real = df[df["origem"] != "ORC"].copy()
-        df_orc = df[df["origem"] == "ORC"].copy()
+        # Separar realizado e orçamento
+        df_real, df_orc = separar_realizado_orcamento(df, "origem")
 
         if df_real.empty:
             return {"error": "Não foram encontrados dados realizados na planilha"}
         if df_orc.empty:
             return {"error": "Não foram encontrados dados orçamentários na planilha"}
 
-        # Realizado
-        total_real_por_mes = {
-            mes: df_real[df_real["mes_ano"] == mes].groupby("DFC_n2")["valor"].sum().to_dict()
-            for mes in meses_unicos
-        }
-
-        # Orçamento
-        total_orc_por_mes = {
-            mes: df_orc[df_orc["mes_ano"] == mes].groupby("DFC_n2")["valor"].sum().to_dict()
-            for mes in meses_unicos
-        }
-
-        total_real_por_tri = {}
-        total_orc_por_tri = {}
-
-        for tri in trimestres_unicos:
-            meses_do_tri = df[df["trimestre"] == tri]["mes_ano"].unique()
-            soma_real = {}
-            soma_orc = {}
-            for mes in meses_do_tri:
-                for conta, valor in total_real_por_mes.get(mes, {}).items():
-                    soma_real[conta] = soma_real.get(conta, 0) + valor
-                for conta, valor in total_orc_por_mes.get(mes, {}).items():
-                    soma_orc[conta] = soma_orc.get(conta, 0) + valor
-            total_real_por_tri[tri] = soma_real
-            total_orc_por_tri[tri] = soma_orc
-
-        total_real_por_ano = {}
-        total_orc_por_ano = {}
-        for ano in anos_unicos:
-            meses_do_ano = [m for m in meses_unicos if m.startswith(str(ano))]
-            soma_real = {}
-            soma_orc = {}
-            for mes in meses_do_ano:
-                for conta, valor in total_real_por_mes.get(mes, {}).items():
-                    soma_real[conta] = soma_real.get(conta, 0) + valor
-                for conta, valor in total_orc_por_mes.get(mes, {}).items():
-                    soma_orc[conta] = soma_orc.get(conta, 0) + valor
-            total_real_por_ano[ano] = soma_real
-            total_orc_por_ano[ano] = soma_orc
-
-        total_geral_real = {}
-        total_geral_orc = {}
-        for mes in meses_unicos:
-            if mes in total_real_por_mes:
-                for conta, valor in total_real_por_mes[mes].items():
-                    total_geral_real[conta] = total_geral_real.get(conta, 0) + valor
-            if mes in total_orc_por_mes:
-                for conta, valor in total_orc_por_mes[mes].items():
-                    total_geral_orc[conta] = total_geral_orc.get(conta, 0) + valor
-
-
+        # Calcular totais por período
+        totais = calcular_totais_por_periodo(df_real, df_orc, meses_unicos, trimestres_unicos, anos_unicos, "DFC_n2", "valor")
 
         # Carregar estrutura dinâmica DFC
         estrutura_dfc = carregar_estrutura_dfc(filename)
@@ -238,52 +54,8 @@ def get_dfc_data():
         # Criar lista de contas a partir da estrutura dinâmica
         contas_dfc = [(item["nome"], item["tipo"]) for item in estrutura_dfc]
 
-        valores_mensais = {
-            mes: {nome: total_real_por_mes.get(mes, {}).get(nome, 0.0) for nome, _ in contas_dfc}
-            for mes in meses_unicos
-        }
-        orcamentos_mensais = {
-            mes: {nome: total_orc_por_mes.get(mes, {}).get(nome, 0.0) for nome, _ in contas_dfc}
-            for mes in meses_unicos
-        }
-
-        valores_trimestrais = {
-            tri: {nome: total_real_por_tri.get(tri, {}).get(nome, 0.0) for nome, _ in contas_dfc}
-            for tri in trimestres_unicos
-        }
-        orcamentos_trimestrais = {
-            tri: {nome: total_orc_por_tri.get(tri, {}).get(nome, 0.0) for nome, _ in contas_dfc}
-            for tri in trimestres_unicos
-        }
-
-        valores_anuais = {
-            str(ano): {nome: total_real_por_ano.get(ano, {}).get(nome, 0.0) for nome, _ in contas_dfc}
-            for ano in anos_unicos
-        }
-        orcamentos_anuais = {
-            str(ano): {nome: total_orc_por_ano.get(ano, {}).get(nome, 0.0) for nome, _ in contas_dfc}
-            for ano in anos_unicos
-        }
-
-        # Definir variáveis de orçamento no escopo correto
-        orcamentos_mes = {
-            mes: {nome: total_orc_por_mes.get(mes, {}).get(nome, 0.0) for nome, _ in contas_dfc}
-            for mes in meses_unicos
-        }
-
-        orcamentos_tri = {
-            tri: {nome: total_orc_por_tri.get(tri, {}).get(nome, 0.0) for nome, _ in contas_dfc}
-            for tri in trimestres_unicos
-        }
-
-        orcamentos_ano = {
-            str(ano): {nome: total_orc_por_ano.get(ano, {}).get(nome, 0.0) for nome, _ in contas_dfc}
-            for ano in anos_unicos
-        }
-        
-        orcamento_total = {nome: total_geral_orc.get(nome, 0.0) for nome, _ in contas_dfc}
-        valores_totais = {nome: total_geral_real.get(nome, 0.0) for nome, _ in contas_dfc}
-        orcamentos_totais = {nome: total_geral_orc.get(nome, 0.0) for nome, _ in contas_dfc}
+        # Preparar dados por período usando helper
+        dados_por_periodo = preparar_dados_por_periodo(totais, contas_dfc, meses_unicos, trimestres_unicos, anos_unicos)
 
         def get_classificacoes(dfc_n2_name):
             sub_df = df_real[df_real["DFC_n2"] == dfc_n2_name]
@@ -331,6 +103,20 @@ def get_dfc_data():
                     valores_anuais[str(ano)] = real_ano
                     orcamentos_anuais[str(ano)] = orc_ano
                 
+                # Calcular análises completas para as classificações
+                # Usar o total do item pai (dfc_n2) como base para análise vertical
+                total_item_pai = totais['total_geral_real'].get(dfc_n2_name, 0)
+                if total_item_pai == 0:
+                    # Se não encontrar o item pai, usar o total geral
+                    total_item_pai = sum(totais['total_geral_real'].values())
+                
+                # Para análise vertical, usar o total do item pai como base
+                analises_classificacao = calcular_analises_completas(
+                    valores_mensais, valores_trimestrais, valores_anuais, total_class,
+                    orcamentos_mensais, orcamentos_trimestrais, orcamentos_anuais, sum(orcamentos_mensais.values()),
+                    meses_unicos, trimestres_unicos, anos_unicos, total_item_pai
+                )
+                
                 classificacoes.append({
                     "nome": classificacao,
                     "valor": total_class,
@@ -341,431 +127,90 @@ def get_dfc_data():
                     "orcamentos_trimestrais": orcamentos_trimestrais,
                     "orcamentos_anuais": orcamentos_anuais,
                     "orcamento_total": sum(orcamentos_mensais.values()),
-                    "vertical_total": calcular_analise_vertical(total_class, total_geral_real.get("Recebimentos Operacionais", 0)),
-                    # Adicionar campos obrigatórios para compatibilidade com frontend
-                    "vertical_mensais": {mes: "–" for mes in meses_unicos},
-                    "vertical_trimestrais": {tri: "–" for tri in trimestres_unicos},
-                    "vertical_anuais": {str(ano): "–" for ano in anos_unicos},
-                    "horizontal_mensais": {mes: "–" for mes in meses_unicos},
-                    "horizontal_trimestrais": {tri: "–" for tri in trimestres_unicos},
-                    "horizontal_anuais": {str(ano): "–" for ano in anos_unicos},
-                    "vertical_orcamentos_mensais": {mes: "–" for mes in meses_unicos},
-                    "vertical_orcamentos_trimestrais": {tri: "–" for tri in trimestres_unicos},
-                    "vertical_orcamentos_anuais": {str(ano): "–" for ano in anos_unicos},
-                    "vertical_orcamentos_total": "–",
-                    "horizontal_orcamentos_mensais": {mes: "–" for mes in meses_unicos},
-                    "horizontal_orcamentos_trimestrais": {tri: "–" for tri in trimestres_unicos},
-                    "horizontal_orcamentos_anuais": {str(ano): "–" for ano in anos_unicos},
-                    "real_vs_orcamento_mensais": {mes: "–" for mes in meses_unicos},
-                    "real_vs_orcamento_trimestrais": {tri: "–" for tri in trimestres_unicos},
-                    "real_vs_orcamento_anuais": {str(ano): "–" for ano in anos_unicos},
-                    "real_vs_orcamento_total": "–"
+                    **analises_classificacao
                 })
             return classificacoes
 
-        def calcular_totalizadores(valores_dict):
-            # Criar totalizadores dinamicamente baseados na estrutura
-            totalizadores = {}
-            
-            for item in estrutura_dfc:
-                totalizador_nome = item["totalizador"]
-                if totalizador_nome and totalizador_nome not in totalizadores:
-                    totalizadores[totalizador_nome] = 0
-                
-                if totalizador_nome:
-                    valor_conta = valores_dict.get(item["nome"], 0)
-                    if item["tipo"] in ["+", "+/-"]:
-                        totalizadores[totalizador_nome] += valor_conta
-                    elif item["tipo"] == "-":
-                        totalizadores[totalizador_nome] -= valor_conta
-            
-            return totalizadores
+        # Calcular totalizadores por período usando helper
+        totalizadores_por_periodo = calcular_totalizadores_por_periodo(
+            dados_por_periodo['valores_mensais'], dados_por_periodo['valores_trimestrais'], dados_por_periodo['valores_anuais'],
+            dados_por_periodo['orcamentos_mensais'], dados_por_periodo['orcamentos_trimestrais'], dados_por_periodo['orcamentos_anuais'],
+            dados_por_periodo['valores_totais'], dados_por_periodo['orcamentos_totais'], estrutura_dfc,
+            meses_unicos, trimestres_unicos, anos_unicos
+        )
 
-        def criar_linha_conta(nome, tipo, totalizador_nome):
-            def safe_round(valor):
-                try:
-                    if pd.isna(valor) or valor is None:
-                        return 0
-                    return round(float(valor), 0)
-                except (ValueError, TypeError):
-                    return 0
-            
-            valores_mes = {mes: safe_round(valores_mensais[mes].get(nome, 0)) for mes in meses_unicos}
-            valores_tri = {tri: safe_round(valores_trimestrais[tri].get(nome, 0)) for tri in trimestres_unicos}
-            valores_ano = {str(ano): safe_round(valores_anuais[str(ano)].get(nome, 0)) for ano in anos_unicos}
-            orcamentos_mes = {mes: safe_round(orcamentos_mensais[mes].get(nome, 0)) for mes in meses_unicos}
-            orcamentos_tri = {tri: safe_round(orcamentos_trimestrais[tri].get(nome, 0)) for tri in trimestres_unicos}
-            orcamentos_ano = {str(ano): safe_round(orcamentos_anuais[str(ano)].get(nome, 0)) for ano in anos_unicos}
+        # Obter totalizadores ordenados usando helper
+        totalizadores_ordenados = obter_totalizadores_ordenados(estrutura_dfc, filename)
 
-            valores_total = valores_totais[nome]
-            orcamento_total_item = orcamentos_totais[nome]
+        # Criar totalizadores dinâmicos usando helper
+        totalizadores_dinamicos = criar_totalizadores_dinamicos(
+            totalizadores_ordenados, estrutura_dfc, dados_por_periodo,
+            totalizadores_por_periodo, meses_unicos, trimestres_unicos, anos_unicos,
+            get_classificacoes
+        )
 
-            # Análises
-            def safe_real_vs_orcado(real, orcado):
-                try:
-                    real_num = float(real) if real is not None else 0
-                    orcado_num = float(orcado) if orcado is not None else 0
-                    return calcular_realizado_vs_orcado(real_num, orcado_num)
-                except (ValueError, TypeError):
-                    return "–"
-            
-            real_vs_orcamento_mensais = {mes: safe_real_vs_orcado(valores_mes[mes], orcamentos_mes[mes]) for mes in meses_unicos}
-            real_vs_orcamento_trimestrais = {tri: safe_real_vs_orcado(valores_tri[tri], orcamentos_tri[tri]) for tri in trimestres_unicos}
-            real_vs_orcamento_anuais = {str(ano): safe_real_vs_orcado(valores_ano[str(ano)], orcamentos_ano[str(ano)]) for ano in anos_unicos}
-            real_vs_orcamento_total = safe_real_vs_orcado(valores_total, orcamento_total_item)
-
-            # Horizontal
-            horizontal_mensais = {}
-            for i, mes in enumerate(meses_unicos):
-                if i == 0:
-                    horizontal_mensais[mes] = "–"
-                else:
-                    horizontal_mensais[mes] = calcular_analise_horizontal(valores_mes[mes], valores_mes[meses_unicos[i-1]])
-
-            horizontal_trimestrais = {}
-            for i, tri in enumerate(trimestres_unicos):
-                if i == 0:
-                    horizontal_trimestrais[tri] = "–"
-                else:
-                    horizontal_trimestrais[tri] = calcular_analise_horizontal(valores_tri[tri], valores_tri[trimestres_unicos[i-1]])
-
-            horizontal_anuais = {}
-            for i, ano in enumerate(anos_unicos):
-                if i == 0:
-                    horizontal_anuais[str(ano)] = "–"
-                else:
-                    horizontal_anuais[str(ano)] = calcular_analise_horizontal(valores_ano[str(ano)], valores_ano[str(anos_unicos[i-1])])
-
-            # Vertical (baseado no totalizador)
-            vertical_mensais = {}
-            for mes in meses_unicos:
-                base_vertical = totalizadores_mensais[mes].get(totalizador_nome, 0)
-                vertical_mensais[mes] = calcular_analise_vertical(valores_mes[mes], base_vertical)
-
-            vertical_trimestrais = {}
-            for tri in trimestres_unicos:
-                base_vertical = totalizadores_trimestrais[tri].get(totalizador_nome, 0)
-                vertical_trimestrais[tri] = calcular_analise_vertical(valores_tri[tri], base_vertical)
-
-            vertical_anuais = {}
-            for ano in anos_unicos:
-                base_vertical = totalizadores_anuais[ano].get(totalizador_nome, 0)
-                vertical_anuais[str(ano)] = calcular_analise_vertical(valores_ano[str(ano)], base_vertical)
-
-            vertical_total = calcular_analise_vertical(valores_total, totalizadores_totais.get(totalizador_nome, 0))
-
-            # Orçamento análises
-            vertical_orcamentos_mensais = {}
-            for mes in meses_unicos:
-                base_vertical = totalizadores_orc_mensais[mes].get(totalizador_nome, 0)
-                vertical_orcamentos_mensais[mes] = calcular_analise_vertical(orcamentos_mes[mes], base_vertical)
-
-            vertical_orcamentos_trimestrais = {}
-            for tri in trimestres_unicos:
-                base_vertical = totalizadores_orc_trimestrais[tri].get(totalizador_nome, 0)
-                vertical_orcamentos_trimestrais[tri] = calcular_analise_vertical(orcamentos_tri[tri], base_vertical)
-
-            vertical_orcamentos_anuais = {}
-            for ano in anos_unicos:
-                base_vertical = totalizadores_orc_anuais[ano].get(totalizador_nome, 0)
-                vertical_orcamentos_anuais[str(ano)] = calcular_analise_vertical(orcamentos_ano[str(ano)], base_vertical)
-
-            vertical_orcamentos_total = calcular_analise_vertical(orcamento_total_item, totalizadores_orc_totais.get(totalizador_nome, 0))
-
-            # Horizontal orçamento
-            horizontal_orcamentos_mensais = {}
-            for i, mes in enumerate(meses_unicos):
-                if i == 0:
-                    horizontal_orcamentos_mensais[mes] = "–"
-                else:
-                    horizontal_orcamentos_mensais[mes] = calcular_analise_horizontal(orcamentos_mes[mes], orcamentos_mes[meses_unicos[i-1]])
-
-            horizontal_orcamentos_trimestrais = {}
-            for i, tri in enumerate(trimestres_unicos):
-                if i == 0:
-                    horizontal_orcamentos_trimestrais[tri] = "–"
-                else:
-                    horizontal_orcamentos_trimestrais[tri] = calcular_analise_horizontal(orcamentos_tri[tri], orcamentos_tri[trimestres_unicos[i-1]])
-
-            horizontal_orcamentos_anuais = {}
-            for i, ano in enumerate(anos_unicos):
-                if i == 0:
-                    horizontal_orcamentos_anuais[str(ano)] = "–"
-                else:
-                    horizontal_orcamentos_anuais[str(ano)] = calcular_analise_horizontal(orcamentos_ano[str(ano)], orcamentos_ano[str(anos_unicos[i-1])])
-
-            return {
-                "tipo": tipo,
-                "nome": nome,
-                "valor": valores_total,
-                "valores_mensais": valores_mes,
-                "valores_trimestrais": valores_tri,
-                "valores_anuais": valores_ano,
-                "orcamentos_mensais": orcamentos_mes,
-                "orcamentos_trimestrais": orcamentos_tri,
-                "orcamentos_anuais": orcamentos_ano,
-                "orcamento_total": orcamento_total_item,
-                "vertical_mensais": vertical_mensais,
-                "vertical_trimestrais": vertical_trimestrais,
-                "vertical_anuais": vertical_anuais,
-                "vertical_total": vertical_total,
-                "horizontal_mensais": horizontal_mensais,
-                "horizontal_trimestrais": horizontal_trimestrais,
-                "horizontal_anuais": horizontal_anuais,
-                "vertical_orcamentos_mensais": vertical_orcamentos_mensais,
-                "vertical_orcamentos_trimestrais": vertical_orcamentos_trimestrais,
-                "vertical_orcamentos_anuais": vertical_orcamentos_anuais,
-                "vertical_orcamentos_total": vertical_orcamentos_total,
-                "horizontal_orcamentos_mensais": horizontal_orcamentos_mensais,
-                "horizontal_orcamentos_trimestrais": horizontal_orcamentos_trimestrais,
-                "horizontal_orcamentos_anuais": horizontal_orcamentos_anuais,
-                "real_vs_orcamento_mensais": real_vs_orcamento_mensais,
-                "real_vs_orcamento_trimestrais": real_vs_orcamento_trimestrais,
-                "real_vs_orcamento_anuais": real_vs_orcamento_anuais,
-                "real_vs_orcamento_total": real_vs_orcamento_total,
-                "classificacoes": get_classificacoes(nome)
-            }
-
-        def calcular_linha(nome, func, tipo="="):
-            def safe_round(valor):
-                try:
-                    if pd.isna(valor) or valor is None:
-                        return 0
-                    return round(float(valor), 0)
-                except (ValueError, TypeError):
-                    return 0
-            
-            total = safe_round(func(valores_totais))
-            valores_mes = {mes: safe_round(func(valores_mensais[mes])) for mes in meses_unicos}
-            valores_tri = {tri: safe_round(func(valores_trimestrais[tri])) for tri in trimestres_unicos}
-            valores_ano = {str(ano): safe_round(func(valores_anuais[str(ano)])) for ano in anos_unicos}
-            orcamentos_mes = {mes: safe_round(func(orcamentos_mensais[mes])) for mes in meses_unicos}
-            orcamentos_tri = {tri: safe_round(func(orcamentos_trimestrais[tri])) for tri in trimestres_unicos}
-            orcamentos_ano = {str(ano): safe_round(func(orcamentos_anuais[str(ano)])) for ano in anos_unicos}
-            orcamento_total_calc = safe_round(func(orcamentos_totais))
-
-            # Análises básicas
-            def safe_real_vs_orcado(real, orcado):
-                try:
-                    real_num = float(real) if real is not None else 0
-                    orcado_num = float(orcado) if orcado is not None else 0
-                    return calcular_realizado_vs_orcado(real_num, orcado_num)
-                except (ValueError, TypeError):
-                    return "–"
-            
-            real_vs_orcamento_mensais = {mes: safe_real_vs_orcado(valores_mes[mes], orcamentos_mes[mes]) for mes in meses_unicos}
-            real_vs_orcamento_trimestrais = {tri: safe_real_vs_orcado(valores_tri[tri], orcamentos_tri[tri]) for tri in trimestres_unicos}
-            real_vs_orcamento_anuais = {str(ano): safe_real_vs_orcado(valores_ano[str(ano)], orcamentos_ano[str(ano)]) for ano in anos_unicos}
-            real_vs_orcamento_total = safe_real_vs_orcado(total, orcamento_total_calc)
-
-            # Horizontal
-            horizontal_mensais = {}
-            for i, mes in enumerate(meses_unicos):
-                if i == 0:
-                    horizontal_mensais[mes] = "–"
-                else:
-                    horizontal_mensais[mes] = calcular_analise_horizontal(valores_mes[mes], valores_mes[meses_unicos[i-1]])
-
-            horizontal_trimestrais = {}
-            for i, tri in enumerate(trimestres_unicos):
-                if i == 0:
-                    horizontal_trimestrais[tri] = "–"
-                else:
-                    horizontal_trimestrais[tri] = calcular_analise_horizontal(valores_tri[tri], valores_tri[trimestres_unicos[i-1]])
-
-            horizontal_anuais = {}
-            for i, ano in enumerate(anos_unicos):
-                if i == 0:
-                    horizontal_anuais[str(ano)] = "–"
-                else:
-                    horizontal_anuais[str(ano)] = calcular_analise_horizontal(valores_ano[str(ano)], valores_ano[str(anos_unicos[i-1])])
-
-            # Vertical (totalizadores não têm vertical)
-            vertical_mensais = {mes: "–" for mes in meses_unicos}
-            vertical_trimestrais = {tri: "–" for tri in trimestres_unicos}
-            vertical_anuais = {str(ano): "–" for ano in anos_unicos}
-            vertical_total = "–"
-
-            # Orçamento análises
-            vertical_orcamentos_mensais = {mes: "–" for mes in meses_unicos}
-            vertical_orcamentos_trimestrais = {tri: "–" for tri in trimestres_unicos}
-            vertical_orcamentos_anuais = {str(ano): "–" for ano in anos_unicos}
-            vertical_orcamentos_total = "–"
-
-            # Horizontal orçamento
-            horizontal_orcamentos_mensais = {}
-            for i, mes in enumerate(meses_unicos):
-                if i == 0:
-                    horizontal_orcamentos_mensais[mes] = "–"
-                else:
-                    horizontal_orcamentos_mensais[mes] = calcular_analise_horizontal(orcamentos_mes[mes], orcamentos_mes[meses_unicos[i-1]])
-
-            horizontal_orcamentos_trimestrais = {}
-            for i, tri in enumerate(trimestres_unicos):
-                if i == 0:
-                    horizontal_orcamentos_trimestrais[tri] = "–"
-                else:
-                    horizontal_orcamentos_trimestrais[tri] = calcular_analise_horizontal(orcamentos_tri[tri], orcamentos_tri[trimestres_unicos[i-1]])
-
-            horizontal_orcamentos_anuais = {}
-            for i, ano in enumerate(anos_unicos):
-                if i == 0:
-                    horizontal_orcamentos_anuais[str(ano)] = "–"
-                else:
-                    horizontal_orcamentos_anuais[str(ano)] = calcular_analise_horizontal(orcamentos_ano[str(ano)], orcamentos_ano[str(anos_unicos[i-1])])
-
-            return {
-                "tipo": tipo,
-                "nome": nome,
-                "valor": total,
-                "valores_mensais": valores_mes,
-                "valores_trimestrais": valores_tri,
-                "valores_anuais": valores_ano,
-                "orcamentos_mensais": orcamentos_mes,
-                "orcamentos_trimestrais": orcamentos_tri,
-                "orcamentos_anuais": orcamentos_ano,
-                "orcamento_total": orcamento_total_calc,
-                "vertical_mensais": vertical_mensais,
-                "vertical_trimestrais": vertical_trimestrais,
-                "vertical_anuais": vertical_anuais,
-                "vertical_total": vertical_total,
-                "horizontal_mensais": horizontal_mensais,
-                "horizontal_trimestrais": horizontal_trimestrais,
-                "horizontal_anuais": horizontal_anuais,
-                "vertical_orcamentos_mensais": vertical_orcamentos_mensais,
-                "vertical_orcamentos_trimestrais": vertical_orcamentos_trimestrais,
-                "vertical_orcamentos_anuais": vertical_orcamentos_anuais,
-                "vertical_orcamentos_total": vertical_orcamentos_total,
-                "horizontal_orcamentos_mensais": horizontal_orcamentos_mensais,
-                "horizontal_orcamentos_trimestrais": horizontal_orcamentos_trimestrais,
-                "horizontal_orcamentos_anuais": horizontal_orcamentos_anuais,
-                "real_vs_orcamento_mensais": real_vs_orcamento_mensais,
-                "real_vs_orcamento_trimestrais": real_vs_orcamento_trimestrais,
-                "real_vs_orcamento_anuais": real_vs_orcamento_anuais,
-                "real_vs_orcamento_total": real_vs_orcamento_total
-            }
-        
-        # Calcular totalizadores para todos os períodos
-        totalizadores_mensais = {}
-        for mes in meses_unicos:
-            totalizadores_mensais[mes] = calcular_totalizadores(valores_mensais[mes])
-
-        totalizadores_trimestrais = {}
-        for tri in trimestres_unicos:
-            totalizadores_trimestrais[tri] = calcular_totalizadores(valores_trimestrais[tri])
-
-        totalizadores_anuais = {}
-        for ano in anos_unicos:
-            totalizadores_anuais[ano] = calcular_totalizadores(valores_anuais[str(ano)])
-
-        # Totalizadores para orçamentos
-        totalizadores_orc_mensais = {}
-        for mes in meses_unicos:
-            totalizadores_orc_mensais[mes] = calcular_totalizadores(orcamentos_mensais[mes])
-
-        totalizadores_orc_trimestrais = {}
-        for tri in trimestres_unicos:
-            totalizadores_orc_trimestrais[tri] = calcular_totalizadores(orcamentos_trimestrais[tri])
-
-        totalizadores_orc_anuais = {}
-        for ano in anos_unicos:
-            totalizadores_orc_anuais[ano] = calcular_totalizadores(orcamentos_anuais[str(ano)])
-
-        # Totalizador geral
-        totalizadores_totais = calcular_totalizadores(valores_totais)
-        totalizadores_orc_totais = calcular_totalizadores(orcamentos_totais)
-
-        # Função para criar um totalizador com suas contas filhas
-        def criar_totalizador(nome_totalizador, nomes_contas, func_calculo):
-            # Criar o totalizador
-            totalizador = calcular_linha(nome_totalizador, func_calculo)
-            
-            # Adicionar as contas filhas como classificações
-            classificacoes = []
-            for nome_conta in nomes_contas:
-                conta_info = next((conta for conta in contas_dfc if conta[0] == nome_conta), None)
-                if conta_info:
-                    nome, tipo = conta_info
-                    conta = criar_linha_conta(nome, tipo, nome_totalizador)
-                    classificacoes.append(conta)
-            
-            totalizador["classificacoes"] = classificacoes
-            return totalizador
-
-        # Criar estrutura hierárquica dinamicamente
-
-        # Criar totalizadores dinamicamente baseados na estrutura
-        totalizadores_unicos = set()
-        for item in estrutura_dfc:
-            if item["totalizador"]:
-                totalizadores_unicos.add(item["totalizador"])
-        
-        # Criar totalizadores dinamicamente
-        totalizadores_dinamicos = {}
-        for totalizador_nome in totalizadores_unicos:
-            # Encontrar todas as contas que pertencem a este totalizador
-            contas_do_totalizador = [item["nome"] for item in estrutura_dfc if item["totalizador"] == totalizador_nome]
-            
-            # Criar função de cálculo dinâmica
-            def criar_funcao_calculo(contas):
-                def calcular_totalizador(valores_dict):
-                    total = 0
-                    for conta in contas:
-                        item = next((item for item in estrutura_dfc if item["nome"] == conta), None)
-                        if item:
-                            valor = valores_dict.get(conta, 0)
-                            if item["tipo"] in ["+", "+/-"]:
-                                total += valor
-                            elif item["tipo"] == "-":
-                                total -= valor
-                    return total
-                return calcular_totalizador
-            
-            totalizadores_dinamicos[totalizador_nome] = criar_totalizador(
-                totalizador_nome,
-                contas_do_totalizador,
-                criar_funcao_calculo(contas_do_totalizador)
-            )
-
-        # Função para criar um item de nível 0 (saldo inicial, movimentações, saldo final)
-        def criar_item_nivel_0(nome, tipo="="):
-            return {
-                "tipo": tipo,
-                "nome": nome,
-                "valor": 0,  # Placeholder
-                "valores_mensais": {mes: 0 for mes in meses_unicos},
-                "valores_trimestrais": {tri: 0 for tri in trimestres_unicos},
-                "valores_anuais": {str(ano): 0 for ano in anos_unicos},
-                "orcamentos_mensais": {mes: 0 for mes in meses_unicos},
-                "orcamentos_trimestrais": {tri: 0 for tri in trimestres_unicos},
-                "orcamentos_anuais": {str(ano): 0 for ano in anos_unicos},
-                "orcamento_total": 0,
-                "vertical_mensais": {mes: "–" for mes in meses_unicos},
-                "vertical_trimestrais": {tri: "–" for tri in trimestres_unicos},
-                "vertical_anuais": {str(ano): "–" for ano in anos_unicos},
-                "vertical_total": "–",
-                "horizontal_mensais": {mes: "–" for mes in meses_unicos},
-                "horizontal_trimestrais": {tri: "–" for tri in trimestres_unicos},
-                "horizontal_anuais": {str(ano): "–" for ano in anos_unicos},
-                "vertical_orcamentos_mensais": {mes: "–" for mes in meses_unicos},
-                "vertical_orcamentos_trimestrais": {tri: "–" for tri in trimestres_unicos},
-                "vertical_orcamentos_anuais": {str(ano): "–" for ano in anos_unicos},
-                "vertical_orcamentos_total": "–",
-                "horizontal_orcamentos_mensais": {mes: "–" for mes in meses_unicos},
-                "horizontal_orcamentos_trimestrais": {tri: "–" for tri in trimestres_unicos},
-                "horizontal_orcamentos_anuais": {str(ano): "–" for ano in anos_unicos},
-                "real_vs_orcamento_mensais": {mes: "–" for mes in meses_unicos},
-                "real_vs_orcamento_trimestrais": {tri: "–" for tri in trimestres_unicos},
-                "real_vs_orcamento_anuais": {str(ano): "–" for ano in anos_unicos},
-                "real_vs_orcamento_total": "–",
-                "classificacoes": []
-            }
-
-        # Criar estrutura do nível 0
+        # Criar estrutura hierárquica
         result = []
 
-        # PRIMEIRO: MOVIMENTAÇÕES (contém os 4 totalizadores como filhos)
-        movimentacoes = criar_item_nivel_0("Movimentações", "=")
+        # 1. SALDO INICIAL
+        saldo_inicial = criar_item_nivel_0_dfc("Saldo inicial", "=", meses_unicos, trimestres_unicos, anos_unicos)
+        
+        # Calcular saldo inicial mês a mês (saldo final do mês anterior)
+        saldo_acumulado = 0
+        for mes in meses_unicos:
+            saldo_inicial["valores_mensais"][mes] = saldo_acumulado
+            saldo_acumulado += sum(totalizador["valores_mensais"][mes] for totalizador in totalizadores_dinamicos.values())
+        
+        # Calcular saldo inicial trimestre a trimestre
+        saldo_acumulado_tri = 0
+        for tri in trimestres_unicos:
+            saldo_inicial["valores_trimestrais"][tri] = saldo_acumulado_tri
+            saldo_acumulado_tri += sum(totalizador["valores_trimestrais"][tri] for totalizador in totalizadores_dinamicos.values())
+        
+        # Calcular saldo inicial ano a ano
+        saldo_acumulado_ano = 0
+        for ano in anos_unicos:
+            saldo_inicial["valores_anuais"][str(ano)] = saldo_acumulado_ano
+            saldo_acumulado_ano += sum(totalizador["valores_anuais"][str(ano)] for totalizador in totalizadores_dinamicos.values())
+        
+        # Fazer o mesmo para orçamentos
+        saldo_acumulado_orc = 0
+        for mes in meses_unicos:
+            saldo_inicial["orcamentos_mensais"][mes] = saldo_acumulado_orc
+            saldo_acumulado_orc += sum(totalizador["orcamentos_mensais"][mes] for totalizador in totalizadores_dinamicos.values())
+        
+        saldo_acumulado_orc_tri = 0
+        for tri in trimestres_unicos:
+            saldo_inicial["orcamentos_trimestrais"][tri] = saldo_acumulado_orc_tri
+            saldo_acumulado_orc_tri += sum(totalizador["orcamentos_trimestrais"][tri] for totalizador in totalizadores_dinamicos.values())
+        
+        saldo_acumulado_orc_ano = 0
+        for ano in anos_unicos:
+            saldo_inicial["orcamentos_anuais"][str(ano)] = saldo_acumulado_orc_ano
+            saldo_acumulado_orc_ano += sum(totalizador["orcamentos_anuais"][str(ano)] for totalizador in totalizadores_dinamicos.values())
+        
+        # Calcular análises horizontais para saldo inicial
+        analises_horizontais_saldo_inicial = calcular_analises_horizontais_movimentacoes(
+            saldo_inicial["valores_mensais"], saldo_inicial["valores_trimestrais"], saldo_inicial["valores_anuais"],
+            meses_unicos, trimestres_unicos, anos_unicos
+        )
+        saldo_inicial["horizontal_mensais"] = analises_horizontais_saldo_inicial["horizontal_mensais"]
+        saldo_inicial["horizontal_trimestrais"] = analises_horizontais_saldo_inicial["horizontal_trimestrais"]
+        saldo_inicial["horizontal_anuais"] = analises_horizontais_saldo_inicial["horizontal_anuais"]
+        
+        # Remover AV do nível 0
+        saldo_inicial["vertical_mensais"] = {mes: "–" for mes in meses_unicos}
+        saldo_inicial["vertical_trimestrais"] = {tri: "–" for tri in trimestres_unicos}
+        saldo_inicial["vertical_anuais"] = {str(ano): "–" for ano in anos_unicos}
+        saldo_inicial["vertical_total"] = "–"
+        
+        # Calcular AH para o total do saldo inicial
+        saldo_inicial["horizontal_total"] = "–"  # Primeiro item não tem AH
+        
+        result.append(saldo_inicial)
+
+        # 2. MOVIMENTAÇÕES
+        movimentacoes = criar_item_nivel_0_dfc("Movimentações", "=", meses_unicos, trimestres_unicos, anos_unicos)
         
         # Calcular valores de movimentações como soma de todos os totalizadores dinâmicos
         for mes in meses_unicos:
@@ -805,169 +250,31 @@ def get_dfc_data():
             totalizador["orcamento_total"] for totalizador in totalizadores_dinamicos.values()
         )
         
+        # Calcular análises horizontais para movimentações
+        analises_horizontais = calcular_analises_horizontais_movimentacoes(
+            movimentacoes["valores_mensais"], movimentacoes["valores_trimestrais"], movimentacoes["valores_anuais"],
+            meses_unicos, trimestres_unicos, anos_unicos
+        )
+        movimentacoes["horizontal_mensais"] = analises_horizontais["horizontal_mensais"]
+        movimentacoes["horizontal_trimestrais"] = analises_horizontais["horizontal_trimestrais"]
+        movimentacoes["horizontal_anuais"] = analises_horizontais["horizontal_anuais"]
+        
+        # Remover AV das movimentações
+        movimentacoes["vertical_mensais"] = {mes: "–" for mes in meses_unicos}
+        movimentacoes["vertical_trimestrais"] = {tri: "–" for tri in trimestres_unicos}
+        movimentacoes["vertical_anuais"] = {str(ano): "–" for ano in anos_unicos}
+        movimentacoes["vertical_total"] = "–"
+        
+        # Calcular AH para o total das movimentações
+        movimentacoes["horizontal_total"] = "–"  # Movimentações não têm AH no total
+        
         # Adicionar todos os totalizadores dinâmicos como classificações de "Movimentações"
         movimentacoes["classificacoes"] = list(totalizadores_dinamicos.values())
-
-        # Calcular análise horizontal (MoM) para movimentações
-        # Horizontal mensais
-        horizontal_mensais = {}
-        for i, mes in enumerate(meses_unicos):
-            if i == 0:
-                horizontal_mensais[mes] = "–"
-            else:
-                horizontal_mensais[mes] = calcular_analise_horizontal(
-                    movimentacoes["valores_mensais"][mes], 
-                    movimentacoes["valores_mensais"][meses_unicos[i-1]]
-                )
-        movimentacoes["horizontal_mensais"] = horizontal_mensais
-
-        # Horizontal trimestrais
-        horizontal_trimestrais = {}
-        for i, tri in enumerate(trimestres_unicos):
-            if i == 0:
-                horizontal_trimestrais[tri] = "–"
-            else:
-                horizontal_trimestrais[tri] = calcular_analise_horizontal(
-                    movimentacoes["valores_trimestrais"][tri], 
-                    movimentacoes["valores_trimestrais"][trimestres_unicos[i-1]]
-                )
-        movimentacoes["horizontal_trimestrais"] = horizontal_trimestrais
-
-        # Horizontal anuais
-        horizontal_anuais = {}
-        for i, ano in enumerate(anos_unicos):
-            if i == 0:
-                horizontal_anuais[str(ano)] = "–"
-            else:
-                horizontal_anuais[str(ano)] = calcular_analise_horizontal(
-                    movimentacoes["valores_anuais"][str(ano)], 
-                    movimentacoes["valores_anuais"][str(anos_unicos[i-1])]
-                )
-        movimentacoes["horizontal_anuais"] = horizontal_anuais
-
-        # 1. SALDO INICIAL (0 no primeiro mês, saldo final do mês anterior nos demais)
-        saldo_inicial = criar_item_nivel_0("Saldo inicial", "=")
         
-        # Calcular saldo inicial mês a mês (saldo final do mês anterior)
-        saldo_acumulado = 0
-        for mes in meses_unicos:
-            saldo_inicial["valores_mensais"][mes] = saldo_acumulado
-            # Atualizar saldo acumulado para o próximo mês
-            saldo_acumulado += movimentacoes["valores_mensais"][mes]
-        
-        # Calcular saldo inicial trimestre a trimestre
-        saldo_acumulado_tri = 0
-        for tri in trimestres_unicos:
-            saldo_inicial["valores_trimestrais"][tri] = saldo_acumulado_tri
-            saldo_acumulado_tri += movimentacoes["valores_trimestrais"][tri]
-        
-        # Calcular saldo inicial ano a ano
-        saldo_acumulado_ano = 0
-        for ano in anos_unicos:
-            saldo_inicial["valores_anuais"][str(ano)] = saldo_acumulado_ano
-            saldo_acumulado_ano += movimentacoes["valores_anuais"][str(ano)]
-        
-        # Saldo inicial total permanece 0
-        saldo_inicial["valor"] = 0
-        
-        # Fazer o mesmo para orçamentos
-        saldo_acumulado_orc = 0
-        for mes in meses_unicos:
-            saldo_inicial["orcamentos_mensais"][mes] = saldo_acumulado_orc
-            saldo_acumulado_orc += movimentacoes["orcamentos_mensais"][mes]
-        
-        saldo_acumulado_orc_tri = 0
-        for tri in trimestres_unicos:
-            saldo_inicial["orcamentos_trimestrais"][tri] = saldo_acumulado_orc_tri
-            saldo_acumulado_orc_tri += movimentacoes["orcamentos_trimestrais"][tri]
-        
-        saldo_acumulado_orc_ano = 0
-        for ano in anos_unicos:
-            saldo_inicial["orcamentos_anuais"][str(ano)] = saldo_acumulado_orc_ano
-            saldo_acumulado_orc_ano += movimentacoes["orcamentos_anuais"][str(ano)]
-        
-        saldo_inicial["orcamento_total"] = 0
-        
-        # Calcular análise horizontal para saldo inicial
-        # Horizontal mensais
-        horizontal_mensais_inicial = {}
-        for i, mes in enumerate(meses_unicos):
-            if i == 0:
-                horizontal_mensais_inicial[mes] = "–"
-            else:
-                horizontal_mensais_inicial[mes] = calcular_analise_horizontal(
-                    saldo_inicial["valores_mensais"][mes], 
-                    saldo_inicial["valores_mensais"][meses_unicos[i-1]]
-                )
-        saldo_inicial["horizontal_mensais"] = horizontal_mensais_inicial
-
-        # Horizontal trimestrais
-        horizontal_trimestrais_inicial = {}
-        for i, tri in enumerate(trimestres_unicos):
-            if i == 0:
-                horizontal_trimestrais_inicial[tri] = "–"
-            else:
-                horizontal_trimestrais_inicial[tri] = calcular_analise_horizontal(
-                    saldo_inicial["valores_trimestrais"][tri], 
-                    saldo_inicial["valores_trimestrais"][trimestres_unicos[i-1]]
-                )
-        saldo_inicial["horizontal_trimestrais"] = horizontal_trimestrais_inicial
-
-        # Horizontal anuais
-        horizontal_anuais_inicial = {}
-        for i, ano in enumerate(anos_unicos):
-            if i == 0:
-                horizontal_anuais_inicial[str(ano)] = "–"
-            else:
-                horizontal_anuais_inicial[str(ano)] = calcular_analise_horizontal(
-                    saldo_inicial["valores_anuais"][str(ano)], 
-                    saldo_inicial["valores_anuais"][str(anos_unicos[i-1])]
-                )
-        saldo_inicial["horizontal_anuais"] = horizontal_anuais_inicial
-
-        # Horizontal orçamento mensais
-        horizontal_orcamentos_mensais_inicial = {}
-        for i, mes in enumerate(meses_unicos):
-            if i == 0:
-                horizontal_orcamentos_mensais_inicial[mes] = "–"
-            else:
-                horizontal_orcamentos_mensais_inicial[mes] = calcular_analise_horizontal(
-                    saldo_inicial["orcamentos_mensais"][mes], 
-                    saldo_inicial["orcamentos_mensais"][meses_unicos[i-1]]
-                )
-        saldo_inicial["horizontal_orcamentos_mensais"] = horizontal_orcamentos_mensais_inicial
-
-        # Horizontal orçamento trimestrais
-        horizontal_orcamentos_trimestrais_inicial = {}
-        for i, tri in enumerate(trimestres_unicos):
-            if i == 0:
-                horizontal_orcamentos_trimestrais_inicial[tri] = "–"
-            else:
-                horizontal_orcamentos_trimestrais_inicial[tri] = calcular_analise_horizontal(
-                    saldo_inicial["orcamentos_trimestrais"][tri], 
-                    saldo_inicial["orcamentos_trimestrais"][trimestres_unicos[i-1]]
-                )
-        saldo_inicial["horizontal_orcamentos_trimestrais"] = horizontal_orcamentos_trimestrais_inicial
-
-        # Horizontal orçamento anuais
-        horizontal_orcamentos_anuais_inicial = {}
-        for i, ano in enumerate(anos_unicos):
-            if i == 0:
-                horizontal_orcamentos_anuais_inicial[str(ano)] = "–"
-            else:
-                horizontal_orcamentos_anuais_inicial[str(ano)] = calcular_analise_horizontal(
-                    saldo_inicial["orcamentos_anuais"][str(ano)], 
-                    saldo_inicial["orcamentos_anuais"][str(anos_unicos[i-1])]
-                )
-        saldo_inicial["horizontal_orcamentos_anuais"] = horizontal_orcamentos_anuais_inicial
-        
-        result.append(saldo_inicial)
-
-        # 2. Adicionar as movimentações
         result.append(movimentacoes)
 
-        # 3. SALDO FINAL (saldo inicial + movimentação de cada período)
-        saldo_final = criar_item_nivel_0("Saldo final", "=")
+        # 3. SALDO FINAL
+        saldo_final = criar_item_nivel_0_dfc("Saldo final", "=", meses_unicos, trimestres_unicos, anos_unicos)
         
         # Calcular saldo final mês a mês (saldo inicial + movimentação)
         for mes in meses_unicos:
@@ -996,78 +303,23 @@ def get_dfc_data():
         
         saldo_final["orcamento_total"] = movimentacoes["orcamento_total"]
         
-        # Calcular análise horizontal para saldo final
-        # Horizontal mensais
-        horizontal_mensais_final = {}
-        for i, mes in enumerate(meses_unicos):
-            if i == 0:
-                horizontal_mensais_final[mes] = "–"
-            else:
-                horizontal_mensais_final[mes] = calcular_analise_horizontal(
-                    saldo_final["valores_mensais"][mes], 
-                    saldo_final["valores_mensais"][meses_unicos[i-1]]
-                )
-        saldo_final["horizontal_mensais"] = horizontal_mensais_final
-
-        # Horizontal trimestrais
-        horizontal_trimestrais_final = {}
-        for i, tri in enumerate(trimestres_unicos):
-            if i == 0:
-                horizontal_trimestrais_final[tri] = "–"
-            else:
-                horizontal_trimestrais_final[tri] = calcular_analise_horizontal(
-                    saldo_final["valores_trimestrais"][tri], 
-                    saldo_final["valores_trimestrais"][trimestres_unicos[i-1]]
-                )
-        saldo_final["horizontal_trimestrais"] = horizontal_trimestrais_final
-
-        # Horizontal anuais
-        horizontal_anuais_final = {}
-        for i, ano in enumerate(anos_unicos):
-            if i == 0:
-                horizontal_anuais_final[str(ano)] = "–"
-            else:
-                horizontal_anuais_final[str(ano)] = calcular_analise_horizontal(
-                    saldo_final["valores_anuais"][str(ano)], 
-                    saldo_final["valores_anuais"][str(anos_unicos[i-1])]
-                )
-        saldo_final["horizontal_anuais"] = horizontal_anuais_final
-
-        # Horizontal orçamento mensais
-        horizontal_orcamentos_mensais_final = {}
-        for i, mes in enumerate(meses_unicos):
-            if i == 0:
-                horizontal_orcamentos_mensais_final[mes] = "–"
-            else:
-                horizontal_orcamentos_mensais_final[mes] = calcular_analise_horizontal(
-                    saldo_final["orcamentos_mensais"][mes], 
-                    saldo_final["orcamentos_mensais"][meses_unicos[i-1]]
-                )
-        saldo_final["horizontal_orcamentos_mensais"] = horizontal_orcamentos_mensais_final
-
-        # Horizontal orçamento trimestrais
-        horizontal_orcamentos_trimestrais_final = {}
-        for i, tri in enumerate(trimestres_unicos):
-            if i == 0:
-                horizontal_orcamentos_trimestrais_final[tri] = "–"
-            else:
-                horizontal_orcamentos_trimestrais_final[tri] = calcular_analise_horizontal(
-                    saldo_final["orcamentos_trimestrais"][tri], 
-                    saldo_final["orcamentos_trimestrais"][trimestres_unicos[i-1]]
-                )
-        saldo_final["horizontal_orcamentos_trimestrais"] = horizontal_orcamentos_trimestrais_final
-
-        # Horizontal orçamento anuais
-        horizontal_orcamentos_anuais_final = {}
-        for i, ano in enumerate(anos_unicos):
-            if i == 0:
-                horizontal_orcamentos_anuais_final[str(ano)] = "–"
-            else:
-                horizontal_orcamentos_anuais_final[str(ano)] = calcular_analise_horizontal(
-                    saldo_final["orcamentos_anuais"][str(ano)], 
-                    saldo_final["orcamentos_anuais"][str(anos_unicos[i-1])]
-                )
-        saldo_final["horizontal_orcamentos_anuais"] = horizontal_orcamentos_anuais_final
+        # Calcular análises horizontais para saldo final
+        analises_horizontais_saldo_final = calcular_analises_horizontais_movimentacoes(
+            saldo_final["valores_mensais"], saldo_final["valores_trimestrais"], saldo_final["valores_anuais"],
+            meses_unicos, trimestres_unicos, anos_unicos
+        )
+        saldo_final["horizontal_mensais"] = analises_horizontais_saldo_final["horizontal_mensais"]
+        saldo_final["horizontal_trimestrais"] = analises_horizontais_saldo_final["horizontal_trimestrais"]
+        saldo_final["horizontal_anuais"] = analises_horizontais_saldo_final["horizontal_anuais"]
+        
+        # Remover AV do saldo final
+        saldo_final["vertical_mensais"] = {mes: "–" for mes in meses_unicos}
+        saldo_final["vertical_trimestrais"] = {tri: "–" for tri in trimestres_unicos}
+        saldo_final["vertical_anuais"] = {str(ano): "–" for ano in anos_unicos}
+        saldo_final["vertical_total"] = "–"
+        
+        # Calcular AH para o total do saldo final
+        saldo_final["horizontal_total"] = "–"  # Saldo final não tem AH no total
         
         result.append(saldo_final)
 
@@ -1076,210 +328,22 @@ def get_dfc_data():
             "trimestres": trimestres_unicos,
             "anos": anos_unicos,
             "data": result,
-            "orcamentos_mensais": orcamentos_mes,
-            "orcamentos_trimestrais": orcamentos_tri,
-            "orcamentos_anuais": orcamentos_ano,
-            "orcamento_total": orcamento_total,
+            "orcamentos_mensais": dados_por_periodo['orcamentos_mensais'],
+            "orcamentos_trimestrais": dados_por_periodo['orcamentos_trimestrais'],
+            "orcamentos_anuais": dados_por_periodo['orcamentos_anuais'],
+            "orcamento_total": dados_por_periodo['orcamentos_totais'],
         }
 
     except Exception as e:
-        return {"error": f"Erro ao processar a DFC: {str(e)}"}
-
-
-def calcular_mom(df_filtrado, date_column, origem):
-    """
-    Calcula variação Month over Month (MoM)
-    """
-    try:
-        # Agrupar por mês e somar valores
-        df_mensal = df_filtrado.groupby(
-            df_filtrado[date_column].dt.to_period('M')
-        )['valor'].sum().reset_index()
-        
-        # Ordenar por data
-        df_mensal = df_mensal.sort_values(date_column)
-        
-        # Calcular variação MoM
-        df_mensal['valor_anterior'] = df_mensal['valor'].shift(1)
-        df_mensal['variacao_absoluta'] = df_mensal['valor'] - df_mensal['valor_anterior']
-        df_mensal['variacao_percentual'] = (
-            (df_mensal['valor'] - df_mensal['valor_anterior']) / 
-            df_mensal['valor_anterior'] * 100
-        ).round(2)
-        
-        # Preparar dados para retorno
-        mom_data = []
-        for _, row in df_mensal.iterrows():
-            mom_data.append({
-                "mes": str(row[date_column]),
-                "valor_atual": round(row['valor'], 2),
-                "valor_anterior": round(row['valor_anterior'], 2) if pd.notna(row['valor_anterior']) else None,
-                "variacao_absoluta": round(row['variacao_absoluta'], 2) if pd.notna(row['variacao_absoluta']) else None,
-                "variacao_percentual": row['variacao_percentual'] if pd.notna(row['variacao_percentual']) else None
-            })
-        
-        return mom_data
-        
-    except Exception as e:
-        return []
-
-def calcular_saldo(origem: str, mes_filtro: str = None):
-    """
-    Calcula saldo genérico baseado na origem:
-    - Se origem == 'CAR': Contas a Receber
-    - Se origem == 'CAP': Contas a Pagar
-    """
-    filename = "financial-data-roriz.xlsx"
-    
-    try:
-        df = get_cached_df(filename)
-        if df is None:
-            return {"error": "Erro ao ler o arquivo Excel."}
-
-        # Validação das colunas obrigatórias
-        required_columns = ["valor", "origem", "DFC_n1"]
-        if not all(col in df.columns for col in required_columns):
-            return {"error": f"A planilha deve conter as colunas: {', '.join(required_columns)}"}
-
-        # Identificar coluna de data
-        date_column = next((col for col in df.columns if col.lower() == "data"), None)
-        if not date_column:
-            return {"error": "Coluna de data não encontrada"}
-
-        # Processar dados
-        df[date_column] = pd.to_datetime(df[date_column], errors="coerce")
-        df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
-
-        df = df.dropna(subset=[date_column, "valor"])
-
-        # Filtrar apenas contas diferentes de DFC_n1 "Movimentação entre Contas"
-        df_con = df[
-            (df["DFC_n1"] != "Movimentação entre Contas") & 
-            (df["DFC_n1"].notna())
-        ].copy()
-
-        # Filtrar pela origem dinâmica para MoM (NÃO filtra por mês)
-        df_mom = df_con[df_con["origem"] == origem].copy()
-
-        # Calcular MoM SEM filtro de mês (sempre retorna todos os meses)
-        mom_data = calcular_mom(df_mom, date_column, origem)
-
-        # Filtrar pela origem dinâmica para saldo (pode filtrar por mês)
-        df_filtrado = df_con[df_con["origem"] == origem].copy()
-        if mes_filtro:
-            df_filtrado = df_filtrado[
-                df_filtrado[date_column].dt.strftime("%Y-%m") == mes_filtro
-            ]
-
-        if df_filtrado.empty:
-            return {
-                "error": f"Não foram encontrados registros com origem '{origem}'",
-                "total_passado": 0,
-                "total_futuro": 0,
-                "saldo_total": 0,
-                "anos_disponiveis": [],
-                "meses_disponiveis": []
-            }
-
-        hoje = pd.Timestamp.now().normalize()
-
-        # Soma dos valores
-        total_passado = df_filtrado[df_filtrado[date_column] < hoje]["valor"].sum()
-        total_futuro = df_filtrado[df_filtrado[date_column] >= hoje]["valor"].sum()
-        saldo_total = total_passado + total_futuro
-
-        total_registros = len(df_filtrado)
-        registros_passados = len(df_filtrado[df_filtrado[date_column] < hoje])
-        registros_futuros = len(df_filtrado[df_filtrado[date_column] >= hoje])
-
-        # Anos e meses disponíveis
-        if not mes_filtro:
-            # Se for todo o período, pegue todos os meses/anos disponíveis do df_con (toda a origem)
-            anos_disponiveis = sorted(df_con[date_column].dt.year.unique().tolist())
-            meses_disponiveis = sorted(df_con[date_column].dt.strftime("%Y-%m").unique().tolist())
-        else:
-            anos_disponiveis = sorted(df_filtrado[date_column].dt.year.unique().tolist())
-            meses_disponiveis = sorted(df_filtrado[date_column].dt.strftime("%Y-%m").unique().tolist())
-
-        # Calcular PMR (Prazo Médio de Recebimento)
-        # data_caixa = se data existe, usa data, senão usa vencimento
-        data_caixa_col = None
-        if "data" in df_con.columns and "vencimento" in df_con.columns:
-            data_caixa_col = df_con["data"].combine_first(df_con["vencimento"])
-        elif "data" in df_con.columns:
-            data_caixa_col = df_con["data"]
-        elif "vencimento" in df_con.columns:
-            data_caixa_col = df_con["vencimento"]
-
-        pmr = None
-        pmp = None
-        # Calcular PMR (Prazo Médio de Recebimento)
-        if origem == "CAR" and data_caixa_col is not None and "competencia" in df_con.columns:
-            mask = (
-                df_con["origem"] == "CAR"
-                ) & (
-                data_caixa_col.notna()
-                ) & (
-                df_con["competencia"].notna()
-                )
-            df_pmr = df_con[mask].copy()
-            if not df_pmr.empty:
-                df_pmr["data_caixa"] = data_caixa_col[mask]
-                df_pmr["competencia"] = pd.to_datetime(df_pmr["competencia"])
-                df_pmr["diferenca_dias"] = (df_pmr["data_caixa"] - df_pmr["competencia"]).dt.days
-                # PMR ponderado pelo valor
-                df_pmr_valid = df_pmr.dropna(subset=["diferenca_dias", "valor"])
-                if not df_pmr_valid.empty and df_pmr_valid["valor"].sum() != 0:
-                    pmr = (df_pmr_valid["diferenca_dias"] * df_pmr_valid["valor"]).sum() / df_pmr_valid["valor"].sum()
-
-        # Calcular PMP (Prazo Médio de Pagamento)
-        if origem == "CAP" and data_caixa_col is not None and "competencia" in df_con.columns:
-            mask = (
-                df_con["origem"] == "CAP"
-                ) & (
-                (df_con["DFC_n1"].fillna("") != "Movimentação entre Contas")
-                ) & (
-                data_caixa_col.notna()
-                ) & (
-                df_con["competencia"].notna()
-                )
-            df_pmp = df_con[mask].copy()
-            if not df_pmp.empty:
-                df_pmp["data_caixa"] = data_caixa_col[mask]
-                df_pmp["competencia"] = pd.to_datetime(df_pmp["competencia"])
-                df_pmp["diferenca_dias"] = (df_pmp["data_caixa"] - df_pmp["competencia"]).dt.days
-                # PMP ponderado pelo valor
-                df_pmp_valid = df_pmp.dropna(subset=["diferenca_dias", "valor"])
-                if not df_pmp_valid.empty and df_pmp_valid["valor"].sum() != 0:
-                    pmp = (df_pmp_valid["diferenca_dias"] * df_pmp_valid["valor"]).sum() / df_pmp_valid["valor"].sum()
-
-        return {
-            "success": True,
-            "data": {
-                "total_passado": round(total_passado, 2),
-                "total_futuro": round(total_futuro, 2),
-                "saldo_total": round(saldo_total, 2),
-                "data_calculo": hoje.strftime("%Y-%m-%d"),
-                "estatisticas": {
-                    "total_registros": total_registros,
-                    "registros_passados": registros_passados,
-                    "registros_futuros": registros_futuros
-                },
-                "anos_disponiveis": anos_disponiveis,
-                "meses_disponiveis": meses_disponiveis,
-                "mom_analysis": mom_data,
-                "pmr": f"{int(pmr)} dias" if pmr is not None else None,
-                "pmp": f"{int(pmp)} dias" if pmp is not None else None
-            }
-        }
-        
-    except Exception as e:
-        return {"error": f"Erro ao calcular saldo: {str(e)}"}
+        error_msg = f"Erro ao processar a DFC: {str(e)}"
+        print(f"❌ {error_msg}")
+        print(f"🔍 Traceback: {traceback.format_exc()}")
+        return {"error": error_msg}
 
 @router.get("/receber")
 def get_caixa_saldo(mes: str = None):
-    return calcular_saldo("CAR", mes)
+    return calcular_saldo_dfc("CAR", mes)
 
 @router.get("/pagar")
 def get_pagar_saldo(mes: str = None):
-    return calcular_saldo("CAP", mes)
+    return calcular_saldo_dfc("CAP", mes)

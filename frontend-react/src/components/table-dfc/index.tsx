@@ -202,10 +202,10 @@ export default function DfcTable() {
           maximumFractionDigits: 0,
         })}
       </span>
-      {showVertical && verticalPct && (
+      {showVertical && verticalPct && verticalPct !== "–" && (
         <span className="text-xs text-muted-foreground">AV {verticalPct}</span>
       )}
-      {showHorizontal && horizontalPct && (
+      {showHorizontal && horizontalPct && horizontalPct !== "–" && (
         <span className="text-xs text-muted-foreground">AH {horizontalPct}</span>
       )}
     </div>
@@ -224,10 +224,10 @@ export default function DfcTable() {
           maximumFractionDigits: 0,
         })}
       </span>
-      {showVertical && verticalPct && (
+      {showVertical && verticalPct && verticalPct !== "–" && (
         <span className="text-xs text-muted-foreground">AV {verticalPct}</span>
       )}
-      {showHorizontal && horizontalPct && (
+      {showHorizontal && horizontalPct && horizontalPct !== "–" && (
         <span className="text-xs text-muted-foreground">AH {horizontalPct}</span>
       )}
     </div>
@@ -373,31 +373,31 @@ export default function DfcTable() {
             const orcamento = calcularOrcamento(item, p)
             
             const getVerticalPct = () => {
-              if (periodo === "mes") return item.vertical_mensais?.[p]
-              if (periodo === "trimestre") return item.vertical_trimestrais?.[p]
-              if (periodo === "ano") return item.vertical_anuais?.[p] ?? item.vertical_anuais?.[`${p}.0`]
-              return undefined
+              if (periodo === "mes") return item.vertical_mensais?.[p] || "–"
+              if (periodo === "trimestre") return item.vertical_trimestrais?.[p] || "–"
+              if (periodo === "ano") return (item.vertical_anuais?.[p] ?? item.vertical_anuais?.[`${p}.0`]) || "–"
+              return "–"
             }
 
             const getHorizontalPct = () => {
-              if (periodo === "mes") return item.horizontal_mensais?.[p]
-              if (periodo === "trimestre") return item.horizontal_trimestrais?.[p]
-              if (periodo === "ano") return item.horizontal_anuais?.[p] ?? item.horizontal_anuais?.[`${p}.0`]
-              return undefined
+              if (periodo === "mes") return item.horizontal_mensais?.[p] || "–"
+              if (periodo === "trimestre") return item.horizontal_trimestrais?.[p] || "–"
+              if (periodo === "ano") return (item.horizontal_anuais?.[p] ?? item.horizontal_anuais?.[`${p}.0`]) || "–"
+              return "–"
             }
 
             const getVerticalOrcPct = () => {
-              if (periodo === "mes") return item.vertical_orcamentos_mensais?.[p]
-              if (periodo === "trimestre") return item.vertical_orcamentos_trimestrais?.[p]
-              if (periodo === "ano") return item.vertical_orcamentos_anuais?.[p] ?? item.vertical_orcamentos_anuais?.[`${p}.0`]
-              return undefined
+              if (periodo === "mes") return item.vertical_orcamentos_mensais?.[p] || "–"
+              if (periodo === "trimestre") return item.vertical_orcamentos_trimestrais?.[p] || "–"
+              if (periodo === "ano") return (item.vertical_orcamentos_anuais?.[p] ?? item.vertical_orcamentos_anuais?.[`${p}.0`]) || "–"
+              return "–"
             }
 
             const getHorizontalOrcPct = () => {
-              if (periodo === "mes") return item.horizontal_orcamentos_mensais?.[p]
-              if (periodo === "trimestre") return item.horizontal_orcamentos_trimestrais?.[p]
-              if (periodo === "ano") return item.horizontal_orcamentos_anuais?.[p] ?? item.horizontal_orcamentos_anuais?.[`${p}.0`]
-              return undefined
+              if (periodo === "mes") return item.horizontal_orcamentos_mensais?.[p] || "–"
+              if (periodo === "trimestre") return item.horizontal_orcamentos_trimestrais?.[p] || "–"
+              if (periodo === "ano") return (item.horizontal_orcamentos_anuais?.[p] ?? item.horizontal_orcamentos_anuais?.[`${p}.0`]) || "–"
+              return "–"
             }
 
             return (
@@ -420,11 +420,11 @@ export default function DfcTable() {
           })}
 
           <TableCell className="text-right font-medium">
-            {renderValor(total, totalVerticalPct, undefined)}
+            {renderValor(total, undefined, undefined)}
           </TableCell>
           {showOrcado && (
             <TableCell className="text-right font-medium">
-              {renderValorOrcamento(totalOrcamento, item.vertical_orcamentos_total, undefined)}
+              {renderValorOrcamento(totalOrcamento, undefined, undefined)}
             </TableCell>
           )}
           {showDiferenca && (
