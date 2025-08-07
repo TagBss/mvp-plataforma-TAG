@@ -568,61 +568,66 @@ export default function DfcTable() {
         <div className="border rounded-md">
           <Table>
             <TableHeader>
+              {/* Primeira linha do cabeçalho - períodos */}
               <TableRow>
-                <TableHead className="w-[300px]">Descrição</TableHead>
-                {periodosFiltrados.map(p => (
-                  <React.Fragment key={p}>
-                    <TableHead className="text-right min-w-[120px]">
-                      {showOrcado || showDiferenca ? (
-                        <div className="text-center">
-                          <div className="font-semibold">{p}</div>
-                          <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                            <span>Real</span>
-                            {showOrcado && <span>Orçado</span>}
-                            {showDiferenca && <span>Dif.</span>}
-                          </div>
-                        </div>
-                      ) : (
-                        p
-                      )}
-                    </TableHead>
-                    {showOrcado && (
-                      <TableHead className="text-right min-w-[120px]">
-                        <div className="text-xs text-muted-foreground">Orçado</div>
-                      </TableHead>
-                    )}
-                    {showDiferenca && (
-                      <TableHead className="text-right min-w-[120px]">
-                        <div className="text-xs text-muted-foreground">Diferença</div>
-                      </TableHead>
-                    )}
-                  </React.Fragment>
-                ))}
-                <TableHead className="text-right min-w-[120px] font-semibold">
-                  {showOrcado || showDiferenca ? (
-                    <div className="text-center">
-                      <div className="font-semibold">Total</div>
-                      <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                        <span>Real</span>
-                        {showOrcado && <span>Orçado</span>}
-                        {showDiferenca && <span>Dif.</span>}
-                      </div>
-                    </div>
-                  ) : (
-                    "Total"
-                  )}
+                <TableHead 
+                  rowSpan={showOrcado || showDiferenca ? 2 : 1} 
+                  className="w-[300px] md:sticky md:left-0 md:z-10 bg-background border-r font-semibold"
+                >
+                  Descrição
                 </TableHead>
-                {showOrcado && (
-                  <TableHead className="text-right min-w-[120px]">
-                    <div className="text-xs text-muted-foreground">Total Orçado</div>
+                {periodosFiltrados.map((p) => (
+                  <TableHead 
+                    key={p} 
+                    colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)} 
+                    className="text-center min-w-[120px] bg-muted/30 border-r font-semibold"
+                  >
+                    {p}
                   </TableHead>
-                )}
-                {showDiferenca && (
-                  <TableHead className="text-right min-w-[120px]">
-                    <div className="text-xs text-muted-foreground">Total Diferença</div>
-                  </TableHead>
-                )}
+                ))}
+                <TableHead 
+                  colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)} 
+                  className="text-center min-w-[120px] bg-muted/30 font-semibold"
+                >
+                  Total
+                </TableHead>
               </TableRow>
+              {/* Segunda linha do cabeçalho - Real, Orçado, Dif. - só aparece se houver mais de uma coluna */}
+              {(showOrcado || showDiferenca) && (
+                <TableRow>
+                  {periodosFiltrados.map((p) => (
+                    <React.Fragment key={`${p}-sub`}>
+                      <TableHead className="text-right min-w-[120px] bg-secondary/30">
+                        Real
+                      </TableHead>
+                      {showOrcado && (
+                        <TableHead className="text-right min-w-[120px] bg-muted/20">
+                          Orçado
+                        </TableHead>
+                      )}
+                      {showDiferenca && (
+                        <TableHead className="text-right min-w-[120px] bg-muted/20">
+                          Dif.
+                        </TableHead>
+                      )}
+                    </React.Fragment>
+                  ))}
+                  {/* Colunas do Total */}
+                  <TableHead className="text-right min-w-[120px] bg-secondary/30">
+                    Real
+                  </TableHead>
+                  {showOrcado && (
+                    <TableHead className="text-right min-w-[120px] bg-muted/20">
+                      Orçado
+                    </TableHead>
+                  )}
+                  {showDiferenca && (
+                    <TableHead className="text-right min-w-[120px] bg-muted/20">
+                      Dif.
+                    </TableHead>
+                  )}
+                </TableRow>
+              )}
             </TableHeader>
             <TableBody>
               {data.map(item => renderItem(item))}
