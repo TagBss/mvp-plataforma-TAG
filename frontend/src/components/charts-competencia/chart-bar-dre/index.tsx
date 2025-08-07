@@ -7,8 +7,8 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart"
-import { formatCurrencyShort } from "../../kpis-competencia"
+} from "../../ui/chart"
+import { formatCurrencyShort } from "../../../utils/formatters"
 
 export const description = "Gráfico de cascata DRE usando Recharts"
 

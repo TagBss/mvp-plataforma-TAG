@@ -8,8 +8,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Button } from "@/components/ui/button"
+} from "../ui/dropdown-menu"
+import { Button } from "../ui/button"
+import { api } from "../../services/api"
 
 const mesesNomes = [
   "", "Janeiro", "Fevereiro", "Março",
@@ -32,23 +33,27 @@ export function FiltroMes({ onSelect, endpoint, value }: FiltroMesProps) {
 
   useEffect(() => {
     const fetchMeses = async () => {
-      const res = await fetch(endpoint)
-      const data = await res.json()
-      let meses: string[] = [];
-      // Aceita tanto meses_disponiveis quanto meses
-      if (data?.data?.meses_disponiveis && Array.isArray(data.data.meses_disponiveis)) {
-        meses = data.data.meses_disponiveis;
-      } else if (data?.meses_disponiveis && Array.isArray(data.meses_disponiveis)) {
-        meses = data.meses_disponiveis;
-      } else if (data?.meses && Array.isArray(data.meses)) {
-        meses = data.meses;
-      } else if (Array.isArray(data) && data.length > 0 && typeof data[0] === "string") {
-        meses = data;
-      }
-      if (meses.length > 0) {
-        setMesesDisponiveis(meses);
-      } else {
-        console.error("meses_disponiveis ou meses não encontrados!");
+      try {
+        const res = await api.get(endpoint)
+        const data = res.data
+        let meses: string[] = [];
+        // Aceita tanto meses_disponiveis quanto meses
+        if (data?.data?.meses_disponiveis && Array.isArray(data.data.meses_disponiveis)) {
+          meses = data.data.meses_disponiveis;
+        } else if (data?.meses_disponiveis && Array.isArray(data.meses_disponiveis)) {
+          meses = data.meses_disponiveis;
+        } else if (data?.meses && Array.isArray(data.meses)) {
+          meses = data.meses;
+        } else if (Array.isArray(data) && data.length > 0 && typeof data[0] === "string") {
+          meses = data;
+        }
+        if (meses.length > 0) {
+          setMesesDisponiveis(meses);
+        } else {
+          console.error("meses_disponiveis ou meses não encontrados!");
+        }
+      } catch (error) {
+        console.error("Erro ao buscar meses:", error);
       }
     }
     fetchMeses()

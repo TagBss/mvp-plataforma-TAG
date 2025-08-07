@@ -1,35 +1,30 @@
 "use client"
 
-
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { formatCurrencyShort } from "../../../utils/formatters"
 import {
+  ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart"
-import { formatCurrencyShort } from "../../kpis-financeiro"
-
+} from "../../ui/chart"
 
 export interface AreaChartSaldoProps {
   data: Array<{
     mes: string
     saldo_final: number
   }>
-  config?: {
-    saldo_final?: { label: string; color: string }
-  }
   mesSelecionado?: string;
 }
 
-export function ChartAreaSaldoFinal({ data, config, mesSelecionado }: AreaChartSaldoProps) {
-  // Cores e labels padrão, pode sobrescrever via config
-  const chartConfig = {
-    saldo_final: {
-      label: config?.saldo_final?.label || "Saldo Final",
-      color: config?.saldo_final?.color || "var(--chart-5)",
-    },
-  };
+const chartConfig = {
+  saldo_final: {
+    label: "Saldo Final",
+    color: "#3b82f6",
+  },
+} satisfies ChartConfig
 
+export function ChartAreaSaldoFinal({ data, mesSelecionado }: AreaChartSaldoProps) {
   // Componente customizado para renderizar pontos destacados
   type DotProps = {
     cx?: number;
@@ -47,12 +42,20 @@ export function ChartAreaSaldoFinal({ data, config, mesSelecionado }: AreaChartS
         cx={cx}
         cy={cy}
         r={6}
-        fill="var(--chart-5)"
+        fill="#3b82f6"
         strokeWidth={3}
-        style={{ filter: 'drop-shadow(0 0 6px var(--chart-5))' }}
+        style={{ filter: 'drop-shadow(0 0 6px #3b82f6)' }}
       />
     );
   };
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-24 text-muted-foreground">
+        <p>Nenhum dado de saldo disponível</p>
+      </div>
+    );
+  }
 
   return (
     <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
@@ -95,27 +98,27 @@ export function ChartAreaSaldoFinal({ data, config, mesSelecionado }: AreaChartS
           <linearGradient id="fillSaldoFinal" x1="0" y1="0" x2="0" y2="1">
             <stop
               offset="5%"
-              stopColor={chartConfig.saldo_final.color}
+              stopColor="#3b82f6"
               stopOpacity={0.8}
             />
             <stop
               offset="95%"
-              stopColor={chartConfig.saldo_final.color}
+              stopColor="#3b82f6"
               stopOpacity={0.1}
             />
           </linearGradient>
         </defs>
         <Area
           dataKey="saldo_final"
-          name={chartConfig.saldo_final.label}
+          name="Saldo Final"
           type="natural"
           fill="url(#fillSaldoFinal)"
           fillOpacity={0.4}
-          stroke={chartConfig.saldo_final.color}
+          stroke="#3b82f6"
           stackId="a"
           dot={CustomizedDot}
         />
       </AreaChart>
     </ChartContainer>
   );
-}
+} 

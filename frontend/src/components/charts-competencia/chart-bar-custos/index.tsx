@@ -6,9 +6,9 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart"
+} from "../../ui/chart"
 
-import { formatCurrencyShort } from "../../kpis-competencia"
+import { formatCurrencyShort } from "../../../utils/formatters"
 
 export type ChartBarCustosData = {
   categoria: string
@@ -70,7 +70,6 @@ export function ChartBarCustos({ data, loading, error }: Omit<ChartBarCustosProp
         />
         <Bar
           dataKey="valor"
-          layout="vertical"
           fill="var(--color-valor)"
           radius={4}
         >

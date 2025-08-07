@@ -151,3 +151,44 @@ def carregar_estrutura_dre(filename="financial-data-roriz.xlsx"):
     except Exception as e:
         print(f"❌ Erro ao carregar estrutura DRE: {e}")
         return [] 
+
+def carregar_estrutura_dre_simplificada(filename="financial-data-roriz.xlsx"):
+    """Carrega a estrutura DRE da aba 'dre' com estrutura simplificada"""
+    try:
+        # Ler a aba dre
+        df_estrutura = pd.read_excel(filename, sheet_name="dre")
+        
+        if df_estrutura.empty:
+            print("⚠️ Aba dre está vazia")
+            return []
+        
+        # Verificar se as colunas necessárias existem
+        if "dre" not in df_estrutura.columns or "dre_id" not in df_estrutura.columns:
+            print("⚠️ Colunas dre ou dre_id não encontradas na aba dre")
+            return []
+        
+        estrutura = []
+        for _, row in df_estrutura.iterrows():
+            dre = str(row.get('dre', ''))
+            dre_id = row.get('dre_id', 0)
+            
+            if pd.notna(dre) and str(dre).strip():
+                nome = extrair_nome_conta(str(dre))
+                tipo = extrair_tipo_operacao(str(dre))
+                
+                estrutura.append({
+                    "nome": nome,
+                    "tipo": tipo,
+                    "dre_id": dre_id,
+                    "totalizador": nome,  # Cada item é seu próprio totalizador
+                    "expandivel": tipo != "="  # Só itens que não são "=" são expansíveis
+                })
+        
+        # Ordenar por dre_id
+        estrutura.sort(key=lambda x: x["dre_id"])
+        
+        return estrutura
+        
+    except Exception as e:
+        print(f"❌ Erro ao carregar estrutura DRE simplificada: {e}")
+        return [] 

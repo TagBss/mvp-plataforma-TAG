@@ -1,6 +1,5 @@
 "use client";
 
-import { ChartAreaSaldoFinal } from "@/components/charts-financeiro/chart-area-saldo-final";
 import {
   Card,
   CardContent,
@@ -8,23 +7,23 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { CardSkeleton, CardSkeletonLarge } from "@/components/ui/card-skeleton";
+} from "../ui/card";
+import { CardSkeleton, CardSkeletonLarge } from "../ui/card-skeleton";
 import {  
-  ArrowUpDown,
-  Hourglass,
-  MinusCircle,
-  Package,
-  PlusCircle,
   TrendingUp,
   TrendingDown,
-  Wallet,
+  ArrowUpDown,
+  PlusCircle,
+  MinusCircle,
+  Package,
+  Hourglass,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { FiltroMes } from "@/components/filtro-mes"
-import ChartMovimentacoes from "@/components/charts-financeiro/chart-movimentacoes";
+import { FiltroMes } from "../filtro-mes";
+import { ChartAreaSaldoFinal } from "../charts-financeiro/chart-area-saldo-final";
 import { ChartCustosFinanceiro } from "../charts-financeiro/chart-bar-custos";
-import { apiCache } from "@/lib/api-cache";
+import ChartMovimentacoes from "../charts-financeiro/chart-movimentacoes";
+import { api } from "../../services/api";
 
 // Função para formatar no estilo curto (Mil / Mi)
 export function formatCurrencyShort(value: number, opts?: { noPrefix?: boolean }): string {
@@ -43,7 +42,7 @@ export function formatCurrencyShort(value: number, opts?: { noPrefix?: boolean }
   return `${prefix}${value < 0 ? "-" : ""}${formatted.replace(".", ",")}`;
 }
 
-// Tipagem para MoM
+// Tipagem para MoM (análise horizontal)
 type MoMData = {
   mes: string;
   valor_atual: number;
@@ -52,7 +51,7 @@ type MoMData = {
   variacao_percentual: number | null;
 };
 
-// Tipagem para análise de saldos
+// Tipagem para dados de saldo
 type SaldoData = {
   success: boolean;
   data: {
@@ -64,21 +63,14 @@ type SaldoData = {
   };
 };
 
-// Tipagem para DFC com estrutura hierárquica
-type DFCClassificacao = {
-  nome: string;
-  valor: number;
-  valores_mensais: Record<string, number>;
-  classificacoes?: DFCClassificacao[];
-};
-
+// Tipagem para dados DFC
 type DFCItem = {
   tipo: string;
   nome: string;
   valor: number;
   valores_mensais: Record<string, number>;
   horizontal_mensais: Record<string, string>;
-  classificacoes?: DFCClassificacao[];
+  classificacoes?: any[];
 };
 
 type DFCData = {
@@ -92,23 +84,11 @@ type DFCData = {
 // Função utilitária para formatar períodos de meses
 const mesesAbreviados = ['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
-function formatarPeriodo(params: { mesSelecionado: string; saldosEvolucao: Array<{ mes: string }> }) {
-  const { mesSelecionado, saldosEvolucao } = params;
+function formatarPeriodo(dados: Array<{ mes: string }>) {
+  if (dados.length === 0) return "Todo o período";
   
-  if (mesSelecionado) {
-    // Formatar mesSelecionado para "abr/25"
-    if (mesSelecionado.match(/^\d{4}-\d{2}$/)) {
-      const [ano, mes] = mesSelecionado.split("-");
-      const mesNum = parseInt(mes, 10);
-      return `${mesesAbreviados[mesNum]}/${ano.slice(-2)}`;
-    }
-    return mesSelecionado;
-  }
-  
-  if (saldosEvolucao.length === 0) return "--";
-  
-  const primeiro = saldosEvolucao[0].mes;
-  const ultimo = saldosEvolucao[saldosEvolucao.length - 1].mes;
+  const primeiro = dados[0].mes;
+  const ultimo = dados[dados.length - 1].mes;
   
   const formatar = (mes: string) => {
     if (!mes.match(/^\d{4}-\d{2}$/)) return mes;
@@ -125,13 +105,7 @@ function getMoMIndicator(momData: MoMData[], mesSelecionado: string) {
 
   // Se mesSelecionado for string vazia ("Todo o período"), não retorna MoM
   if (!mesSelecionado) {
-    return {
-      percentage: null,
-      isPositive: null,
-      mesAnterior: "--",
-      arrow: "",
-      hasValue: false
-    };
+    return null;
   }
 
   let index = -1;
@@ -141,6 +115,7 @@ function getMoMIndicator(momData: MoMData[], mesSelecionado: string) {
   if (index === -1) {
     index = momData.length - 1;
   }
+  
   const entry = momData[index];
   const mesAnteriorRaw = momData[index - 1]?.mes || "--";
   const variacao = entry?.variacao_percentual ?? null;
@@ -163,365 +138,204 @@ function getMoMIndicator(momData: MoMData[], mesSelecionado: string) {
   };
 }
 
-const API_BASE_URL = 'http://127.0.0.1:8000';
-
 export default function DashFinanceiro() {
+  console.log("🔥 COMPONENTE FINANCEIRO INICIADO");
+  
+  // Estados principais
   const [mesSelecionado, setMesSelecionado] = useState<string>("");
-  const [inicializado, setInicializado] = useState(false);
+  const [inicializando, setInicializando] = useState(true);
   const [loading, setLoading] = useState(false);
   
-  // Estados dos dados
+  // Estados dos KPIs
   const [saldoReceber, setSaldoReceber] = useState<SaldoData | null>(null);
   const [saldoPagar, setSaldoPagar] = useState<SaldoData | null>(null);
-  const [dfc, setDfc] = useState<DFCData | null>(null);
-
-  // Inicializar dados básicos
-  useEffect(() => {
-    const inicializar = async () => {
-      try {
-        
-        const [receberRes, pagarRes, dfcRes] = await Promise.all([
-          apiCache.fetchWithCache<SaldoData>(`${API_BASE_URL}/receber`),
-          apiCache.fetchWithCache<SaldoData>(`${API_BASE_URL}/pagar`),
-          apiCache.fetchWithCache<DFCData>(`${API_BASE_URL}/dfc`),
-        ]);
-
-        setSaldoReceber(receberRes);
-        setSaldoPagar(pagarRes);
-        setDfc(dfcRes);
-
-        // Definir mês padrão
-        if (receberRes.success && receberRes.data?.meses_disponiveis && receberRes.data.meses_disponiveis.length > 0) {
-          const meses = receberRes.data.meses_disponiveis;
-          const mesPadrao = meses[meses.length - 1];
-          setMesSelecionado(mesPadrao);
-        }
-      } catch (error) {
-        console.error("❌ Erro na inicialização:", error);
-      } finally {
-        setInicializado(true);
-      }
-    };
-
-    inicializar();
-  }, []);
-
-  // Carregar dados por mês
-  useEffect(() => {
-    if (!inicializado || mesSelecionado === null || mesSelecionado === undefined) {
-      return;
-    }
-
-    const carregarDadosMes = async () => {
-      setLoading(true);
-      
-      try {
-        const queryString = mesSelecionado ? `?mes=${mesSelecionado}` : '';
-        
-        const [receberRes, pagarRes, dfcRes] = await Promise.all([
-          apiCache.fetchWithCache<SaldoData>(`${API_BASE_URL}/receber${queryString}`),
-          apiCache.fetchWithCache<SaldoData>(`${API_BASE_URL}/pagar${queryString}`),
-          apiCache.fetchWithCache<DFCData>(`${API_BASE_URL}/dfc`),
-        ]);
-
-        // Log apenas se houver problemas
-        if (!dfcRes || !dfcRes.data || dfcRes.data.length === 0) {
-          console.error("❌ DFC sem dados válidos:", dfcRes);
-        } else {
-          const custos = dfcRes.data.find(item => item.nome === "Custos");
-          const movimentacoes = dfcRes.data.find(item => item.nome === "Movimentações");
-          if (!custos) {
-            console.warn("⚠️ Item 'Custos' não encontrado no DFC");
-          }
-          if (!movimentacoes) {
-            console.warn("⚠️ Item 'Movimentações' não encontrado no DFC");
-          }
-        }
-
-        setSaldoReceber(receberRes);
-        setSaldoPagar(pagarRes);
-        setDfc(dfcRes);
-
-      } catch (error) {
-        console.error("❌ Erro ao carregar dados:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    carregarDadosMes();
-  }, [inicializado, mesSelecionado]);
-
-  const handleMesSelecionado = (mes: string) => {
-    if (!inicializado) return;
-    setMesSelecionado(mes);
+  const [dfcData, setDfcData] = useState<DFCData | null>(null);
+  
+  // Estados para gráficos
+  const [saldoEvolucao, setSaldoEvolucao] = useState<Array<{ mes: string; saldo_final: number }>>([]);
+  const [movimentacoesData, setMovimentacoesData] = useState<MoMData[]>([]);
+  const [custosData, setCustosData] = useState<Record<string, number>>({});
+  
+  // Handler para mudança de mês
+  const handleMudancaMes = (novoMes: string) => {
+    console.log("🔄 Mudando para:", novoMes);
+    setMesSelecionado(novoMes);
   };
 
-  // Extrair dados dos estados
-  const pmr = saldoReceber?.data?.pmr || null;
-  const pmp = saldoPagar?.data?.pmp || null;
-  const momReceber = saldoReceber?.data?.mom_analysis || [];
-  const momPagar = saldoPagar?.data?.mom_analysis || [];
-  
-  // Extrair dados de movimentações do DFC
-  const dfcData = dfc?.data;
-  let movimentacoesValor = null;
-  let momMovimentacoes: MoMData[] = [];
-
-  if (dfcData && Array.isArray(dfcData)) {
-    const movimentacoesItem = dfcData.find(item => item.nome === "Movimentações");
-    
-    if (movimentacoesItem) {
-      if (!mesSelecionado) {
-        // Todo o período - usar valor total
-        movimentacoesValor = movimentacoesItem.valor;
-      } else {
-        // Mês específico - usar valores_mensais
-        movimentacoesValor = movimentacoesItem.valores_mensais?.[mesSelecionado] || null;
-      }
-
-      // Converter horizontal_mensais para formato MoM
-      if (movimentacoesItem.horizontal_mensais) {
-        const mesesOrdenados = Object.keys(movimentacoesItem.valores_mensais || {}).sort();
-        momMovimentacoes = mesesOrdenados.map((mes, idx) => {
-          const valorAtual = movimentacoesItem.valores_mensais?.[mes] || 0;
-          const valorAnterior = idx > 0 ? (movimentacoesItem.valores_mensais?.[mesesOrdenados[idx-1]] || null) : null;
-          const horizontalStr = movimentacoesItem.horizontal_mensais?.[mes];
-          
-          let variacaoPercentual = null;
-          let variacaoAbsoluta = null;
-          
-          if (horizontalStr && horizontalStr !== "–" && valorAnterior !== null) {
-            const percentualMatch = horizontalStr.match(/([+-]?)(\d+\.?\d*)%/);
-            if (percentualMatch) {
-              const sinal = percentualMatch[1] === "-" ? -1 : 1;
-              variacaoPercentual = parseFloat(percentualMatch[2]) * sinal;
-              variacaoAbsoluta = valorAtual - valorAnterior;
-            }
-          }
-
-          return {
-            mes,
-            valor_atual: valorAtual,
-            valor_anterior: valorAnterior,
-            variacao_absoluta: variacaoAbsoluta,
-            variacao_percentual: variacaoPercentual
-          };
-        });
-      }
-    }
-  }
-  // Extrair dados de saldo final do DFC
-  let saldoFinal = null;
-  let saldoFinalMoM = null;
-  let saldosEvolucaoChart: Array<{ mes: string, saldo_inicial: number, saldo_final: number }> = [];
-
-  if (dfcData && Array.isArray(dfcData)) {
-    // Encontrar itens "Saldo inicial" e "Saldo final"
-    const saldoInicialItem = dfcData.find(item => item.nome === "Saldo inicial");
-    const saldoFinalItem = dfcData.find(item => item.nome === "Saldo final");
-    
-    if (saldoFinalItem && saldoInicialItem) {
-      // Calcular saldo final para o mês selecionado ou último disponível
-      if (mesSelecionado && saldoFinalItem.valores_mensais[mesSelecionado] !== undefined) {
-        saldoFinal = saldoFinalItem.valores_mensais[mesSelecionado];
-        
-        // Extrair MoM do horizontal_mensais do saldo final
-        const momString = saldoFinalItem.horizontal_mensais?.[mesSelecionado];
-        if (momString && momString !== "–") {
-          // Parsing do formato "+12,5%" ou "-5,2%"
-          const match = momString.match(/([+-]?\d+(?:,\d+)?)/);
-          if (match) {
-            const percentValue = parseFloat(match[1].replace(',', '.'));
-            const valorAnterior = saldoFinal / (1 + percentValue / 100);
-            saldoFinalMoM = {
-              variacao_absoluta: saldoFinal - valorAnterior,
-              variacao_percentual: percentValue
-            };
-          }
-        }
-      } else {
-        // Usar último mês disponível
-        const mesesDisponiveis = Object.keys(saldoFinalItem.valores_mensais).sort();
-        if (mesesDisponiveis.length > 0) {
-          const ultimoMes = mesesDisponiveis[mesesDisponiveis.length - 1];
-          saldoFinal = saldoFinalItem.valores_mensais[ultimoMes];
-          
-          // Extrair MoM do último mês
-          const momString = saldoFinalItem.horizontal_mensais?.[ultimoMes];
-          if (momString && momString !== "–") {
-            const match = momString.match(/([+-]?\d+(?:,\d+)?)/);
-            if (match) {
-              const percentValue = parseFloat(match[1].replace(',', '.'));
-              const valorAnterior = saldoFinal / (1 + percentValue / 100);
-              saldoFinalMoM = {
-                variacao_absoluta: saldoFinal - valorAnterior,
-                variacao_percentual: percentValue
-              };
-            }
-          }
-        }
-      }
-
-      // Criar dados para gráfico (últimos 12 meses)
-      const mesesDisponiveis = Object.keys(saldoFinalItem.valores_mensais).sort();
-      const ultimosMeses = mesesDisponiveis.slice(-12);
+  // Função para carregar dados dos KPIs a partir dos endpoints
+  const carregarDados = async (mes: string) => {
+    setLoading(true);
+    try {
+      const queryString = mes ? `?mes=${mes}` : '';
       
-      saldosEvolucaoChart = ultimosMeses.map(mes => ({
-        mes,
-        saldo_inicial: saldoInicialItem.valores_mensais[mes] || 0,
-        saldo_final: saldoFinalItem.valores_mensais[mes] || 0
-      }));
-    }
-  }
+      // Carregar dados dos endpoints
+      const [receberRes, pagarRes, dfcRes] = await Promise.all([
+        api.get(`/receber${queryString}`),
+        api.get(`/pagar${queryString}`),
+        api.get('/dfc')
+      ]);
 
-  // Extrair dados de custos do DFC
-  let custosValor = null;
-  let custosMoM = null;
-  let custosMesClass = {};
+      setSaldoReceber(receberRes.data);
+      setSaldoPagar(pagarRes.data);
+      setDfcData(dfcRes.data);
 
-  if (dfcData && Array.isArray(dfcData)) {
-    // Processar dados de custos
-    // Primeiro, tentar encontrar "Custos" diretamente no nível principal
-    let custosItem: DFCItem | DFCClassificacao | undefined = dfcData.find(item => item.nome === "Custos");
-    
-    // Se não encontrar, procurar dentro de "Movimentações" > "Operacional"
-    if (!custosItem) {
-      const movimentacoesItemCustos = dfcData.find(item => item.nome === "Movimentações");
-      if (movimentacoesItemCustos && movimentacoesItemCustos.classificacoes) {
-        const operacionalItem = movimentacoesItemCustos.classificacoes.find(item => item.nome === "Operacional");
-        if (operacionalItem && operacionalItem.classificacoes) {
-          custosItem = operacionalItem.classificacoes.find(item => item.nome === "Custos");
-        }
-      }
-    }
-
-    if (custosItem) {
-
-      if (!mesSelecionado) {
-        // Todo o período - usar valor total
-        custosValor = custosItem.valor !== undefined && custosItem.valor !== null ? Math.abs(custosItem.valor) : null;
+      // Processar evolução do saldo (últimos 12 meses)
+      if (dfcRes.data?.data) {
+        // Encontrar itens "Saldo inicial" e "Saldo final" no DFC
+        const saldoInicialItem = dfcRes.data.data.find((item: DFCItem) => item.nome === "Saldo inicial");
+        const saldoFinalItem = dfcRes.data.data.find((item: DFCItem) => item.nome === "Saldo final");
         
-        // Classificações para todo o período
-        if (custosItem.classificacoes && Array.isArray(custosItem.classificacoes)) {
-          custosMesClass = Object.fromEntries(
-            custosItem.classificacoes
-              .filter(classificacao => 
-                classificacao.valor !== undefined && 
-                classificacao.valor !== null && 
-                Math.abs(classificacao.valor) > 0
-              )
-              .map(classificacao => [
-                classificacao.nome,
-                Math.abs(classificacao.valor)
-              ])
-          );
+        if (saldoFinalItem && saldoInicialItem) {
+          // Criar dados para gráfico (últimos 12 meses)
+          const mesesDisponiveis = Object.keys(saldoFinalItem.valores_mensais).sort();
+          const ultimosMeses = mesesDisponiveis.slice(-12);
+          
+          const evolucao = ultimosMeses.map(mes => ({
+            mes,
+            saldo_final: saldoFinalItem.valores_mensais[mes] || 0
+          }));
+          setSaldoEvolucao(evolucao);
+        } else {
+          setSaldoEvolucao([]);
         }
       } else {
-        // Mês específico - usar valores_mensais
-        const valorMes = custosItem.valores_mensais?.[mesSelecionado];
-        custosValor = valorMes !== undefined && valorMes !== null ? Math.abs(valorMes) : null;
+        setSaldoEvolucao([]);
+      }
+
+      // Processar dados de movimentações do DFC
+      let movimentacoesData: MoMData[] = [];
+      if (dfcRes.data?.data) {
+        const movimentacoesItem = dfcRes.data.data.find((item: DFCItem) => item.nome === "Movimentações");
         
-        // Classificações para o mês específico
-        if (custosItem.classificacoes && Array.isArray(custosItem.classificacoes)) {
-          custosMesClass = Object.fromEntries(
-            custosItem.classificacoes
-              .map(classificacao => {
-                const valorClassificacao = classificacao.valores_mensais?.[mesSelecionado];
-                return [
-                  classificacao.nome,
-                  valorClassificacao !== undefined && valorClassificacao !== null ? Math.abs(valorClassificacao) : 0
-                ];
-              })
-              .filter(([, valor]) => (typeof valor === 'number' && valor > 0)) // Filtrar valores zero
-          );
-        }
-        
-        // Calcular MoM usando horizontal_mensais (equivalente ao MoM) - apenas para DFCItem
-        const horizontalMensal = 'horizontal_mensais' in custosItem ? custosItem.horizontal_mensais?.[mesSelecionado] : undefined;
-        if (horizontalMensal && horizontalMensal !== "–") {
-          const percentualMatch = horizontalMensal.match(/([+-]?)(\d+\.?\d*)%/);
-          if (percentualMatch) {
-            const sinal = percentualMatch[1] === "-" ? -1 : 1;
-            const percentual = parseFloat(percentualMatch[2]) * sinal;
-            custosMoM = {
-              variacao_absoluta: null, // Não temos valor absoluto no DFC
-              variacao_percentual: percentual
+        if (movimentacoesItem && movimentacoesItem.horizontal_mensais) {
+          const mesesOrdenados = Object.keys(movimentacoesItem.valores_mensais || {}).sort();
+          movimentacoesData = mesesOrdenados.map((mes, idx) => {
+            const valorAtual = movimentacoesItem.valores_mensais?.[mes] || 0;
+            const valorAnterior = idx > 0 ? (movimentacoesItem.valores_mensais?.[mesesOrdenados[idx-1]] || null) : null;
+            const horizontalStr = movimentacoesItem.horizontal_mensais?.[mes];
+            
+            let variacaoPercentual = null;
+            let variacaoAbsoluta = null;
+            
+            if (horizontalStr && horizontalStr !== "–" && valorAnterior !== null) {
+              const percentualMatch = horizontalStr.match(/([+-]?)(\d+\.?\d*)%/);
+              if (percentualMatch) {
+                const sinal = percentualMatch[1] === "-" ? -1 : 1;
+                variacaoPercentual = parseFloat(percentualMatch[2]) * sinal;
+                variacaoAbsoluta = valorAtual - valorAnterior;
+              }
+            }
+
+            return {
+              mes,
+              valor_atual: valorAtual,
+              valor_anterior: valorAnterior,
+              variacao_absoluta: variacaoAbsoluta,
+              variacao_percentual: variacaoPercentual
             };
-          }
+          });
         }
       }
-    } else {
-      
-      // Debug adicional para mostrar a estrutura hierárquica
-      const movimentacoesItemDebug = dfcData.find(item => item.nome === "Movimentações");
-      if (movimentacoesItemDebug) {
-        const operacionalItem = movimentacoesItemDebug.classificacoes?.find(item => item.nome === "Operacional");
-        if (operacionalItem) {
-        }
-      }
-    }
+      setMovimentacoesData(movimentacoesData);
 
-    // Processar dados de movimentações
-    const movimentacoesItem = dfcData.find(item => item.nome === "Movimentações");
-    
-    if (movimentacoesItem) {
-      if (!mesSelecionado) {
-        // Todo o período - usar valor total
-        movimentacoesValor = movimentacoesItem.valor;
-      } else {
-        // Mês específico - usar valores_mensais
-        movimentacoesValor = movimentacoesItem.valores_mensais?.[mesSelecionado] || null;
-      }
-
-      // Converter horizontal_mensais para formato MoM
-      if (movimentacoesItem.horizontal_mensais) {
-        const mesesOrdenados = Object.keys(movimentacoesItem.valores_mensais || {}).sort();
-        momMovimentacoes = mesesOrdenados.map((mes, idx) => {
-          const valorAtual = movimentacoesItem.valores_mensais?.[mes] || 0;
-          const valorAnterior = idx > 0 ? (movimentacoesItem.valores_mensais?.[mesesOrdenados[idx-1]] || null) : null;
-          const horizontalStr = movimentacoesItem.horizontal_mensais?.[mes];
+      // Processar dados de custos do DFC
+      if (dfcRes.data?.data) {
+        // Primeiro, tentar encontrar "Custos" diretamente no nível principal
+        let custosItem = dfcRes.data.data.find((item: DFCItem) => item.nome === "Custos");
+        
+        // Se não encontrar, procurar dentro de "Movimentações" > "Operacional"
+        if (!custosItem) {
+          const movimentacoesItemCustos = dfcRes.data.data.find((item: DFCItem) => item.nome === "Movimentações");
           
-          let variacaoPercentual = null;
-          let variacaoAbsoluta = null;
-          
-          if (horizontalStr && horizontalStr !== "–" && valorAnterior !== null) {
-            const percentualMatch = horizontalStr.match(/([+-]?)(\d+\.?\d*)%/);
-            if (percentualMatch) {
-              const sinal = percentualMatch[1] === "-" ? -1 : 1;
-              variacaoPercentual = parseFloat(percentualMatch[2]) * sinal;
-              variacaoAbsoluta = valorAtual - valorAnterior;
+          if (movimentacoesItemCustos && movimentacoesItemCustos.classificacoes) {
+            const operacionalItem = movimentacoesItemCustos.classificacoes.find((item: any) => item.nome === "Operacional");
+            
+            if (operacionalItem && operacionalItem.classificacoes) {
+              custosItem = operacionalItem.classificacoes.find((item: any) => item.nome === "Custos");
             }
           }
+        }
 
-          return {
-            mes,
-            valor_atual: valorAtual,
-            valor_anterior: valorAnterior,
-            variacao_absoluta: variacaoAbsoluta,
-            variacao_percentual: variacaoPercentual
-          };
-        });
+        if (custosItem) {
+          const custosPorClassificacao: Record<string, number> = {};
+          
+          if (custosItem.classificacoes && Array.isArray(custosItem.classificacoes)) {
+            custosItem.classificacoes.forEach((classificacao: any) => {
+              const valor = mes && classificacao.valores_mensais?.[mes] !== undefined
+                ? classificacao.valores_mensais[mes]
+                : classificacao.valor || 0;
+              
+              if (Math.abs(valor) > 0) {
+                custosPorClassificacao[classificacao.nome] = Math.abs(valor);
+              }
+            });
+          }
+          
+          setCustosData(custosPorClassificacao);
+        } else {
+          setCustosData({});
+        }
+      } else {
+        setCustosData({});
       }
-    }
-  } else {
-  }
 
-  const isLoading = !inicializado || loading;
-  const hasCustosData = custosValor !== null && custosValor !== undefined;
+    } catch (e) {
+      console.error("❌ Erro ao carregar dados:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Inicialização: buscar meses disponíveis do endpoint /receber
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const response = await api.get('/receber');
+        const data = response.data;
+        
+        // Compatibilidade: aceita data.data.meses_disponiveis, data.meses, ou meses direto na raiz
+        let meses: string[] = [];
+        if (data?.data?.meses_disponiveis && Array.isArray(data.data.meses_disponiveis) && data.data.meses_disponiveis.length > 0) {
+          meses = data.data.meses_disponiveis;
+        } else if (data?.meses && Array.isArray(data.meses) && data.meses.length > 0) {
+          meses = data.meses;
+        } else if (Array.isArray(data) && data.length > 0 && typeof data[0] === "string") {
+          meses = data;
+        }
+        
+        if (meses.length > 0) {
+          const ultimoMes = meses[meses.length - 1];
+          setMesSelecionado(ultimoMes);
+        }
+        setInicializando(false);
+      } catch {
+        setInicializando(false);
+      }
+    };
+    init();
+  }, []);
+
+  // Carregar dados quando mês muda OU "Todo o período"
+  useEffect(() => {
+    console.log("🔄 UseEffect de carregamento:", mesSelecionado, inicializando);
+    if (!inicializando) {
+      carregarDados(mesSelecionado);
+    }
+  }, [mesSelecionado, inicializando]);
 
   return (
     <main className="p-4">
       <section className="py-4 flex justify-between items-center">
-        <FiltroMes 
-          onSelect={handleMesSelecionado} 
-          endpoint={`${API_BASE_URL}/receber`}
+          <FiltroMes 
+          onSelect={handleMudancaMes} 
+          endpoint="http://127.0.0.1:8000/receber"
           value={mesSelecionado}
         />
       </section>
       
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {isLoading ? (
+        {(inicializando || loading) ? (
+          // Exibe skeletons enquanto carrega
           <>
             <CardSkeleton />
             <CardSkeleton />
@@ -529,13 +343,14 @@ export default function DashFinanceiro() {
             <CardSkeleton />
           </>
         ) : (
+          // Exibe os cards reais após carregar
           <>
-            {/* Contas Recebidas */}
+            {/* Contas a Receber */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-center">
                   <CardTitle className="text-lg sm:text-xl select-none">
-                    Contas recebidas
+                    Contas a Receber
                   </CardTitle>
                   <PlusCircle className="ml-auto w-4 h-4" />
                 </div>
@@ -554,7 +369,7 @@ export default function DashFinanceiro() {
                     {mesSelecionado === "" ? (
                       <p>vs período anterior <br />-- --</p>
                     ) : (() => {
-                      const mom = getMoMIndicator(momReceber, mesSelecionado);
+                      const mom = getMoMIndicator(saldoReceber?.data?.mom_analysis || [], mesSelecionado);
                       return mom && mom.hasValue ? (
                         <p>
                           vs {mom.mesAnterior} <br />
@@ -571,12 +386,12 @@ export default function DashFinanceiro() {
               </CardContent>
             </Card>
 
-            {/* Contas Pagas */}
+            {/* Contas a Pagar */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-center">
                   <CardTitle className="text-lg sm:text-xl select-none">
-                    Contas pagas
+                    Contas a Pagar
                   </CardTitle>
                   <MinusCircle className="ml-auto w-4 h-4" />
                 </div>
@@ -595,7 +410,7 @@ export default function DashFinanceiro() {
                     {mesSelecionado === "" ? (
                       <p>vs período anterior <br />-- --</p>
                     ) : (() => {
-                      const mom = getMoMIndicator(momPagar, mesSelecionado);
+                      const mom = getMoMIndicator(saldoPagar?.data?.mom_analysis || [], mesSelecionado);
                       return mom && mom.hasValue ? (
                         <p>
                           vs {mom.mesAnterior} <br />
@@ -621,15 +436,19 @@ export default function DashFinanceiro() {
                   </CardTitle>
                   <Hourglass className="ml-auto w-4 h-4" />
                 </div>
-                <CardDescription>
-                  <p>prazo médio recebimento</p>
-                  <p className="text-muted-foreground/50">Todo o período</p>
+                <CardDescription className="flex items-start">
+                  <p className="text-xs text-muted-foreground opacity-70 select-none">Prazo médio de recebimento</p>
                 </CardDescription>
               </CardHeader>
 
               <CardContent>
-                <div>
-                  <p className="text-lg sm:text-2xl">{pmr ?? "--"}</p>
+                <div className="sm:flex sm:justify-between sm:items-center">
+                  <p className="text-lg sm:text-2xl">
+                    {saldoReceber?.data?.pmr || "--"}
+                  </p>
+                  <CardDescription>
+                    <p>Todo o período</p>
+                  </CardDescription>
                 </div>
               </CardContent>
             </Card>
@@ -643,15 +462,19 @@ export default function DashFinanceiro() {
                   </CardTitle>
                   <Hourglass className="ml-auto w-4 h-4" />
                 </div>
-                <CardDescription>
-                  <p>prazo médio pagamento</p>
-                  <p className="text-muted-foreground/50">Todo o período</p>
+                <CardDescription className="flex items-start">
+                  <p className="text-xs text-muted-foreground opacity-70 select-none">Prazo médio de pagamento</p>
                 </CardDescription>
               </CardHeader>
 
               <CardContent>
-                <div>
-                  <p className="text-lg sm:text-2xl">{pmp ?? "--"}</p>
+                <div className="sm:flex sm:justify-between sm:items-center">
+                  <p className="text-lg sm:text-2xl">
+                    {saldoPagar?.data?.pmp || "--"}
+                  </p>
+                  <CardDescription>
+                    <p>Todo o período</p>
+                  </CardDescription>
                 </div>
               </CardContent>
             </Card>
@@ -660,15 +483,56 @@ export default function DashFinanceiro() {
       </section>
 
       <section className="mt-4 flex flex-col lg:flex-row gap-4">
-        {isLoading ? (
+        {(inicializando || loading) ? (
+          // Exibe skeletons enquanto carrega
           <>
-            <CardSkeletonLarge />
             <CardSkeletonLarge />
             <CardSkeletonLarge />
           </>
         ) : (
+          // Exibe os cards reais após carregar
           <>
-            {/* Card Movimentações Dinâmico */}
+            {/* Gráfico de Saldo */}
+            <Card className="w-full">
+              <CardHeader>
+                <div className="flex items-center justify-center">
+                  <CardTitle className="text-lg sm:text-xl select-none">
+                    Evolução do Saldo
+                  </CardTitle>
+                  <TrendingUp className="ml-auto w-4 h-4" />
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                <div className="sm:flex sm:justify-between sm:items-center">
+                  <CardDescription>
+                    <div className="flex gap-2 mb-10 leading-none font-medium">
+                      Saldo ao longo do tempo
+                      {mesSelecionado && ` - ${mesSelecionado}`}
+                    </div>
+                  </CardDescription>
+        </div>
+
+                <ChartAreaSaldoFinal 
+                  data={saldoEvolucao} 
+                  mesSelecionado={mesSelecionado} 
+                />
+              </CardContent>
+              <CardFooter className="flex-col items-start gap-2 text-sm">
+                <CardDescription>
+                  <p>Evolução do saldo financeiro</p>
+                </CardDescription>
+                <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                  {saldoEvolucao.length > 0 ? (
+                    formatarPeriodo(saldoEvolucao)
+                  ) : (
+                    "Todo o período"
+                  )}
+                </div>
+              </CardFooter>
+            </Card>
+            
+            {/* Gráfico de Movimentações */}
             <Card className="w-full">
               <CardHeader>
                 <div className="flex items-center justify-center">
@@ -681,168 +545,100 @@ export default function DashFinanceiro() {
 
               <CardContent>
                 <div className="sm:flex sm:justify-between sm:items-center">
-                  <p className="text-lg sm:text-2xl">
-                    {movimentacoesValor !== null ? (
-                      formatCurrencyShort(movimentacoesValor)
-                    ) : (
-                      "--"
-                    )}
-                  </p>
+                  <CardDescription>
+                    <div className="flex gap-2 mb-10 leading-none font-medium">
+                      Entradas e saídas
+                    </div>
+                  </CardDescription>
                 </div>
 
-                <CardDescription>
-                  <div className="flex items-center gap-2 mt-2 mb-10 leading-none font-medium">
-                    {mesSelecionado === "" ? (
-                      <>Sem variação</>
-                    ) : (() => {
-                      const mom = getMoMIndicator(momMovimentacoes, mesSelecionado);
-                      return mom && mom.hasValue ? (
-                        <>
-                          {mom.isPositive === null ? "Sem variação" : mom.isPositive ? "Aumento" : "Queda"} de {mom.percentage?.toFixed(1)}% neste mês
-                          {mom.isPositive === false ? (
-                            <TrendingDown className="h-4 w-4" />
-                          ) : (
-                            <TrendingUp className="h-4 w-4" />
-                          )}
-                        </>
-                      ) : (
-                        <>Sem variação</>
-                      );
-                    })()}
-                  </div>
-                </CardDescription>
-
-                <ChartMovimentacoes 
+              <ChartMovimentacoes 
                   mesSelecionado={mesSelecionado}
-                  momReceber={momReceber}
-                  momPagar={momPagar}
-                  momMovimentacoes={momMovimentacoes}
+                  momReceber={saldoReceber?.data?.mom_analysis || []}
+                  momPagar={saldoPagar?.data?.mom_analysis || []}
+                  momMovimentacoes={movimentacoesData}
                 />
-              </CardContent>
-              <CardFooter>
-                <div className="flex w-full items-start gap-2 text-sm">
-                  <div className="grid gap-2">
-                    <CardDescription>
-                      <p>Movimentações últimos 6M</p>
-                    </CardDescription>
-                    <div className="text-muted-foreground flex items-center gap-2 leading-none">
-                      {formatarPeriodo({ mesSelecionado: "", saldosEvolucao: saldosEvolucaoChart })}
-                    </div>
-                  </div>
-                </div>
-              </CardFooter>
-            </Card>
-            
-            {/* Card Saldo Final */}
-            <Card className="w-full">
-              <CardHeader>
-                <div className="flex items-center justify-center">
-                  <CardTitle className="text-lg sm:text-xl select-none">
-                    Saldo Final
-                  </CardTitle>
-                  <Wallet className="ml-auto w-4 h-4" />
-                </div>
-              </CardHeader>
-
-              <CardContent>
-                <div className="sm:flex sm:justify-between sm:items-center">
-                  <p className="text-lg sm:text-2xl">
-                    {saldoFinal !== null ? (
-                      formatCurrencyShort(saldoFinal)
-                    ) : (
-                      "--"
-                    )}
-                  </p>
-                </div>
-
-                <CardDescription>
-                  <div className="flex items-center gap-2 mt-2 mb-10 leading-none font-medium">
-                    {mesSelecionado === "" ? (
-                      <>Sem variação</>
-                    ) : saldoFinalMoM && saldoFinalMoM.variacao_percentual !== null && saldoFinalMoM.variacao_percentual !== undefined ? (
-                      <>
-                        {saldoFinalMoM.variacao_percentual > 0 ? "Aumento" : saldoFinalMoM.variacao_percentual < 0 ? "Queda" : "Sem variação"} de {Math.abs(saldoFinalMoM.variacao_percentual).toFixed(1)}% neste mês
-                        {saldoFinalMoM.variacao_percentual < 0 ? (
-                          <TrendingDown className="h-4 w-4" />
-                        ) : (
-                          <TrendingUp className="h-4 w-4" />
-                        )}
-                      </>
-                    ) : (
-                      <>Sem variação</>
-                    )}
-                  </div>
-                </CardDescription>
-
-                <ChartAreaSaldoFinal data={saldosEvolucaoChart} mesSelecionado={mesSelecionado} />
-              </CardContent>
-              <CardFooter>
-                <div className="flex w-full items-start gap-2 text-sm">
-                  <div className="grid gap-2">
-                    <CardDescription>
-                      <p>Saldo últimos 6M</p>
-                    </CardDescription>
-                    <div className="text-muted-foreground flex items-center gap-2 leading-none">
-                      {formatarPeriodo({ mesSelecionado: "", saldosEvolucao: saldosEvolucaoChart })}
-                    </div>
-                  </div>
-                </div>
-              </CardFooter>
-            </Card>
-
-            {/* Card Custos */}
-            <Card className="w-full">
-              <CardHeader>
-                <div className="flex items-center justify-center">
-                  <CardTitle className="text-lg sm:text-xl select-none">
-                    Custos
-                  </CardTitle>
-                  <Package className="ml-auto w-4 h-4" />
-                </div>
-              </CardHeader>
-
-              <CardContent>
-                <div className="sm:flex sm:justify-between sm:items-center">
-                  <p className="text-lg sm:text-2xl">
-                    {hasCustosData && custosValor !== null ? (
-                      formatCurrencyShort(custosValor)
-                    ) : (
-                      "--"
-                    )}
-                  </p>
-                </div>
-                <CardDescription>
-                  <div className="flex gap-2 mt-2 mb-10 leading-none font-medium">
-                    {mesSelecionado === "" ? (
-                      <>Sem variação</>
-                    ) : custosMoM && custosMoM.variacao_percentual !== null ? (
-                      <>
-                        {custosMoM.variacao_percentual > 0 ? "Aumento" : custosMoM.variacao_percentual < 0 ? "Queda" : "Sem variação"} de {Math.abs(custosMoM.variacao_percentual).toFixed(1)}% neste mês
-                        {custosMoM.variacao_percentual < 0 ? (
-                          <TrendingDown className="h-4 w-4" />
-                        ) : (
-                          <TrendingUp className="h-4 w-4" />
-                        )}
-                      </>
-                    ) : (
-                      <>Sem variação</>
-                    )}
-                  </div>
-                </CardDescription>
-
-                <ChartCustosFinanceiro data={custosMesClass} />
               </CardContent>
               <CardFooter className="flex-col items-start gap-2 text-sm">
                 <CardDescription>
-                  <p>Custos por classificação</p>
+                  <p>Movimentações financeiras</p>
                 </CardDescription>
                 <div className="text-muted-foreground flex items-center gap-2 leading-none">
-                  {formatarPeriodo({ mesSelecionado, saldosEvolucao: saldosEvolucaoChart })}
+                  {mesSelecionado ? (
+                    (() => {
+                      const formatar = (mes: string) => {
+                        if (!mes.match(/^\d{4}-\d{2}$/)) return mes;
+                        const [ano, m] = mes.split("-");
+                        const mesNum = parseInt(m, 10);
+                        return `${mesesAbreviados[mesNum]}/${ano.slice(-2)}`;
+                      };
+                      return formatar(mesSelecionado);
+                    })()
+                  ) : (
+                    "Todo o período"
+                  )}
                 </div>
               </CardFooter>
             </Card>
           </>
         )}
+      </section>
+
+      <section className="mt-4 flex flex-col lg:flex-row gap-4">
+        {(inicializando || loading) ? (
+          // Exibe skeleton enquanto carrega
+          <CardSkeletonLarge />
+        ) : (
+          // Exibe o gráfico de custos
+          <Card className="w-full">
+            <CardHeader>
+              <div className="flex items-center justify-center">
+                <CardTitle className="text-lg sm:text-xl select-none">
+                  Custos
+                </CardTitle>
+                <Package className="ml-auto w-4 h-4" />
+              </div>
+            </CardHeader>
+
+            <CardContent>
+              <div className="sm:flex sm:justify-between sm:items-center">
+                <CardDescription>
+                  <div className="flex gap-2 mb-10 leading-none font-medium">
+                    Custos por classificação
+                  </div>
+                </CardDescription>
+        </div>
+
+              <ChartCustosFinanceiro data={custosData} />
+            </CardContent>
+            <CardFooter className="flex-col items-start gap-2 text-sm">
+              <CardDescription>
+                <p>Classificação de custos por valor</p>
+              </CardDescription>
+              <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                {mesSelecionado ? (
+                  (() => {
+                    const formatar = (mes: string) => {
+                      if (!mes.match(/^\d{4}-\d{2}$/)) return mes;
+                      const [ano, m] = mes.split("-");
+                      const mesNum = parseInt(m, 10);
+                      return `${mesesAbreviados[mesNum]}/${ano.slice(-2)}`;
+                    };
+                    return formatar(mesSelecionado);
+                  })()
+                ) : (
+                  "Todo o período"
+                )}
+          </div>
+            </CardFooter>
+          </Card>
+        )}
+      </section>
+
+      <section className="mt-8 text-center">
+        <p className="text-sm text-gray-600">
+          Dados atualizados em tempo real via endpoints financeiros
+        </p>
       </section>
     </main>
   );

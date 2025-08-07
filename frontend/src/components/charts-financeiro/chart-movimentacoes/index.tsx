@@ -1,18 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react";
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../../ui/chart";
 import { Bar, ComposedChart, CartesianGrid, XAxis, YAxis, Line, ResponsiveContainer } from "recharts";
-import { formatCurrencyShort } from "@/components/kpis-financeiro";
-
-// Interface para as props do shape da barra
-interface BarShapeProps {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  payload?: ChartDataItem;
-}
+import { formatCurrencyShort } from "../../../utils/formatters";
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "../../ui/chart";
 
 // Utilitário para formatar mês (YYYY-MM para "abr/25")
 const mesesAbreviados = [ '', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez' ];
@@ -36,7 +32,7 @@ type ChartDataItem = {
   mesLabel: string;
   CAR: number;
   CAP: number;
-  Movimentacoes: number;
+  Saldo: number;
 };
 
 interface ChartMovimentacoesProps {
@@ -47,11 +43,26 @@ interface ChartMovimentacoesProps {
   momMovimentacoes?: MomAnalysisItem[];
 }
 
+const chartConfig = {
+  CAR: {
+    label: "Receber (CAR)",
+    color: "#2563eb",
+  },
+  CAP: {
+    label: "Pagar (CAP)",
+    color: "#60a5fa",
+  },
+  Saldo: {
+    label: "Saldo",
+    color: "#ff651a",
+  },
+} satisfies ChartConfig;
+
 export default function ChartMovimentacoes({ 
   mesSelecionado, 
   momReceber, 
   momPagar,
-  momMovimentacoes 
+  momMovimentacoes
 }: ChartMovimentacoesProps) {
   const [chartData, setChartData] = useState<ChartDataItem[]>([]);
 
@@ -80,34 +91,40 @@ export default function ChartMovimentacoes({
   };
 
   useEffect(() => {
-    // Usar dados que já vêm prontos do DFC via props
-    if (momReceber && momPagar && momMovimentacoes) {
+    // Sempre usar dados de receber/pagar para as barras, e movimentações para a linha
+    if (momReceber && momPagar) {
       const carMap = momReceber.reduce<Record<string, MomAnalysisItem>>((acc, cur) => { acc[cur.mes] = cur; return acc; }, {});
       const capMap = momPagar.reduce<Record<string, MomAnalysisItem>>((acc, cur) => { acc[cur.mes] = cur; return acc; }, {});
-      const movMap = momMovimentacoes.reduce<Record<string, MomAnalysisItem>>((acc, cur) => { acc[cur.mes] = cur; return acc; }, {});
       
       // Unir todos os meses únicos
       const allMeses = Array.from(new Set([
         ...Object.keys(carMap),
         ...Object.keys(capMap),
-        ...Object.keys(movMap),
       ])).sort();
       
       // Pegar os últimos 12 meses
       const ultimos12 = allMeses.slice(-12);
       
-      // Montar array para o gráfico usando dados que já vêm prontos
+      // Montar array para o gráfico
       const data: ChartDataItem[] = ultimos12.map(mes => {
         const car = carMap[mes]?.valor_atual ?? 0;
         const cap = capMap[mes]?.valor_atual ?? 0;
-        const movimentacoes = movMap[mes]?.valor_atual ?? 0; // Usar dados do DFC
+        
+        // Se temos dados de movimentações do DFC, usar para a linha de saldo
+        let saldo = car - cap; // Fallback
+        if (momMovimentacoes && momMovimentacoes.length > 0) {
+          const movimentacaoItem = momMovimentacoes.find(item => item.mes === mes);
+          if (movimentacaoItem) {
+            saldo = movimentacaoItem.valor_atual;
+          }
+        }
         
         return {
           mes,
           mesLabel: formatMes(mes),
           CAR: car,
           CAP: Math.abs(cap), // CAP sempre positivo para visualização
-          Movimentacoes: movimentacoes, // Dados diretos do DFC
+          Saldo: saldo,
         };
       });
 
@@ -118,20 +135,13 @@ export default function ChartMovimentacoes({
     }
   }, [momReceber, momPagar, momMovimentacoes]);
 
-  const chartConfig = {
-    CAR: {
-      label: "Receber (CAR)",
-      color: "#2563eb",
-    },
-    CAP: {
-      label: "Pagar (CAP)",
-      color: "#60a5fa",
-    },
-    Movimentacoes: {
-      label: "Movimentações",
-      color: "#FF894F",
-    },
-  } satisfies ChartConfig;
+  if (!chartData.length) {
+    return (
+      <div className="flex items-center justify-center h-24 text-muted-foreground">
+        <p>Nenhum dado de movimentações disponível</p>
+      </div>
+    );
+  }
 
   return (
     <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
@@ -146,13 +156,12 @@ export default function ChartMovimentacoes({
           />
           <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => formatCurrencyShort(v, { noPrefix: true })} />
           <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-          {/* <Legend /> */}
           <Bar
             dataKey="CAR"
-            fill={chartConfig.CAR.color}
+            fill="#2563eb"
             radius={4}
-            name={chartConfig.CAR.label}
-            shape={(props: BarShapeProps) => {
+            name="Receber (CAR)"
+            shape={(props: any) => {
               const { x, y, width, height, payload } = props;
               const isSelected = mesSelecionado && payload?.mes === mesSelecionado;
               return (
@@ -162,7 +171,7 @@ export default function ChartMovimentacoes({
                   width={width}
                   height={height}
                   rx={4}
-                  fill={isSelected ? '#f59e42' : chartConfig.CAR.color}
+                  fill={isSelected ? '#f59e42' : '#2563eb'}
                   stroke={isSelected ? '#f59e42' : undefined}
                   strokeWidth={isSelected ? 3 : 0}
                 />
@@ -171,10 +180,10 @@ export default function ChartMovimentacoes({
           />
           <Bar
             dataKey="CAP"
-            fill={chartConfig.CAP.color}
+            fill="#60a5fa"
             radius={4}
-            name={chartConfig.CAP.label}
-            shape={(props: BarShapeProps) => {
+            name="Pagar (CAP)"
+            shape={(props: any) => {
               const { x, y, width, height, payload } = props;
               const isSelected = mesSelecionado && payload?.mes === mesSelecionado;
               return (
@@ -184,7 +193,7 @@ export default function ChartMovimentacoes({
                   width={width}
                   height={height}
                   rx={4}
-                  fill={isSelected ? '#f9c38b' : chartConfig.CAP.color}
+                  fill={isSelected ? '#f9c38b' : '#60a5fa'}
                   stroke={isSelected ? '#f9c38b' : undefined}
                   strokeWidth={isSelected ? 3 : 0}
                 />
@@ -193,14 +202,14 @@ export default function ChartMovimentacoes({
           />
           <Line
             type="monotone"
-            dataKey="Movimentacoes"
-            stroke={chartConfig.Movimentacoes.color}
+            dataKey="Saldo"
+            stroke="#ff651a"
             strokeWidth={3}
             dot={CustomizedLineDot}
-            name={chartConfig.Movimentacoes.label}
+            name="Saldo"
           />
         </ComposedChart>
       </ResponsiveContainer>
     </ChartContainer>
   );
-}
+} 

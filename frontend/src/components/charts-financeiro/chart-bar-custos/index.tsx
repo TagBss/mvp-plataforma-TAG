@@ -1,17 +1,14 @@
 "use client"
 
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts"
+import { useEffect, useState } from "react"
+import { formatCurrencyShort } from "../../../utils/formatters"
 import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart"
-
-export const description = "A bar chart with a custom label"
-
-import { useEffect, useState } from "react"
-import { formatCurrencyShort } from "../../kpis-competencia"
+} from "../../ui/chart"
 
 type ChartData = {
   classificacao: string
@@ -21,14 +18,14 @@ type ChartData = {
 const chartConfig = {
   desktop: {
     label: "Desktop",
-    color: "var(--chart-2)",
+    color: "#3b82f6",
   },
   mobile: {
     label: "Mobile",
-    color: "var(--chart-2)",
+    color: "#3b82f6",
   },
   label: {
-    color: "var(--background)",
+    color: "#ffffff",
   },
 } satisfies ChartConfig
 
@@ -42,7 +39,7 @@ export function ChartCustosFinanceiro({ data }: { data?: Record<string, number> 
       const arr = Object.entries(data)
         .map(([classificacao, valor]) => ({ classificacao, valor }))
         .filter(item => item.valor > 0) // Filtrar valores zero
-        .sort((a, b) => a.valor - b.valor) // Ordenar por valor crescente (melhor para maior)
+        .sort((a, b) => a.valor - b.valor) // Ordenar por valor crescente (menor primeiro)
       
       setChartData(arr)
     } else {
@@ -87,12 +84,12 @@ export function ChartCustosFinanceiro({ data }: { data?: Record<string, number> 
           reversed
         />
         <XAxis 
-                  dataKey="valor" 
-                  type="number" 
-                  tickFormatter={(v) => formatCurrencyShort(v, { noPrefix: true })}
-                  tickLine={false}
-                  axisLine={false}
-                />
+          dataKey="valor" 
+          type="number" 
+          tickFormatter={(v) => formatCurrencyShort(v, { noPrefix: true })}
+          tickLine={false}
+          axisLine={false}
+        />
         <ChartTooltip
           cursor={false}
           content={<ChartTooltipContent indicator="line" />}
@@ -100,19 +97,19 @@ export function ChartCustosFinanceiro({ data }: { data?: Record<string, number> 
         <Bar
           dataKey="valor"
           layout="vertical"
-          fill="var(--color-desktop)"
+          fill="#3b82f6"
           radius={4}
         >
           <LabelList
-                dataKey="classificacao"
-                position="insideLeft"
-                offset={8}
-                className="fill-(--color-foreground/20)"
-                fontSize={10}
-                width={400}
-              />
+            dataKey="classificacao"
+            position="insideLeft"
+            offset={8}
+            className="fill-gray-600"
+            fontSize={10}
+            width={400}
+          />
         </Bar>
       </BarChart>
     </ChartContainer>
   )
-}
+} 

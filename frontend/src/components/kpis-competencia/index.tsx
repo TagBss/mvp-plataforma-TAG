@@ -7,8 +7,8 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { CardSkeleton, CardSkeletonLarge } from "@/components/ui/card-skeleton";
+} from "../ui/card";
+import { CardSkeleton, CardSkeletonLarge } from "../ui/card-skeleton";
 import {  
   ChartColumnBig,
   MinusCircle,
@@ -17,15 +17,16 @@ import {
   Wallet,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { FiltroMes } from "@/components/filtro-mes"
-import { ChartBarDre, WaterfallDataPoint } from "@/components/charts-competencia/chart-bar-dre"
-import { ChartBarCustos } from "@/components/charts-competencia/chart-bar-custos"
-import { ChartBarDespesas } from "@/components/charts-competencia/chart-bar-despesas"
-import { ChartCustosCompetencia as ChartAreaCustos } from "@/components/charts-competencia/chart-area-custos"
-import { ChartAreaDespesas } from "@/components/charts-competencia/chart-area-despesas"
-import { ChartBarCustosData } from "@/components/charts-competencia/chart-bar-custos"
-import { ChartBarDespesasData } from "@/components/charts-competencia/chart-bar-despesas"
-import { ChartAreaFaturamento } from "@/components/charts-competencia/chart-area-faturamento"
+import { FiltroMes } from "../filtro-mes"
+import { ChartBarDre, WaterfallDataPoint } from "../charts-competencia/chart-bar-dre"
+import { ChartBarCustos } from "../charts-competencia/chart-bar-custos"
+import { ChartBarDespesas } from "../charts-competencia/chart-bar-despesas"
+import { ChartCustosCompetencia as ChartAreaCustos } from "../charts-competencia/chart-area-custos"
+import { ChartAreaDespesas } from "../charts-competencia/chart-area-despesas"
+import { ChartBarCustosData } from "../charts-competencia/chart-bar-custos"
+import { ChartBarDespesasData } from "../charts-competencia/chart-bar-despesas"
+import { ChartAreaFaturamento } from "../charts-competencia/chart-area-faturamento"
+import { api } from "../../services/api"
 
 // Função para formatar no estilo curto (Mil / Mi)
 export function formatCurrencyShort(value: number, opts?: { noPrefix?: boolean }): string {
@@ -59,6 +60,7 @@ interface DreLinha {
   valor: number;
   valores_mensais: Record<string, number>;
   horizontal_mensais: Record<string, string>; // Strings como "+35.2%", "-100.0%"
+  classificacoes?: DreLinha[]; // Classificações (dre_n2) de um dre_n1
 }
 
 // Função utilitária para formatar períodos de meses
@@ -166,7 +168,6 @@ function getMoMIndicatorCustos(momData: MoMData[], mesSelecionado: string) {
 }
 
 export default function DashCompetencia() {
-  console.log("🔥 COMPONENTE INICIADO");
   // Estados principais
   const [mesSelecionado, setMesSelecionado] = useState<string>("");
   const [inicializando, setInicializando] = useState(true);
@@ -183,9 +184,13 @@ export default function DashCompetencia() {
   const [momLucroLiquido, setMomLucroLiquido] = useState<MoMData[]>([]);
   const [lucratividadeValor, setLucratividadeValor] = useState<number | null>(null);
   const [momLucratividade, setMomLucratividade] = useState<MoMData[]>([]);
+  
+  // Estados para custos e despesas dinâmicos
+  const [custosNomes, setCustosNomes] = useState<string[]>([]);
+  const [despesasNomes, setDespesasNomes] = useState<string[]>([]);
+  
   // Handler para mudança de mês
   const handleMudancaMes = (novoMes: string) => {
-    console.log("🔄 Mudando para:", novoMes);
     setMesSelecionado(novoMes);
   };
   // Estados para ranking de custos e despesas
@@ -199,8 +204,8 @@ export default function DashCompetencia() {
     setLoading(true);
      try {
        // SEMPRE buscar sem filtro de mês para ter dados históricos completos
-       const response = await fetch(`http://127.0.0.1:8000/dre`);
-       const data = await response.json();
+       const response = await api.get('/dre');
+       const data = response.data;
        // Aceita tanto data.data quanto data diretamente
        let linhas: DreLinha[] = [];
        if (Array.isArray(data?.data)) {
@@ -208,6 +213,46 @@ export default function DashCompetencia() {
        } else if (Array.isArray(data)) {
          linhas = data;
        }
+       
+       // Obter custos e despesas do backend
+       const custosBackend = data?.custos || [];
+       const despesasBackend = data?.despesas || [];
+       setCustosNomes(custosBackend);
+       setDespesasNomes(despesasBackend);
+       
+       // Debug: log das linhas encontradas
+       console.log("📊 Linhas DRE encontradas:", linhas.map(l => l.nome));
+       console.log("💰 Custos identificados pelo backend:", custosBackend);
+       console.log("💸 Despesas identificadas pelo backend:", despesasBackend);
+       
+       // Debug: log dos custos encontrados
+       const custosEncontrados = linhas.filter((item) => 
+         custosBackend.includes(item.nome)
+       );
+       console.log("💰 Custos encontrados:", custosEncontrados.map(c => ({ nome: c.nome, valor: c.valor })));
+       
+       // Debug: log das despesas encontradas
+       const despesasEncontradas = linhas.filter((item) => 
+         despesasBackend.includes(item.nome)
+       );
+       console.log("💸 Despesas encontradas:", despesasEncontradas.map(d => ({ nome: d.nome, valor: d.valor })));
+
+       // Debug: log detalhado dos valores por mês para custos
+       if (custosEncontrados.length > 0) {
+         console.log("🔍 Debug Custos por mês:");
+         custosEncontrados.forEach(custo => {
+           console.log(`  ${custo.nome}:`, custo.valores_mensais);
+         });
+       }
+
+       // Debug: log detalhado dos valores por mês para despesas
+       if (despesasEncontradas.length > 0) {
+         console.log("🔍 Debug Despesas por mês:");
+         despesasEncontradas.forEach(despesa => {
+           console.log(`  ${despesa.nome}:`, despesa.valores_mensais);
+         });
+       }
+
        // Gráfico cascata DRE (Waterfall)
        const sequenciaDre = [
          "Receita Bruta",
@@ -251,13 +296,18 @@ export default function DashCompetencia() {
        setDreWaterfallData(waterfallData);
 
 
-      // Faturamento
-      const fat = linhas.find((item) => item.nome === "Faturamento");
-      // Usar valor específico do mês selecionado OU valor total
-      const valorFaturamento = mes && fat?.valores_mensais?.[mes] !== undefined 
-        ? fat.valores_mensais[mes] 
-        : fat?.valor ?? null;
-      setFaturamentoValor(valorFaturamento);
+             // Faturamento: buscar por diferentes nomes possíveis
+       const fat = linhas.find((item) => 
+         item.nome === "Faturamento" || 
+         item.nome === "Receita Bruta" ||
+         item.nome === "Receita Líquida"
+       );
+
+       // Usar valor específico do mês selecionado OU valor total
+       const valorFaturamento = mes && fat?.valores_mensais?.[mes] !== undefined 
+         ? fat.valores_mensais[mes] 
+         : fat?.valor ?? null;
+       setFaturamentoValor(valorFaturamento);
       // Processar evolução do faturamento (últimos 12 meses)
       if (fat && fat.valores_mensais) {
         const mesesOrdenados = Object.keys(fat.valores_mensais).sort();
@@ -269,99 +319,148 @@ export default function DashCompetencia() {
       } else {
         setFaturamentoEvolucao([]);
       }
-      // Custos (Custo com Importação + Custo com Mercadoria Interna)
-      const custoImport = linhas.find((item) => item.nome === "Custo com Importação");
-      const custoMerc = linhas.find((item) => item.nome === "Custo com Mercadoria Interna");
-      // Calcular custos para o mês selecionado OU valor total
-      const valorCustoImport = mes && custoImport?.valores_mensais?.[mes] !== undefined 
-        ? custoImport.valores_mensais[mes] 
-        : custoImport?.valor ?? 0;
-      const valorCustoMerc = mes && custoMerc?.valores_mensais?.[mes] !== undefined 
-        ? custoMerc.valores_mensais[mes] 
-        : custoMerc?.valor ?? 0;
-      setCustosValor(Math.abs(valorCustoImport + valorCustoMerc));
+             // Custos: buscar itens que compõem o "Resultado Bruto"
+       // Na nova estrutura, custos são itens com operador "-" que contribuem para o Resultado Bruto
+       let custosLinhas: DreLinha[] = [];
+       let totalCustos = 0;
+       
+       // Buscar custos diretamente na estrutura
+       custosLinhas = linhas.filter((item) => 
+         custosBackend.includes(item.nome)
+       );
+       
+       // Calcular total de custos para o mês selecionado OU valor total
+       custosLinhas.forEach(custo => {
+         const valorCusto = mes && custo.valores_mensais?.[mes] !== undefined 
+           ? custo.valores_mensais[mes] 
+           : custo.valor ?? 0;
+         // Para custos, sempre usar valor absoluto (pois são despesas)
+         totalCustos += Math.abs(valorCusto);
+         
+         // Debug específico para maio
+         if (mes === "2025-05") {
+           console.log(`🔍 Custo ${custo.nome} em maio:`, valorCusto, "abs:", Math.abs(valorCusto));
+         }
+       });
+       
+       setCustosValor(totalCustos);
+       
+       // Debug específico para maio
+       if (mes === "2025-05") {
+         console.log("🔍 Total de custos em maio:", totalCustos);
+       }
+             const rankingCustosData: ChartBarCustosData[] = custosLinhas.map(linha => {
+         const valorOriginal = mes && linha.valores_mensais?.[mes] !== undefined
+           ? linha.valores_mensais[mes]
+           : linha.valor ?? 0;
+         return {
+           categoria: linha.nome,
+           valor: Math.abs(valorOriginal), // Custos são sempre positivos no ranking
+           valorOriginal: valorOriginal
+         };
+       }).sort((a, b) => b.valor - a.valor);
+       setRankingCustos(rankingCustosData);
 
-      // Ranking de custos (para o gráfico de barras)
-      const custosLinhas = [custoImport, custoMerc].filter(Boolean) as DreLinha[];
-      const rankingCustosData: ChartBarCustosData[] = custosLinhas.map(linha => {
-        const valorOriginal = mes && linha.valores_mensais?.[mes] !== undefined
-          ? linha.valores_mensais[mes]
-          : linha.valor ?? 0;
-        return {
-          categoria: linha.nome,
-          valor: valorOriginal,
-          valorOriginal: valorOriginal
-        };
-      }).sort((a, b) => b.valor - a.valor);
-      setRankingCustos(rankingCustosData);
-
-      // Processar evolução dos custos (últimos 12 meses)
-      if (custoImport && custoMerc && custoImport.valores_mensais && custoMerc.valores_mensais) {
-        const mesesImport = Object.keys(custoImport.valores_mensais);
-        const mesesMerc = Object.keys(custoMerc.valores_mensais);
-        const todosMesesCustos = [...new Set([...mesesImport, ...mesesMerc])].sort();
-        
-        const evolucaoCustos = todosMesesCustos.slice(-12).map(mes => ({
-          mes,
-          custos: Math.abs((custoImport.valores_mensais[mes] || 0) + (custoMerc.valores_mensais[mes] || 0))
-        }));
-        setCustosEvolucao(evolucaoCustos);
-      } else {
-        setCustosEvolucao([]);
-      }
-
-      // Despesas (5 contas que compõem o EBITDA)
-      const despesasNomes = [
-        "Despesas Administrativa", 
-        "Despesas com Pessoal", 
-        "Despesas com Ocupação", 
-        "Despesas comercial", 
-        "Despesas com E-commerce"
-      ];
-      const despesasLinhas = despesasNomes.map(nome => 
-        linhas.find((item) => item.nome === nome)
-      ).filter((linha): linha is DreLinha => linha !== undefined);
-
-      // Ranking de despesas (para o gráfico de barras)
-      const rankingDespesasData: ChartBarDespesasData[] = despesasLinhas.map(linha => {
-        const valorOriginal = mes && linha.valores_mensais?.[mes] !== undefined
-          ? linha.valores_mensais[mes]
-          : linha.valor ?? 0;
-        return {
-          categoria: linha.nome,
-          valor: valorOriginal,
-          valorOriginal: valorOriginal
-        };
-      }).sort((a, b) => b.valor - a.valor);
-      setRankingDespesas(rankingDespesasData);
-
-      // Processar evolução das despesas (últimos 12 meses)
-      if (despesasLinhas.length > 0) {
-        const todosMesesDespesas = new Set<string>();
-        despesasLinhas.forEach(linha => {
-          if (linha && linha.valores_mensais) {
-            Object.keys(linha.valores_mensais).forEach(mes => todosMesesDespesas.add(mes));
+             // Processar evolução dos custos (últimos 12 meses)
+        if (custosLinhas.length > 0) {
+          const todosMesesCustos = new Set<string>();
+          custosLinhas.forEach(linha => {
+            if (linha && linha.valores_mensais) {
+              Object.keys(linha.valores_mensais).forEach(mes => todosMesesCustos.add(mes));
+            }
+          });
+          
+          const mesesOrdenadosCustos = Array.from(todosMesesCustos).sort();
+          const evolucaoCustos = mesesOrdenadosCustos.slice(-12).map(mes => ({
+            mes,
+            custos: custosLinhas.reduce((total, linha) => {
+              // Para custos, sempre usar valor absoluto
+              return total + Math.abs(linha?.valores_mensais?.[mes] || 0);
+            }, 0)
+          }));
+          
+          // Debug específico para maio - evolução custos
+          if (mes === "2025-05") {
+            const custosMaio = evolucaoCustos.find(c => c.mes === "2025-05");
+            console.log("🔍 Evolução custos em maio:", custosMaio);
           }
-        });
-        
-        const mesesOrdenadosDespesas = Array.from(todosMesesDespesas).sort();
-        const evolucaoDespesas = mesesOrdenadosDespesas.slice(-12).map(mes => ({
-          mes,
-          despesas: despesasLinhas.reduce((total, linha) => {
-            return total + Math.abs(linha?.valores_mensais?.[mes] || 0);
-          }, 0)
-        }));
-        setDespesasEvolucao(evolucaoDespesas);
-      } else {
-        setDespesasEvolucao([]);
-      }
+          
+          setCustosEvolucao(evolucaoCustos);
+        } else {
+          setCustosEvolucao([]);
+        }
 
-      // Lucro Líquido (Resultado Líquido)
-      const lucro = linhas.find((item) => item.nome === "Resultado Líquido");
-      const valorLucro = mes && lucro?.valores_mensais?.[mes] !== undefined 
-        ? lucro.valores_mensais[mes] 
-        : lucro?.valor ?? null;
-      setLucroLiquidoValor(valorLucro);
+             // Despesas: buscar itens que compõem o "EBITDA"
+       // Na nova estrutura, despesas são itens com operador "-" que contribuem para o EBITDA
+       let despesasLinhas: DreLinha[] = [];
+       
+       // Buscar despesas diretamente na estrutura
+       despesasLinhas = linhas.filter((item) => 
+         despesasBackend.includes(item.nome)
+       );
+
+       // Debug específico para maio - despesas
+       if (mes === "2025-05") {
+         console.log("🔍 Despesas encontradas em maio:");
+         despesasLinhas.forEach(despesa => {
+           const valorDespesa = despesa.valores_mensais?.[mes] || despesa.valor || 0;
+           // Para despesas, sempre usar valor absoluto (pois são despesas)
+           console.log(`  ${despesa.nome}:`, valorDespesa, "abs:", Math.abs(valorDespesa));
+         });
+       }
+
+             // Ranking de despesas (para o gráfico de barras)
+       const rankingDespesasData: ChartBarDespesasData[] = despesasLinhas.map(linha => {
+         const valorOriginal = mes && linha.valores_mensais?.[mes] !== undefined
+           ? linha.valores_mensais[mes]
+           : linha.valor ?? 0;
+         return {
+           categoria: linha.nome,
+           valor: Math.abs(valorOriginal), // Despesas são sempre positivas no ranking
+           valorOriginal: valorOriginal
+         };
+       }).sort((a, b) => b.valor - a.valor);
+       setRankingDespesas(rankingDespesasData);
+
+       // Processar evolução das despesas (últimos 12 meses)
+       if (despesasLinhas.length > 0) {
+         const todosMesesDespesas = new Set<string>();
+         despesasLinhas.forEach(linha => {
+           if (linha && linha.valores_mensais) {
+             Object.keys(linha.valores_mensais).forEach(mes => todosMesesDespesas.add(mes));
+           }
+         });
+         
+         const mesesOrdenadosDespesas = Array.from(todosMesesDespesas).sort();
+         const evolucaoDespesas = mesesOrdenadosDespesas.slice(-12).map(mes => ({
+           mes,
+           despesas: despesasLinhas.reduce((total, linha) => {
+             // Para despesas, sempre usar valor absoluto
+             return total + Math.abs(linha?.valores_mensais?.[mes] || 0);
+           }, 0)
+         }));
+         
+         // Debug específico para maio - evolução despesas
+         if (mes === "2025-05") {
+           const despesasMaio = evolucaoDespesas.find(d => d.mes === "2025-05");
+           console.log("🔍 Evolução despesas em maio:", despesasMaio);
+         }
+         
+         setDespesasEvolucao(evolucaoDespesas);
+       } else {
+         setDespesasEvolucao([]);
+       }
+
+             // Lucro Líquido (Resultado Líquido)
+       const lucro = linhas.find((item) => 
+         item.nome === "Resultado Líquido" || 
+         item.nome === "Lucro Líquido"
+       );
+
+       const valorLucro = mes && lucro?.valores_mensais?.[mes] !== undefined 
+         ? lucro.valores_mensais[mes] 
+         : lucro?.valor ?? null;
+       setLucroLiquidoValor(valorLucro);
       
       // Lucratividade (Lucro Líquido / Faturamento * 100)
       const lucratividade = valorFaturamento && valorLucro && valorFaturamento !== 0 
@@ -413,43 +512,56 @@ export default function DashCompetencia() {
       const momFatData = getMoMArray(fat);
       setMomFaturamento(momFatData);
       
-      // Para custos, processar os dois tipos de custos separadamente e depois combinar
-      const momCustoImport = getMoMArray(custoImport);
-      const momCustoMerc = getMoMArray(custoMerc);
-      
-      // Combinar os MoM dos dois custos
-      const todosMeses = new Set([
-        ...momCustoImport.map(item => item.mes),
-        ...momCustoMerc.map(item => item.mes)
-      ]);
-      
-      const momCustosCombinadoMap = new Map<string, MoMData>();
-      
-      Array.from(todosMeses).sort().forEach(mes => {
-        const importData = momCustoImport.find(item => item.mes === mes);
-        const mercData = momCustoMerc.find(item => item.mes === mes);
-        
-        const valor_atual = (importData?.valor_atual || 0) + (mercData?.valor_atual || 0);
-        const valor_anterior = (importData?.valor_anterior || 0) + (mercData?.valor_anterior || 0);
-        
-        let variacao_absoluta: number | null = null;
-        let variacao_percentual: number | null = null;
-        
-        if (valor_anterior !== null && valor_anterior !== 0) {
-          variacao_absoluta = valor_atual - valor_anterior;
-          variacao_percentual = ((valor_atual - valor_anterior) / Math.abs(valor_anterior)) * 100;
-        }
-        
-        momCustosCombinadoMap.set(mes, {
-          mes,
-          valor_atual,
-          valor_anterior,
-          variacao_absoluta,
-          variacao_percentual,
-        });
-      });
-      
-      setMomCustos(Array.from(momCustosCombinadoMap.values()));
+             // Para custos, processar todos os custos do Resultado Bruto
+       const momCustosCombinadoMap = new Map<string, MoMData>();
+       
+       if (custosLinhas.length > 0) {
+         const todosMeses = new Set<string>();
+         custosLinhas.forEach(linha => {
+           if (linha.valores_mensais) {
+             Object.keys(linha.valores_mensais).forEach(mes => todosMeses.add(mes));
+           }
+         });
+         
+         Array.from(todosMeses).sort().forEach(mes => {
+           let valor_atual = 0;
+           let valor_anterior = 0;
+           
+           custosLinhas.forEach(linha => {
+             const valorCustoAtual = linha.valores_mensais?.[mes] || 0;
+             // Para custos, sempre usar valor absoluto
+             valor_atual += Math.abs(valorCustoAtual);
+             
+             // Para valor anterior, precisamos encontrar o mês anterior
+             const mesesOrdenados = Object.keys(linha.valores_mensais || {}).sort();
+             const indexMes = mesesOrdenados.indexOf(mes);
+             if (indexMes > 0) {
+               const mesAnterior = mesesOrdenados[indexMes - 1];
+               const valorCustoAnterior = linha.valores_mensais?.[mesAnterior] || 0;
+               // Para custos, sempre usar valor absoluto
+               valor_anterior += Math.abs(valorCustoAnterior);
+             }
+           });
+           
+           let variacao_absoluta: number | null = null;
+           let variacao_percentual: number | null = null;
+           
+           if (valor_anterior !== 0) {
+             variacao_absoluta = valor_atual - valor_anterior;
+             variacao_percentual = ((valor_atual - valor_anterior) / valor_anterior) * 100;
+           }
+           
+           momCustosCombinadoMap.set(mes, {
+             mes,
+             valor_atual,
+             valor_anterior,
+             variacao_absoluta,
+             variacao_percentual,
+           });
+         });
+       }
+       
+       setMomCustos(Array.from(momCustosCombinadoMap.values()));
       setMomLucroLiquido(getMoMArray(lucro));
       // Lucratividade MoM: calcular a partir de lucro/faturamento mês a mês
       if (fat && lucro) {
@@ -488,8 +600,8 @@ export default function DashCompetencia() {
   useEffect(() => {
     const init = async () => {
       try {
-        const response = await fetch(`http://127.0.0.1:8000/dre`);
-        const data = await response.json();
+        const response = await api.get('/dre');
+        const data = response.data;
         // Compatibilidade: aceita data.data.meses_disponiveis, data.meses, ou meses direto na raiz
         let meses: string[] = [];
         if (data?.data?.meses_disponiveis && Array.isArray(data.data.meses_disponiveis) && data.data.meses_disponiveis.length > 0) {
@@ -513,7 +625,6 @@ export default function DashCompetencia() {
 
   // Carregar dados quando mês muda OU "Todo o período"
   useEffect(() => {
-    console.log("🔄 UseEffect de carregamento:", mesSelecionado, inicializando);
     if (!inicializando) {
       carregarDados(mesSelecionado);
     }
@@ -524,7 +635,7 @@ export default function DashCompetencia() {
       <section className="py-4 flex justify-between items-center">
         <FiltroMes 
           onSelect={handleMudancaMes} 
-          endpoint="http://127.0.0.1:8000/dre"
+          endpoint="/dre"
           value={mesSelecionado}
         />
       </section>

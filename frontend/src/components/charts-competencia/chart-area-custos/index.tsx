@@ -5,8 +5,8 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart"
-import { formatCurrencyShort } from "../../kpis-competencia"
+} from "../../ui/chart"
+import { formatCurrencyShort } from "../../../utils/formatters"
 
 export interface AreaChartCustosProps {
   data: Array<{
