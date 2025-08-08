@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import shutil
 from endpoints.dre import router as dre_router
 from endpoints.dfc import router as dfc_router
+from endpoints.financial_data_sqlalchemy import router as financial_data_router
 from auth import auth_router
 
 
@@ -67,6 +68,7 @@ app.add_middleware(
 app.include_router(auth_router, tags=["Authentication"])
 app.include_router(dre_router, tags=["DRE"])
 app.include_router(dfc_router, tags=["DFC"])
+app.include_router(financial_data_router, tags=["Financial Data"])
 
 @app.get("/")
 def root():

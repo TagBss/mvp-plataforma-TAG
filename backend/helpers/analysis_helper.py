@@ -164,7 +164,7 @@ def calcular_pmr_pmp(df_con, origem):
         mask = (
             df_con["origem"] == "CAP"
             ) & (
-            (df_con["DFC_n1"].fillna("") != "Movimentação entre Contas")
+            (df_con["dfc_n1"].fillna("") != "Movimentação entre Contas")
             ) & (
             data_caixa_col.notna()
             ) & (

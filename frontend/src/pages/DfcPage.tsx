@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from '../components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { TrendingUp, Download, Filter, Activity } from 'lucide-react'
 import { useHealthCheck } from '../hooks/useFinancialData'
-import DfcTable from '../components/table-dfc'
+import DfcTable from '../components/table-dfc/index-postgresql'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 const DfcPage = () => {

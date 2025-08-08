@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { TrendingUp, TrendingDown, Activity, DollarSign } from 'lucide-react'
 import { useDashboard, useHealthCheck } from '../hooks/useFinancialData'
 import LoadingSpinner from '../components/LoadingSpinner'
-import DashCompetencia from '../components/kpis-competencia'
+import DashCompetencia from '../components/kpis-competencia/index-postgresql'
 
 const Competencia = () => {
   const { health, loading, error } = useHealthCheck()

@@ -345,7 +345,7 @@ def calcular_saldo_dfc(origem: str, mes_filtro: str = None):
             return {"error": "Erro ao ler o arquivo Excel."}
 
         # Validação das colunas obrigatórias
-        required_columns = ["valor", "origem", "DFC_n1"]
+        required_columns = ["valor", "origem", "dfc_n1"]
         if not all(col in df.columns for col in required_columns):
             return {"error": f"A planilha deve conter as colunas: {', '.join(required_columns)}"}
 
@@ -359,10 +359,10 @@ def calcular_saldo_dfc(origem: str, mes_filtro: str = None):
         df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
         df = df.dropna(subset=[date_column, "valor"])
 
-        # Filtrar apenas contas diferentes de DFC_n1 "Movimentação entre Contas"
+        # Filtrar apenas contas diferentes de dfc_n1 "Movimentação entre Contas"
         df_con = df[
-            (df["DFC_n1"] != "Movimentação entre Contas") & 
-            (df["DFC_n1"].notna())
+            (df["dfc_n1"] != "Movimentação entre Contas") & 
+            (df["dfc_n1"].notna())
         ].copy()
 
         # Filtrar pela origem dinâmica para MoM (NÃO filtra por mês)

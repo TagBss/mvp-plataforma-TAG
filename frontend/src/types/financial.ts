@@ -1,4 +1,115 @@
-// Tipos base para dados financeiros
+// Tipos base para dados financeiros do PostgreSQL
+export interface FinancialDataItem {
+  id: number;
+  category: string;
+  subcategory?: string;
+  description?: string;
+  value: number;
+  type: 'receita' | 'despesa' | 'investimento' | 'outros';
+  date: string; // ISO date string
+  period?: string;
+  source?: string;
+  is_budget: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Tipos para dados agrupados por período
+export interface FinancialDataByPeriod {
+  period_type: string;
+  start_date: string;
+  end_date: string;
+  data: Record<string, Record<string, number>>;
+}
+
+// Tipos para resumo por tipo
+export interface FinancialSummary {
+  start_date: string;
+  end_date: string;
+  summary: Record<string, number>;
+}
+
+// Tipos para hierarquia de categorias
+export interface CategoryItem {
+  id: number;
+  name: string;
+  code?: string;
+  level: number;
+  is_active: boolean;
+  created_at: string;
+  children?: CategoryItem[];
+}
+
+export interface CategoriesResponse {
+  categories: CategoryItem[];
+}
+
+// Tipos para filtros
+export interface FinancialDataFilters {
+  start_date?: string;
+  end_date?: string;
+  category?: string;
+  data_type?: string;
+  is_budget?: boolean;
+  limit?: number;
+}
+
+// Tipos para criação/atualização de dados
+export interface FinancialDataCreate {
+  category: string;
+  description?: string;
+  value: number;
+  type: string;
+  date: string;
+  period?: string;
+  source?: string;
+  is_budget?: boolean;
+}
+
+export interface FinancialDataUpdate {
+  category?: string;
+  description?: string;
+  value?: number;
+  type?: string;
+  date?: string;
+  period?: string;
+  source?: string;
+  is_budget?: boolean;
+}
+
+// Tipos para resposta de paginação
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+// Tipos para health check
+export interface HealthResponse {
+  status: 'healthy' | 'unhealthy';
+  database_connected: boolean;
+  records_count: number;
+  timestamp: string;
+  error?: string;
+}
+
+// Tipos para resposta de erro da API
+export interface ApiError {
+  error: string;
+  details?: string;
+}
+
+// Tipo genérico para respostas da API
+export type ApiResponse<T> = T | ApiError;
+
+// Função type guard para verificar se é erro
+export const isApiError = (response: any): response is ApiError => {
+  return response && typeof response.error === 'string';
+};
+
+// Tipos legados para compatibilidade (serão removidos gradualmente)
 export interface FinancialData {
   meses_unicos: string[];
   anos_unicos: number[];
@@ -55,7 +166,7 @@ export interface DFCHierarchy {
   children?: DFCHierarchy[];
 }
 
-// Tipos para filtros
+// Tipos para filtros legados
 export interface PeriodFilter {
   mes?: string; // formato: "2024-01"
   trimestre?: string; // formato: "2024-T1"
@@ -118,28 +229,3 @@ export interface UploadResponse {
   message: string;
   filename?: string;
 }
-
-// Tipos para health check
-export interface HealthResponse {
-  status: 'healthy' | 'error';
-  message: string;
-  data_rows?: number;
-  data_columns?: number;
-  cache_status?: 'hit' | 'miss';
-  cache_age?: number;
-  response_time: number;
-}
-
-// Tipos para resposta de erro da API
-export interface ApiError {
-  error: string;
-  details?: string;
-}
-
-// Tipo genérico para respostas da API
-export type ApiResponse<T> = T | ApiError;
-
-// Função type guard para verificar se é erro
-export const isApiError = (response: any): response is ApiError => {
-  return response && typeof response.error === 'string';
-};

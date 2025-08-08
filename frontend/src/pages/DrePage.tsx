@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from '../components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { FileText, Download, Filter } from 'lucide-react'
 import { useHealthCheck } from '../hooks/useFinancialData'
-import DreTable from '../components/table-dre'
+import DreTable from '../components/table-dre/index-postgresql'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 const DrePage = () => {

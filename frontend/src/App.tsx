@@ -13,11 +13,14 @@ import DebugPanel from './components/DebugPanel'
 import DataStructureDebug from './components/DataStructureDebug'
 import SimpleTest from './components/SimpleTest'
 import TimeoutTest from './components/TimeoutTest'
-import DashFinanceiro from './components/kpis-financeiro'
+import DashFinanceiro from './components/kpis-financeiro/index-postgresql'
+import { FinancialDashboard } from './components/FinancialDashboard'
+import { FinancialDataTable } from './components/FinancialDataTable'
 import { ErrorBoundary } from './components/error-boundary'
 import { ToastProvider } from './components/toast'
 import { DarkModeDemo } from './components/dark-mode-demo'
 import { AuthProvider } from './contexts/AuthContext'
+import { FinancialDataProvider } from './contexts/FinancialDataContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 
 // Layout component for pages with sidebar
@@ -36,14 +39,15 @@ function App() {
     <ErrorBoundary>
       <ToastProvider>
         <AuthProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <Router>
-              <Routes>
+          <FinancialDataProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              <Router>
+                <Routes>
                 {/* Rotas públicas */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/test" element={<TestConnection />} />
@@ -58,6 +62,20 @@ function App() {
                   <ProtectedRoute>
                     <AppLayout>
                       <DashFinanceiro />
+                    </AppLayout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/postgresql-dashboard" element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <FinancialDashboard />
+                    </AppLayout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/postgresql-data" element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <FinancialDataTable />
                     </AppLayout>
                   </ProtectedRoute>
                 } />
@@ -102,6 +120,7 @@ function App() {
               </Routes>
             </Router>
           </ThemeProvider>
+          </FinancialDataProvider>
         </AuthProvider>
       </ToastProvider>
     </ErrorBoundary>
