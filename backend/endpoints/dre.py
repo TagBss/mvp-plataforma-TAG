@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 from helpers.cache_helper import get_cached_df
-from helpers.structure_helper import carregar_estrutura_dre_simplificada, extrair_nome_conta
+from helpers.structure_helper import carregar_estrutura_dre_simplificada, extrair_nome_conta, verificar_correspondencia_dados_estrutura, normalizar_nomes_contas
 from helpers.data_processor import processar_dados_financeiros, separar_realizado_orcamento, calcular_totais_por_periodo
 from helpers.analysis_helper import calcular_analises_completas
 from helpers.dre_helper import criar_linha_dre_simplificada, get_classificacoes_dre, calcular_totalizadores_dre, identificar_custos_despesas_dinamicamente
@@ -10,7 +10,7 @@ router = APIRouter()
 
 @router.get("/dre")
 def get_dre_data(request: Request):
-    filename = "financial-data-roriz.xlsx"
+    filename = "db_bluefit - Copia.xlsx"
 
     try:
         df = get_cached_df(filename)
@@ -38,7 +38,7 @@ def get_dre_data(request: Request):
                 return {"error": "Coluna de competência não encontrada para filtro de mês."}
 
         # Validação das colunas obrigatórias
-        required_columns = ["DRE_n2", "valor_original", "classificacao", "origem", "competencia"]
+        required_columns = ["dre_n2", "valor_original", "classificacao", "origem", "competencia"]
         if not all(col in df.columns for col in required_columns):
             return {"error": f"A planilha deve conter as colunas: {', '.join(required_columns)}"}
 
@@ -54,11 +54,27 @@ def get_dre_data(request: Request):
 
         if df_real.empty:
             return {"error": "Não foram encontrados dados realizados na planilha"}
+        
+        # Verificar se há dados orçamentários - se não houver, criar estrutura vazia
         if df_orc.empty:
-            return {"error": "Não foram encontrados dados orçamentários na planilha"}
+            # Criar DataFrame vazio com a mesma estrutura
+            df_orc = df_real.copy()
+            df_orc["valor_original"] = 0.0
+            df_orc["origem"] = "ORC"
 
         # Calcular totais por período
-        totais = calcular_totais_por_periodo(df_real, df_orc, meses_unicos, trimestres_unicos, anos_unicos, "DRE_n2", "valor_original")
+        totais = calcular_totais_por_periodo(df_real, df_orc, meses_unicos, trimestres_unicos, anos_unicos, "dre_n2", "valor_original")
+
+        # Verificar e normalizar correspondência
+        stats_inicial = verificar_correspondencia_dados_estrutura(df_real, estrutura_dre, 'dre_n2', 'DRE')
+        
+        # Tentar normalizar nomes se necessário
+        if not stats_inicial["correspondencia_perfeita"]:
+            df_real = normalizar_nomes_contas(df_real, 'dre_n2', estrutura_dre)
+            df_orc = normalizar_nomes_contas(df_orc, 'dre_n2', estrutura_dre)
+            
+            # Recarregar totais após normalização
+            totais = calcular_totais_por_periodo(df_real, df_orc, meses_unicos, trimestres_unicos, anos_unicos, "dre_n2", "valor_original")
 
         # Preparar dados por período
         valores_mensais = {

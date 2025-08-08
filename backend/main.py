@@ -17,7 +17,7 @@ _df_cache = {
 }
 CACHE_TIMEOUT = 300  # 5 minutos ao invés de 1 minuto
 
-def get_cached_df(filename="financial-data-roriz.xlsx"):
+def get_cached_df(filename="db_bluefit - Copia.xlsx"):
     global _df_cache
     try:
         mtime = os.path.getmtime(filename)
@@ -79,7 +79,7 @@ def health_check():
     
     try:
         # Verificar se o arquivo existe
-        filename = "financial-data-roriz.xlsx"
+        filename = "db_bluefit - Copia.xlsx"
         if not os.path.exists(filename):
             return {
                 "status": "error",

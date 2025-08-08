@@ -10,7 +10,7 @@ _df_cache = {
 }
 CACHE_TIMEOUT = 300  # 5 minutos
 
-def get_cached_df(filename="financial-data-roriz.xlsx"):
+def get_cached_df(filename="db_bluefit - Copia.xlsx"):
     """Carrega e gerencia cache do dataframe principal"""
     global _df_cache
     try:

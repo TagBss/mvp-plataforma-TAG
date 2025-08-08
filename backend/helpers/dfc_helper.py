@@ -106,6 +106,7 @@ def criar_item_nivel_0_dfc(nome, tipo="=", meses_unicos=None, trimestres_unicos=
 
 def preparar_dados_por_periodo(totais, contas_dfc, meses_unicos, trimestres_unicos, anos_unicos):
     """Prepara os dados organizados por período"""
+    
     valores_mensais = {
         mes: {nome: totais['total_real_por_mes'].get(mes, {}).get(nome, 0.0) for nome, _ in contas_dfc}
         for mes in meses_unicos
@@ -336,7 +337,7 @@ def calcular_saldo_dfc(origem: str, mes_filtro: str = None):
     from .data_processor import calcular_mom
     from .analysis_helper import calcular_pmr_pmp
     
-    filename = "financial-data-roriz.xlsx"
+    filename = "db_bluefit - Copia.xlsx"
     
     try:
         df = get_cached_df(filename)

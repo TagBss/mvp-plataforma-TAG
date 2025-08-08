@@ -98,7 +98,7 @@ def carregar_estrutura_dfc(filename):
         print(f"❌ Erro ao carregar estrutura DFC: {e}")
         return []
 
-def carregar_estrutura_dre(filename="financial-data-roriz.xlsx"):
+def carregar_estrutura_dre(filename="db_bluefit - Copia.xlsx"):
     """Carrega a estrutura DRE das abas dre_n2 e dre_n1 da planilha"""
     try:
         # Ler a aba dre_n2
@@ -152,7 +152,7 @@ def carregar_estrutura_dre(filename="financial-data-roriz.xlsx"):
         print(f"❌ Erro ao carregar estrutura DRE: {e}")
         return [] 
 
-def carregar_estrutura_dre_simplificada(filename="financial-data-roriz.xlsx"):
+def carregar_estrutura_dre_simplificada(filename="db_bluefit - Copia.xlsx"):
     """Carrega a estrutura DRE da aba 'dre' com estrutura simplificada"""
     try:
         # Ler a aba dre
@@ -192,3 +192,58 @@ def carregar_estrutura_dre_simplificada(filename="financial-data-roriz.xlsx"):
     except Exception as e:
         print(f"❌ Erro ao carregar estrutura DRE simplificada: {e}")
         return [] 
+
+def verificar_correspondencia_dados_estrutura(df, estrutura, coluna_dados, nome_estrutura="estrutura"):
+    """Verifica e normaliza a correspondência entre dados e estrutura"""
+    contas_dados = set(df[coluna_dados].unique())
+    contas_estrutura = set(item["nome"] for item in estrutura)
+    
+    # Encontrar diferenças
+    contas_sem_dados = contas_estrutura - contas_dados
+    contas_sem_estrutura = contas_dados - contas_estrutura
+    
+    # Retornar estatísticas
+    return {
+        "contas_estrutura": len(contas_estrutura),
+        "contas_dados": len(contas_dados),
+        "contas_sem_dados": len(contas_sem_dados),
+        "contas_sem_estrutura": len(contas_sem_estrutura),
+        "correspondencia_perfeita": len(contas_sem_dados) == 0 and len(contas_sem_estrutura) == 0
+    }
+
+def normalizar_nomes_contas(df, coluna, estrutura):
+    """Tenta normalizar nomes de contas para melhorar correspondência"""
+    # Criar mapeamento de normalização
+    mapeamento = {}
+    
+    # Para cada conta nos dados, tentar encontrar correspondência na estrutura
+    for conta_dados in df[coluna].unique():
+        if pd.isna(conta_dados):
+            continue
+            
+        conta_dados_str = str(conta_dados).strip()
+        
+        # Buscar correspondência exata
+        if conta_dados_str in [item["nome"] for item in estrutura]:
+            continue
+            
+        # Buscar correspondência parcial (case insensitive)
+        for item in estrutura:
+            if conta_dados_str.lower() == item["nome"].lower():
+                mapeamento[conta_dados_str] = item["nome"]
+                break
+        
+        # Se não encontrou, tentar extrair o nome da conta
+        nome_extraido = extrair_nome_conta(conta_dados_str)
+        if nome_extraido and nome_extraido != conta_dados_str:
+            # Verificar se o nome extraído existe na estrutura
+            for item in estrutura:
+                if nome_extraido.lower() == item["nome"].lower():
+                    mapeamento[conta_dados_str] = item["nome"]
+                    break
+    
+    # Aplicar mapeamento se encontrado
+    if mapeamento:
+        df[coluna] = df[coluna].replace(mapeamento)
+    
+    return df 

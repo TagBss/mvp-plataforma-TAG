@@ -106,8 +106,8 @@ def calcular_linha_totalizador_dre(nome, func, tipo="=", valores_totais=None, va
 def get_classificacoes_dre(df_real, df_orc, dre_n2_name, meses_unicos, trimestres_unicos, anos_unicos,
                           valores_mensais, valores_trimestrais, valores_anuais, total_geral_real, total_geral_orc):
     """Obtém classificações para uma conta DRE específica"""
-    sub_df_real = df_real[df_real["DRE_n2"] == dre_n2_name]
-    sub_df_orc = df_orc[df_orc["DRE_n2"] == dre_n2_name]
+    sub_df_real = df_real[df_real["dre_n2"] == dre_n2_name]
+    sub_df_orc = df_orc[df_orc["dre_n2"] == dre_n2_name]
     if sub_df_real.empty:
         return []
 

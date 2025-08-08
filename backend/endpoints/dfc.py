@@ -16,7 +16,7 @@ router = APIRouter()
 
 @router.get("/dfc")
 def get_dfc_data():
-    filename = "financial-data-roriz.xlsx"
+    filename = "db_bluefit - Copia.xlsx"
 
     try:
         df = get_cached_df(filename)
@@ -24,7 +24,7 @@ def get_dfc_data():
             return {"error": "Erro ao ler o arquivo Excel."}
 
         # Validação das colunas obrigatórias
-        required_columns = ["DFC_n2", "valor", "classificacao", "origem", "data"]
+        required_columns = ["dfc_n2", "valor", "classificacao", "origem", "data"]
         if not all(col in df.columns for col in required_columns):
             return {"error": f"A planilha deve conter as colunas: {', '.join(required_columns)}"}
 
@@ -40,11 +40,16 @@ def get_dfc_data():
 
         if df_real.empty:
             return {"error": "Não foram encontrados dados realizados na planilha"}
+        
+        # Verificar se há dados orçamentários - se não houver, criar estrutura vazia
         if df_orc.empty:
-            return {"error": "Não foram encontrados dados orçamentários na planilha"}
+            # Criar DataFrame vazio com a mesma estrutura
+            df_orc = df_real.copy()
+            df_orc["valor"] = 0.0
+            df_orc["origem"] = "ORC"
 
         # Calcular totais por período
-        totais = calcular_totais_por_periodo(df_real, df_orc, meses_unicos, trimestres_unicos, anos_unicos, "DFC_n2", "valor")
+        totais = calcular_totais_por_periodo(df_real, df_orc, meses_unicos, trimestres_unicos, anos_unicos, "dfc_n2", "valor")
 
         # Carregar estrutura dinâmica DFC
         estrutura_dfc = carregar_estrutura_dfc(filename)
@@ -53,12 +58,26 @@ def get_dfc_data():
         
         # Criar lista de contas a partir da estrutura dinâmica
         contas_dfc = [(item["nome"], item["tipo"]) for item in estrutura_dfc]
+        
+        # Verificar e normalizar correspondência
+        from helpers.structure_helper import verificar_correspondencia_dados_estrutura, normalizar_nomes_contas
+        
+        # Verificar correspondência inicial
+        stats_inicial = verificar_correspondencia_dados_estrutura(df_real, estrutura_dfc, 'dfc_n2', 'DFC')
+        
+        # Tentar normalizar nomes se necessário
+        if not stats_inicial["correspondencia_perfeita"]:
+            df_real = normalizar_nomes_contas(df_real, 'dfc_n2', estrutura_dfc)
+            df_orc = normalizar_nomes_contas(df_orc, 'dfc_n2', estrutura_dfc)
+            
+            # Recarregar totais após normalização
+            totais = calcular_totais_por_periodo(df_real, df_orc, meses_unicos, trimestres_unicos, anos_unicos, "dfc_n2", "valor")
 
         # Preparar dados por período usando helper
         dados_por_periodo = preparar_dados_por_periodo(totais, contas_dfc, meses_unicos, trimestres_unicos, anos_unicos)
 
         def get_classificacoes(dfc_n2_name):
-            sub_df = df_real[df_real["DFC_n2"] == dfc_n2_name]
+            sub_df = df_real[df_real["dfc_n2"] == dfc_n2_name]
             if sub_df.empty:
                 return []
 
@@ -70,10 +89,10 @@ def get_dfc_data():
                 valores_mensais = {}
                 orcamentos_mensais = {}
                 for mes in meses_unicos:
-                    real_mes = df_real[(df_real["DFC_n2"] == dfc_n2_name) & 
+                    real_mes = df_real[(df_real["dfc_n2"] == dfc_n2_name) & 
                                       (df_real["classificacao"] == classificacao) & 
                                       (df_real["mes_ano"] == mes)]["valor"].sum()
-                    orc_mes = df_orc[(df_orc["DFC_n2"] == dfc_n2_name) & 
+                    orc_mes = df_orc[(df_orc["dfc_n2"] == dfc_n2_name) & 
                                     (df_orc["classificacao"] == classificacao) & 
                                     (df_orc["mes_ano"] == mes)]["valor"].sum()
                     valores_mensais[mes] = real_mes
@@ -82,10 +101,10 @@ def get_dfc_data():
                 valores_trimestrais = {}
                 orcamentos_trimestrais = {}
                 for tri in trimestres_unicos:
-                    real_tri = df_real[(df_real["DFC_n2"] == dfc_n2_name) & 
+                    real_tri = df_real[(df_real["dfc_n2"] == dfc_n2_name) & 
                                       (df_real["classificacao"] == classificacao) & 
                                       (df_real["trimestre"] == tri)]["valor"].sum()
-                    orc_tri = df_orc[(df_orc["DFC_n2"] == dfc_n2_name) & 
+                    orc_tri = df_orc[(df_orc["dfc_n2"] == dfc_n2_name) & 
                                     (df_orc["classificacao"] == classificacao) & 
                                     (df_orc["trimestre"] == tri)]["valor"].sum()
                     valores_trimestrais[tri] = real_tri
@@ -94,10 +113,10 @@ def get_dfc_data():
                 valores_anuais = {}
                 orcamentos_anuais = {}
                 for ano in anos_unicos:
-                    real_ano = df_real[(df_real["DFC_n2"] == dfc_n2_name) & 
+                    real_ano = df_real[(df_real["dfc_n2"] == dfc_n2_name) & 
                                       (df_real["classificacao"] == classificacao) & 
                                       (df_real["ano"] == ano)]["valor"].sum()
-                    orc_ano = df_orc[(df_orc["DFC_n2"] == dfc_n2_name) & 
+                    orc_ano = df_orc[(df_orc["dfc_n2"] == dfc_n2_name) & 
                                     (df_orc["classificacao"] == classificacao) & 
                                     (df_orc["ano"] == ano)]["valor"].sum()
                     valores_anuais[str(ano)] = real_ano
