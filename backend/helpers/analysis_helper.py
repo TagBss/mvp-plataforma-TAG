@@ -1,5 +1,5 @@
 import pandas as pd
-from financial_utils import (
+from .financial_utils import (
     calcular_analise_vertical, calcular_analise_horizontal, 
     calcular_realizado_vs_orcado
 )

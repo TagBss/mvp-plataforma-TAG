@@ -1,1 +1,3 @@
-# Endpoints package
+"""
+Endpoints da API
+"""

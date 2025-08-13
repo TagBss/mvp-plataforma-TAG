@@ -1,105 +1,108 @@
-# 📊 Dashboard Interativo com Next.js + FastAPI
+# 🚀 Plataforma TAG
 
-Este projeto é um **dashboard analítico interativo** com frontend em **Next.js 14** e backend em **FastAPI**, incluindo **upload de arquivos Excel**, visualização de **gráficos dinâmicos**, componentes reutilizáveis e design responsivo.
+Sistema completo de gestão financeira com backend Python e frontend React.
 
-
-## 🚀 Funcionalidades
-
-- **Upload de planilhas `.xlsx`** diretamente do frontend.
-- Integração com **API FastAPI** para leitura de dados do Excel.
-- **Chart Area Gradient** (gráfico de área com gradiente e tooltips).
-- **Charts Bar Interativos** (barras com animação e interações).
-- **Tabela de dados (Table Demo)** estilizada com componentes modernos.
-- Estrutura de componentes reutilizáveis com **ShadCN UI**.
-- **Responsivo** para desktop, tablet e mobile.
-- Componente de **Sidebar** para navegação estruturada.
-- CORS configurado para permitir comunicação entre frontend e backend local.
-- Atualização automática dos dados após upload.
-
-
-## 🧱 Tecnologias Utilizadas
-
-### Frontend
-
-- [Next.js 14](https://nextjs.org/)
-- [TypeScript](https://www.typescriptlang.org/)
-- [Tailwind CSS](https://tailwindcss.com/)
-- [ShadCN UI](https://ui.shadcn.dev/)
-- [Recharts](https://recharts.org/) – gráficos interativos
-
-### Backend
-
-- [FastAPI](https://fastapi.tiangolo.com/)
-- [Uvicorn](https://www.uvicorn.org/) – servidor ASGI
-- [Pandas](https://pandas.pydata.org/) – leitura e manipulação de arquivos `.xlsx`
-- `python-multipart` – para suporte a upload de arquivos
-
-
-## ▶️ Como Rodar o Projeto
-
-### 1. Clonar o repositório
+## 📁 Estrutura do Projeto
 
 ```
-git clone https://github.com/igormatheusf/dashboard-nextjs-and-fastapi.git
-cd dashboard-nextjs-and-fastapi
+plataforma-tag/
+├── 📚 docs/                    # Documentação geral do projeto
+├── 🔧 backend/                 # API Python (FastAPI)
+│   ├── 📚 docs/               # Documentação do backend
+│   ├── 🔧 scripts/            # Scripts utilitários e migrações
+│   ├── 🧪 tests/              # Arquivos de teste
+│   ├── ⚙️ utils/              # Configurações e utilitários
+│   ├── 🌐 endpoints/           # Endpoints da API
+│   ├── 🛠️ helpers/            # Funções auxiliares
+│   ├── 🔐 auth/               # Sistema de autenticação
+│   └── 🗄️ database/           # Configurações de banco
+├── 🎨 frontend/                # Aplicação React + TypeScript
+│   ├── 📚 docs/               # Documentação do frontend
+│   ├── 📝 src/                # Código fonte
+│   └── 🌐 public/             # Arquivos estáticos
+├── 🚀 frontend-nextjs/         # Versão Next.js (mantida como está)
+├── 📦 node_modules/            # Dependências Node.js
+└── 📋 .gitignore              # Arquivos ignorados pelo Git
 ```
-### 2. Iniciar o Backend (FastAPI)
-```
+
+## 🚀 Como Executar
+
+### Backend (Python)
+
+```bash
 cd backend
+source venv/bin/activate
 pip install -r requirements.txt
-python -m uvicorn main:app --reload
+python main.py
 ```
-Certifique-se de ter o python-multipart instalado:
-pip install python-multipart 
 
-### 3. Iniciar o Frontend (Next.js)
-```
+### Frontend (React)
+
+```bash
 cd frontend
 npm install
 npm run dev
 ```
-Acesse: http://localhost:3000
 
-## 📦 Upload de Arquivo
-Clique no botão Upload Excel.
+### Frontend Next.js
 
-Selecione um arquivo .xlsx com colunas apropriadas (ex: month, desktop, mobile).
-
-Após o upload, os gráficos serão atualizados automaticamente com os novos dados.
-
-## 📈 Exemplo de Dados Esperados no Excel
-
-| month | desktop | mobile |
-| ----- | ------- | ------ |
-| Jan   | 1200    | 900    |
-| Feb   | 1500    | 1100   |
-| ...   | ...     | ...    |
-
-
-## 📌 Requisitos
-- Node.js >=18
-- Python >=3.8
-
-Navegador moderno (Chrome, Firefox, Edge, etc.)
-
-
-## 💡 Dica
-
-Você pode gerar um arquivo `requirements.txt` com:
+```bash
+cd frontend-nextjs
+npm install
+npm run dev
 ```
-pip freeze > requirements.txt
+
+## 🛠️ Tecnologias
+
+### Backend
+- **Python 3.8+**
+- **FastAPI** - Framework web
+- **SQLAlchemy** - ORM
+- **PostgreSQL** - Banco de dados
+- **Pandas** - Manipulação de dados
+
+### Frontend
+- **React 18** - Framework JavaScript
+- **TypeScript** - Tipagem estática
+- **Vite** - Build tool
+- **Tailwind CSS** - Framework CSS
+- **ESLint** - Linting
+
+## 📚 Documentação
+
+- **📚 docs/** - Documentação geral do projeto
+- **🔧 backend/docs/** - Documentação específica do backend
+- **🎨 frontend/docs/** - Documentação específica do frontend
+
+## 🔧 Funcionalidades Principais
+
+- 📊 **Gestão Financeira** - DRE, DFC, Cards KPIs e Gráficos
+- 🔐 **Autenticação** - Sistema de login seguro
+- 📈 **Relatórios** - Análises e dashboards
+- 🗄️ **Migração de Dados** - Importação de Excel
+- 🌙 **Dark Mode** - Interface adaptável
+- 📱 **Responsivo** - Design mobile-first
+
+## 🚀 Deploy
+
+### Backend
+```bash
+cd backend
+pip install -r requirements.txt
+gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker
 ```
-## 📌 Próximos passos
 
-- Adicionar testes automatizados
-- Melhorar autenticação e segurança
-- Adicionar filtros, exportações, badges e imagens demonstrativas
-
+### Frontend
+```bash
+cd frontend
+npm run build
+# Servir pasta dist/ com nginx ou similar
+```
 
 ## 📄 Licença
-Este projeto está licenciado sob a MIT License.
 
-## 🙋‍♂️ Contato
-Desenvolvido por Igor Matheus
-- 📧 [igorm.fonseca@hotmail.com]
-- 🔗 LinkedIn [https://www.linkedin.com/in/igormatheus]
+Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
+
+## 📞 Suporte
+
+Para suporte e dúvidas, abra uma issue no repositório ou entre em contato com a equipe de desenvolvimento.

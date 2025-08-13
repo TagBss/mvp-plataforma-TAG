@@ -21,22 +21,22 @@ class FinancialDataRepository:
         is_budget: Optional[bool] = None,
         limit: int = 100000
     ) -> List[Dict[str, Any]]:
-        """Busca dados financeiros com filtros"""
+        """Busca dados financeiros com filtros (nova estrutura baseada no Excel)"""
         
         with DatabaseSession() as session:
             query = session.query(FinancialData)
             
-            # Aplicar filtros
+            # Aplicar filtros usando as novas colunas
             if start_date:
-                query = query.filter(FinancialData.date >= start_date)
+                query = query.filter(FinancialData.data >= start_date)
             if end_date:
-                query = query.filter(FinancialData.date <= end_date)
+                query = query.filter(FinancialData.data <= end_date)
             if category:
-                query = query.filter(FinancialData.category == category)
-            if data_type:
-                query = query.filter(FinancialData.type == data_type)
-            if is_budget is not None:
-                query = query.filter(FinancialData.is_budget == is_budget)
+                # Buscar tanto em DFC quanto DRE
+                query = query.filter(
+                    (FinancialData.dfc_n1.like(f"%{category}%")) |
+                    (FinancialData.dre_n1.like(f"%{category}%"))
+                )
             
             query = query.limit(limit)
             
@@ -44,17 +44,41 @@ class FinancialDataRepository:
             return [
                 {
                     'id': item.id,
-                    'category': item.category,
-                    'subcategory': item.subcategory,
-                    'description': item.description,
-                    'value': item.value,
-                    'type': item.type,
-                    'date': item.date,
-                    'period': item.period,
-                    'source': item.source,
-                    'is_budget': item.is_budget,
-                    'created_at': item.created_at,
-                    'updated_at': item.updated_at
+                    'origem': item.origem,
+                    'empresa': item.empresa,
+                    'nome': item.nome,
+                    'classificacao': item.classificacao,
+                    'emissao': item.emissao,
+                    'competencia': item.competencia,
+                    'vencimento': item.vencimento,
+                    'valor_original': item.valor_original,
+                    'data': item.data,
+                    'valor': item.valor,
+                    'banco': item.banco,
+                    'conta_corrente': item.conta_corrente,
+                    'documento': item.documento,
+                    'observacao': item.observacao,
+                    'local': item.local,
+                    'segmento': item.segmento,
+                    'projeto': item.projeto,
+                    'centro_de_resultado': item.centro_de_resultado,
+                    'diretoria': item.diretoria,
+                    'dre_n1': item.dre_n1,
+                    'dre_n2': item.dre_n2,
+                    'dfc_n1': item.dfc_n1,
+                    'dfc_n2': item.dfc_n2,
+                    
+                    # Manter compatibilidade com código antigo
+                    'category': item.dfc_n1 or item.dre_n1,
+                    'subcategory': item.dfc_n2 or item.dre_n2,
+                    'description': item.nome,
+                    'value': item.valor,
+                    'type': 'receita' if item.valor and item.valor > 0 else 'despesa',
+                    'date': item.data,
+                    'source': item.origem,
+                    'is_budget': False,
+                    'created_at': datetime.now(),
+                    'updated_at': datetime.now()
                 }
                 for item in results
             ]

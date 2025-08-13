@@ -23,8 +23,7 @@ import { FiltroMes } from "../filtro-mes";
 import { ChartAreaSaldoFinal } from "../charts-financeiro/chart-area-saldo-final";
 import { ChartCustosFinanceiro } from "../charts-financeiro/chart-bar-custos";
 import ChartMovimentacoes from "../charts-financeiro/chart-movimentacoes";
-import { useFinancialDataContext } from "../../contexts/FinancialDataContext";
-import { transformToKPIs, transformToDFCData, groupDataByPeriod } from "../../utils/postgresql-transformers";
+import { api } from "../../services/api";
 
 // Função para formatar no estilo curto (Mil / Mi)
 export function formatCurrencyShort(value: number, opts?: { noPrefix?: boolean }): string {
@@ -70,7 +69,11 @@ type DFCItem = {
   nome: string;
   valor: number;
   valores_mensais: Record<string, number>;
+  valores_trimestrais: Record<string, number>;
+  valores_anuais: Record<string, number>;
   horizontal_mensais: Record<string, string>;
+  horizontal_trimestrais: Record<string, string>;
+  horizontal_anuais: Record<string, string>;
   classificacoes?: any[];
 };
 
@@ -142,21 +145,10 @@ function getMoMIndicator(momData: MoMData[], mesSelecionado: string) {
 export default function DashFinanceiroPostgreSQL() {
   console.log("🔥 COMPONENTE FINANCEIRO POSTGRESQL INICIADO");
   
-  // Usar o contexto PostgreSQL
-  const { 
-    financialData, 
-    summary, 
-    dataLoading, 
-    summaryLoading,
-    currentFilters,
-    updateFilters 
-  } = useFinancialDataContext();
-  
-
-  
   // Estados principais
   const [mesSelecionado, setMesSelecionado] = useState<string>("");
   const [inicializando, setInicializando] = useState(true);
+  const [loading, setLoading] = useState(false);
   
   // Estados dos KPIs
   const [saldoReceber, setSaldoReceber] = useState<SaldoData | null>(null);
@@ -172,186 +164,181 @@ export default function DashFinanceiroPostgreSQL() {
   const handleMudancaMes = (novoMes: string) => {
     console.log("🔄 Mudando para:", novoMes);
     setMesSelecionado(novoMes);
-    
-    // Atualizar filtros do contexto PostgreSQL
-    if (novoMes) {
-      const [ano, mes] = novoMes.split("-");
-      const startDate = `${ano}-${mes}-01`;
-      const endDate = new Date(parseInt(ano), parseInt(mes), 0).toISOString().split('T')[0];
-      updateFilters({ start_date: startDate, end_date: endDate });
-    } else {
-      // Todo o período
-      const currentYear = new Date().getFullYear();
-      updateFilters({ 
-        start_date: `${currentYear}-01-01`, 
-        end_date: new Date().toISOString().split('T')[0] 
-      });
+  };
+
+  // Função para carregar dados dos KPIs a partir dos endpoints PostgreSQL
+  const carregarDados = async (mes: string) => {
+    setLoading(true);
+    try {
+      const queryString = mes ? `?mes=${mes}` : '';
+      
+      // Carregar dados dos endpoints PostgreSQL
+      const [receberRes, pagarRes, dfcRes] = await Promise.all([
+        api.get(`/financial-data/receber${queryString}`),
+        api.get(`/financial-data/pagar${queryString}`),
+        api.get('/financial-data/dfc')
+      ]);
+
+      setSaldoReceber(receberRes.data);
+      setSaldoPagar(pagarRes.data);
+      setDfcData(dfcRes.data);
+
+      // Processar evolução do saldo (últimos 12 meses)
+      if (dfcRes.data?.data) {
+        // Encontrar itens "Saldo inicial" e "Saldo final" no DFC
+        const saldoInicialItem = dfcRes.data.data.find((item: DFCItem) => item.nome === "Saldo inicial");
+        const saldoFinalItem = dfcRes.data.data.find((item: DFCItem) => item.nome === "Saldo final");
+        
+        if (saldoFinalItem && saldoInicialItem) {
+          // Criar dados para gráfico (últimos 12 meses)
+          const mesesDisponiveis = Object.keys(saldoFinalItem.valores_mensais).sort();
+          const ultimosMeses = mesesDisponiveis.slice(-12);
+          
+          const evolucao = ultimosMeses.map(mes => ({
+            mes,
+            saldo_final: saldoFinalItem.valores_mensais[mes] || 0
+          }));
+          setSaldoEvolucao(evolucao);
+        } else {
+          setSaldoEvolucao([]);
+        }
+      } else {
+        setSaldoEvolucao([]);
+      }
+
+      // Processar dados de movimentações do DFC
+      let movimentacoesData: MoMData[] = [];
+      if (dfcRes.data?.data) {
+        const movimentacoesItem = dfcRes.data.data.find((item: DFCItem) => item.nome === "Movimentações");
+        
+        if (movimentacoesItem && movimentacoesItem.horizontal_mensais) {
+          const mesesOrdenados = Object.keys(movimentacoesItem.valores_mensais || {}).sort();
+          movimentacoesData = mesesOrdenados.map((mes, idx) => {
+            const valorAtual = movimentacoesItem.valores_mensais?.[mes] || 0;
+            const valorAnterior = idx > 0 ? (movimentacoesItem.valores_mensais?.[mesesOrdenados[idx-1]] || null) : null;
+            const horizontalStr = movimentacoesItem.horizontal_mensais?.[mes];
+            
+            let variacaoPercentual = null;
+            let variacaoAbsoluta = null;
+            
+            if (horizontalStr && horizontalStr !== "–" && valorAnterior !== null) {
+              const percentualMatch = horizontalStr.match(/([+-]?)(\d+\.?\d*)%/);
+              if (percentualMatch) {
+                const sinal = percentualMatch[1] === "-" ? -1 : 1;
+                variacaoPercentual = parseFloat(percentualMatch[2]) * sinal;
+                variacaoAbsoluta = valorAtual - valorAnterior;
+              }
+            }
+
+            return {
+              mes,
+              valor_atual: valorAtual,
+              valor_anterior: valorAnterior,
+              variacao_absoluta: variacaoAbsoluta,
+              variacao_percentual: variacaoPercentual
+            };
+          });
+        }
+      }
+      setMovimentacoesData(movimentacoesData);
+
+      // Processar dados de custos do DFC
+      if (dfcRes.data?.data) {
+        // Primeiro, tentar encontrar "Custos" diretamente no nível principal
+        let custosItem = dfcRes.data.data.find((item: DFCItem) => item.nome === "Custos");
+        
+        // Se não encontrar, procurar dentro de "Movimentações" > "Operacional"
+        if (!custosItem) {
+          const movimentacoesItemCustos = dfcRes.data.data.find((item: DFCItem) => item.nome === "Movimentações");
+          
+          if (movimentacoesItemCustos && movimentacoesItemCustos.classificacoes) {
+            const operacionalItem = movimentacoesItemCustos.classificacoes.find((item: any) => item.nome === "Operacional");
+            
+            if (operacionalItem && operacionalItem.classificacoes) {
+              custosItem = operacionalItem.classificacoes.find((item: any) => item.nome === "Custos");
+            }
+          }
+        }
+
+        if (custosItem) {
+          const custosPorClassificacao: Record<string, number> = {};
+          
+          if (custosItem.classificacoes && Array.isArray(custosItem.classificacoes)) {
+            custosItem.classificacoes.forEach((classificacao: any) => {
+              const valor = mes && classificacao.valores_mensais?.[mes] !== undefined
+                ? classificacao.valores_mensais[mes]
+                : classificacao.valor || 0;
+              
+              if (Math.abs(valor) > 0) {
+                custosPorClassificacao[classificacao.nome] = Math.abs(valor);
+              }
+            });
+          }
+          
+          setCustosData(custosPorClassificacao);
+        } else {
+          setCustosData({});
+        }
+      } else {
+        setCustosData({});
+      }
+
+    } catch (e) {
+      console.error("❌ Erro ao carregar dados:", e);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Processar dados PostgreSQL quando mudarem
+  // Inicialização: buscar meses disponíveis do endpoint /financial-data/receber
   useEffect(() => {
-    if (!financialData || financialData.length === 0) return;
-
-    console.log("🔄 Processando dados PostgreSQL:", financialData.length, "registros");
-
-    // Transformar dados para formato DFC
-    const dfcTransformed = transformToDFCData(financialData);
-    
-    // Criar estrutura de dados compatível com o componente original
-    const dfcCompatible: DFCData = {
-      success: true,
-      meses: dfcTransformed.meses_unicos,
-      trimestres: dfcTransformed.trimestres_unicos,
-      anos: dfcTransformed.anos_unicos,
-      data: []
-    };
-
-    // Processar saldo receber (receitas)
-    const receitas = financialData.filter(item => item.type === 'receita');
-    const receitasPorMes = groupDataByPeriod(receitas, 'month');
-    const saldoReceberTotal = receitas.reduce((sum, item) => sum + item.value, 0);
-    
-    const saldoReceberData: SaldoData = {
-      success: true,
-      data: {
-        saldo_total: saldoReceberTotal,
-        mom_analysis: Object.keys(receitasPorMes).map((mes, idx, meses) => {
-          // Calcular total do mês somando todas as categorias
-          const valorAtual = Object.values(receitasPorMes[mes] || {}).reduce((sum, val) => sum + val, 0);
-          const valorAnterior = idx > 0 ? Object.values(receitasPorMes[meses[idx-1]] || {}).reduce((sum, val) => sum + val, 0) : null;
-          const variacaoAbsoluta = valorAnterior !== null ? valorAtual - valorAnterior : null;
-          const variacaoPercentual = valorAnterior !== null && valorAnterior !== 0 
-            ? ((valorAtual - valorAnterior) / valorAnterior) * 100 
-            : null;
-
-          return {
-            mes,
-            valor_atual: valorAtual,
-            valor_anterior: valorAnterior,
-            variacao_absoluta: variacaoAbsoluta,
-            variacao_percentual: variacaoPercentual
-          };
-        }),
-        pmr: "30 dias" // Placeholder
+    const init = async () => {
+      try {
+        const response = await api.get('/financial-data/receber');
+        const data = response.data;
+        
+        // Compatibilidade: aceita data.data.meses_disponiveis, data.meses, ou meses direto na raiz
+        let meses: string[] = [];
+        if (data?.data?.meses_disponiveis && Array.isArray(data.data.meses_disponiveis) && data.data.meses_disponiveis.length > 0) {
+          meses = data.data.meses_disponiveis;
+        } else if (data?.meses && Array.isArray(data.meses) && data.meses.length > 0) {
+          meses = data.meses;
+        } else if (Array.isArray(data) && data.length > 0 && typeof data[0] === "string") {
+          meses = data;
+        }
+        
+        if (meses.length > 0) {
+          const ultimoMes = meses[meses.length - 1];
+          setMesSelecionado(ultimoMes);
+        }
+        setInicializando(false);
+      } catch {
+        setInicializando(false);
       }
     };
+    init();
+  }, []);
 
-    // Processar saldo pagar (despesas)
-    const despesas = financialData.filter(item => item.type === 'despesa');
-    const despesasPorMes = groupDataByPeriod(despesas, 'month');
-    const saldoPagarTotal = despesas.reduce((sum, item) => sum + item.value, 0);
-    
-    const saldoPagarData: SaldoData = {
-      success: true,
-      data: {
-        saldo_total: saldoPagarTotal,
-        mom_analysis: Object.keys(despesasPorMes).map((mes, idx, meses) => {
-          // Calcular total do mês somando todas as categorias
-          const valorAtual = Object.values(despesasPorMes[mes] || {}).reduce((sum, val) => sum + val, 0);
-          const valorAnterior = idx > 0 ? Object.values(despesasPorMes[meses[idx-1]] || {}).reduce((sum, val) => sum + val, 0) : null;
-          const variacaoAbsoluta = valorAnterior !== null ? valorAtual - valorAnterior : null;
-          const variacaoPercentual = valorAnterior !== null && valorAnterior !== 0 
-            ? ((valorAtual - valorAnterior) / valorAnterior) * 100 
-            : null;
-
-          return {
-            mes,
-            valor_atual: valorAtual,
-            valor_anterior: valorAnterior,
-            variacao_absoluta: variacaoAbsoluta,
-            variacao_percentual: variacaoPercentual
-          };
-        }),
-        pmp: "30 dias" // Placeholder
-      }
-    };
-
-    // Processar evolução do saldo
-    const mesesOrdenados = Object.keys(receitasPorMes).sort();
-    const evolucaoSaldo = mesesOrdenados.map(mes => {
-      const receitasMes = Object.values(receitasPorMes[mes] || {}).reduce((sum, val) => sum + val, 0);
-      const despesasMes = Object.values(despesasPorMes[mes] || {}).reduce((sum, val) => sum + val, 0);
-      return {
-        mes,
-        saldo_final: receitasMes - despesasMes
-      };
-    });
-
-    // Processar movimentações
-    const movimentacoesData: MoMData[] = mesesOrdenados.map((mes, idx) => {
-      const receitasMes = Object.values(receitasPorMes[mes] || {}).reduce((sum, val) => sum + val, 0);
-      const despesasMes = Object.values(despesasPorMes[mes] || {}).reduce((sum, val) => sum + val, 0);
-      const valorAtual = receitasMes - despesasMes;
-      
-      const valorAnterior = idx > 0 ? (() => {
-        const mesAnterior = mesesOrdenados[idx-1];
-        const receitasAnterior = Object.values(receitasPorMes[mesAnterior] || {}).reduce((sum, val) => sum + val, 0);
-        const despesasAnterior = Object.values(despesasPorMes[mesAnterior] || {}).reduce((sum, val) => sum + val, 0);
-        return receitasAnterior - despesasAnterior;
-      })() : null;
-
-      const variacaoAbsoluta = valorAnterior !== null ? valorAtual - valorAnterior : null;
-      const variacaoPercentual = valorAnterior !== null && valorAnterior !== 0 
-        ? ((valorAtual - valorAnterior) / valorAnterior) * 100 
-        : null;
-
-      return {
-        mes,
-        valor_atual: valorAtual,
-        valor_anterior: valorAnterior,
-        variacao_absoluta: variacaoAbsoluta,
-        variacao_percentual: variacaoPercentual
-      };
-    });
-
-    // Processar custos por categoria
-    const custosPorCategoria: Record<string, number> = {};
-    despesas.forEach(item => {
-      const categoria = item.category;
-      custosPorCategoria[categoria] = (custosPorCategoria[categoria] || 0) + item.value;
-    });
-
-    // Atualizar estados
-    setSaldoReceber(saldoReceberData);
-    setSaldoPagar(saldoPagarData);
-    setDfcData(dfcCompatible);
-    setSaldoEvolucao(evolucaoSaldo);
-    setMovimentacoesData(movimentacoesData);
-    setCustosData(custosPorCategoria);
-
-  }, [financialData]);
-
-  // Inicialização: definir período padrão
+  // Carregar dados quando mês muda OU "Todo o período"
   useEffect(() => {
-    if (!inicializando) return;
-    
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
-    const mesAtual = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-    
-    setMesSelecionado(mesAtual);
-    updateFilters({ 
-      start_date: `${currentYear}-01-01`, 
-      end_date: new Date().toISOString().split('T')[0] 
-    });
-    setInicializando(false);
-  }, [inicializando, updateFilters]);
-
-  const loading = dataLoading || summaryLoading || inicializando;
+    console.log("🔄 UseEffect de carregamento:", mesSelecionado, inicializando);
+    if (!inicializando) {
+      carregarDados(mesSelecionado);
+    }
+  }, [mesSelecionado, inicializando]);
 
   return (
     <main className="p-4">
       <section className="py-4 flex justify-between items-center">
         <FiltroMes 
           onSelect={handleMudancaMes} 
-          endpoint="http://127.0.0.1:8000/financial-data/months"
+          endpoint="http://127.0.0.1:8000/financial-data/receber"
           value={mesSelecionado}
         />
       </section>
       
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {loading ? (
+        {(inicializando || loading) ? (
           // Exibe skeletons enquanto carrega
           <>
             <CardSkeleton />
@@ -500,7 +487,7 @@ export default function DashFinanceiroPostgreSQL() {
       </section>
 
       <section className="mt-4 flex flex-col lg:flex-row gap-4">
-        {loading ? (
+        {(inicializando || loading) ? (
           // Exibe skeletons enquanto carrega
           <>
             <CardSkeletonLarge />
@@ -602,7 +589,7 @@ export default function DashFinanceiroPostgreSQL() {
       </section>
 
       <section className="mt-4 flex flex-col lg:flex-row gap-4">
-        {loading ? (
+        {(inicializando || loading) ? (
           // Exibe skeleton enquanto carrega
           <CardSkeletonLarge />
         ) : (
