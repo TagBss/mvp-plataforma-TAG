@@ -72,20 +72,27 @@ export default function DreTable() {
   const [periodo, setPeriodo] = useState<"mes" | "trimestre" | "ano">("mes")
 
   useEffect(() => {
-    api.get("/dre")
-      .then(res => {
-        const result: DreResponse = res.data
-        setData(result.data)
-        setMeses(result.meses)
-        setTrimestres(result.trimestres)
-        setAnos(result.anos)
-        const ultimoAno = Math.max(...result.anos)
-        setFiltroAno(String(ultimoAno))
+    fetch("http://127.0.0.1:8000/dre")
+      .then(res => res.json())
+      .then((result: DreResponse | { error: string }) => {
+        if ("error" in result) {
+          setError(result.error)
+        } else {
+          console.log("📊 Dados recebidos:", {
+            meses: result.meses?.length,
+            trimestres: result.trimestres?.length,
+            anos: result.anos?.length,
+            trimestres_exemplo: result.trimestres?.slice(0, 3)
+          })
+          setData(result.data)
+          setMeses(result.meses)
+          setTrimestres(result.trimestres)
+          setAnos(result.anos)
+          const ultimoAno = Math.max(...result.anos)
+          setFiltroAno(String(ultimoAno))
+        }
       })
-      .catch(err => {
-        console.error('Erro ao carregar DRE:', err)
-        setError(`Erro ao carregar dados: ${err.message}`)
-      })
+      .catch(err => setError(`Erro ao carregar dados: ${err.message}`))
       .finally(() => setLoading(false))
   }, [])
 
@@ -113,14 +120,29 @@ export default function DreTable() {
   if (periodo === "mes") {
     periodosFiltrados = meses.filter(m => filtroAno === "todos" ? true : m.startsWith(filtroAno)).sort()
   } else if (periodo === "trimestre") {
+    console.log("🔍 Filtro trimestral:", {
+      filtroAno,
+      trimestres_disponiveis: trimestres,
+      trimestres_exemplo: trimestres?.slice(0, 3)
+    })
     periodosFiltrados = trimestres.filter(t => filtroAno === "todos" ? true : t.startsWith(filtroAno)).sort()
+    console.log("✅ Trimestres filtrados:", periodosFiltrados)
   } else if (periodo === "ano") {
     periodosFiltrados = filtroAno === "todos" ? anos.map(String).sort() : [filtroAno]
   }
 
   const calcularValor = (item: DreItem, periodoLabel: string): number => {
     if (periodo === "mes") return item.valores_mensais?.[periodoLabel] ?? 0
-    if (periodo === "trimestre") return item.valores_trimestrais?.[periodoLabel] ?? 0
+    if (periodo === "trimestre") {
+      const valor = item.valores_trimestrais?.[periodoLabel] ?? 0
+      console.log("💰 Valor trimestral:", {
+        item: item.nome,
+        periodo: periodoLabel,
+        valor,
+        valores_disponiveis: Object.keys(item.valores_trimestrais || {})
+      })
+      return valor
+    }
     if (periodo === "ano") return item.valores_anuais?.[periodoLabel] ?? item.valores_anuais?.[`${periodoLabel}.0`] ?? 0
     return 0
   }

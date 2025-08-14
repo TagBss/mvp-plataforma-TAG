@@ -129,7 +129,12 @@ export default function DreTablePostgreSQL() {
   if (periodo === "mes") {
     periodosFiltrados = meses.filter(m => filtroAno === "todos" ? true : m.startsWith(filtroAno)).sort();
   } else if (periodo === "trimestre") {
-    periodosFiltrados = trimestres.filter(t => filtroAno === "todos" ? true : t.startsWith(filtroAno)).sort();
+    // CORREÇÃO: Filtro trimestral deve verificar se contém o ano, não se começa com ele
+    periodosFiltrados = trimestres.filter(t => {
+      if (filtroAno === "todos") return true
+      // Para trimestres no formato "Q1-2025", verificar se contém o ano
+      return t.includes(filtroAno)
+    }).sort();
   } else if (periodo === "ano") {
     periodosFiltrados = filtroAno === "todos" ? anos.map(String).sort() : [filtroAno];
   }

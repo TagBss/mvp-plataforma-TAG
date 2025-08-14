@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, ChevronsDown, ChevronsUp, ChevronUp } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
 import { Skeleton } from "../ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table"
@@ -30,6 +30,14 @@ type DreItem = {
   orcamentos_anuais?: Record<string, number>
   orcamento_total?: number
   classificacoes?: DreItem[]
+  descricao?: string // Adicionado para a nova renderização
+  // Análise Horizontal e Vertical
+  analise_horizontal_mensal?: Record<string, number>
+  analise_vertical_mensal?: Record<string, number>
+  analise_horizontal_trimestral?: Record<string, number>
+  analise_vertical_trimestral?: Record<string, number>
+  analise_horizontal_anual?: Record<string, number>
+  analise_vertical_anual?: Record<string, number>
 }
 
 type DreResponse = {
@@ -53,9 +61,13 @@ export default function DreTablePostgreSQL() {
   const [filtroAno, setFiltroAno] = useState<string>("")
   const [showOrcado, setShowOrcado] = useState(false)
   const [showDiferenca, setShowDiferenca] = useState(false)
+  const [showAnaliseVertical, setShowAnaliseVertical] = useState(false)
+  const [showAnaliseHorizontal, setShowAnaliseHorizontal] = useState(false)
   const [allExpanded, setAllExpanded] = useState(false)
   const [periodo, setPeriodo] = useState<"mes" | "trimestre" | "ano">("mes")
   const [dataSource, setDataSource] = useState<string>("")
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
+  const [classificacoesCache, setClassificacoesCache] = useState<Record<string, DreItem[]>>({})
 
   useEffect(() => {
     console.log("🔄 Iniciando carregamento DRE N0 PostgreSQL...")
@@ -124,12 +136,141 @@ export default function DreTablePostgreSQL() {
     setAllExpanded(novoEstado)
   }
 
+  // Função para buscar classificações de uma conta DRE N2
+  const buscarClassificacoes = async (dreN2Name: string) => {
+    try {
+      // Verificar se já está no cache
+      if (classificacoesCache[dreN2Name]) {
+        console.log(`📋 Usando classificações do cache para: ${dreN2Name}`)
+        return classificacoesCache[dreN2Name]
+      }
+
+      console.log(`🔍 Buscando classificações para: ${dreN2Name}`)
+      const response = await api.get(`/dre-n0/classificacoes/${encodeURIComponent(dreN2Name)}`)
+      
+      if (response.data.success) {
+        const classificacoes = response.data.data
+        console.log(`✅ Classificações encontradas: ${classificacoes.length} para ${dreN2Name}`)
+        console.log(`📊 Períodos disponíveis:`, {
+          meses: response.data.meses?.length || 0,
+          trimestres: response.data.trimestres?.length || 0,
+          anos: response.data.anos?.length || 0
+        })
+        
+        // Verificar se as classificações têm valores trimestrais e anuais
+        if (classificacoes.length > 0) {
+          const primeiraClass = classificacoes[0]
+          console.log(`🔍 Primeira classificação:`, {
+            nome: primeiraClass.nome,
+            temTrimestrais: Object.keys(primeiraClass.valores_trimestrais || {}).length > 0,
+            temAnuais: Object.keys(primeiraClass.valores_anuais || {}).length > 0,
+            trimestres: Object.keys(primeiraClass.valores_trimestrais || {}),
+            anos: Object.keys(primeiraClass.valores_anuais || {})
+          })
+        }
+        
+        // Adicionar ao cache
+        setClassificacoesCache(prev => ({
+          ...prev,
+          [dreN2Name]: classificacoes
+        }))
+        
+        return classificacoes
+      } else {
+        console.log(`⚠️ Nenhuma classificação encontrada para: ${dreN2Name}`)
+        return []
+      }
+    } catch (error) {
+      console.error(`❌ Erro ao buscar classificações para ${dreN2Name}:`, error)
+      return []
+    }
+  }
+
+  // Função para expandir todas as classificações
+  const expandirTodasClassificacoes = async () => {
+    console.log("🔽 Expandindo todas as classificações...")
+    
+    // Buscar classificações para todas as contas expansíveis
+    const novasExpansoes: Record<string, boolean> = {}
+    const novasClassificacoes: Record<string, DreItem[]> = {}
+    
+    for (const item of data) {
+      if (item.expandivel) {
+        novasExpansoes[item.nome] = true
+        
+        // Buscar classificações se ainda não estiverem no cache
+        if (!classificacoesCache[item.nome]) {
+          try {
+            const classificacoes = await buscarClassificacoes(item.nome)
+            novasClassificacoes[item.nome] = classificacoes
+          } catch (error) {
+            console.error(`❌ Erro ao buscar classificações para ${item.nome}:`, error)
+          }
+        }
+      }
+    }
+    
+    // Atualizar estado de expansão
+    setExpandedItems(novasExpansoes)
+    
+    // Atualizar dados com classificações
+    if (Object.keys(novasClassificacoes).length > 0) {
+      setData(prevData => 
+        prevData.map(d => 
+          novasClassificacoes[d.nome] 
+            ? { ...d, classificacoes: novasClassificacoes[d.nome] }
+            : d
+        )
+      )
+    }
+    
+    console.log(`✅ ${Object.keys(novasExpansoes).length} classificações expandidas`)
+  }
+
+  // Função para recolher todas as classificações
+  const recolherTodasClassificacoes = () => {
+    console.log("🔼 Recolhendo todas as classificações...")
+    
+    // Limpar todas as expansões
+    setExpandedItems({})
+    
+    console.log("✅ Todas as classificações recolhidas")
+  }
+
+  // Função para expandir/colapsar item com classificações
+  const toggleExpansao = async (item: DreItem) => {
+    if (!item.expandivel) return
+
+    const isExpanded = expandedItems[item.nome] || false
+    
+    if (!isExpanded) {
+      // Expandir: buscar classificações
+      const classificacoes = await buscarClassificacoes(item.nome)
+      
+      // Atualizar o item com as classificações
+      setData(prevData => 
+        prevData.map(d => 
+          d.nome === item.nome 
+            ? { ...d, classificacoes } 
+            : d
+        )
+      )
+    }
+    
+    // Alternar estado de expansão
+    setExpandedItems(prev => ({
+      ...prev,
+      [item.nome]: !isExpanded
+    }))
+  }
+
   let periodosFiltrados: string[] = []
   
   // Validação para evitar erros quando os arrays estão vazios
   if (periodo === "mes" && meses && meses.length > 0) {
     periodosFiltrados = meses.filter(m => filtroAno === "todos" ? true : m.startsWith(filtroAno)).sort()
   } else if (periodo === "trimestre" && trimestres && trimestres.length > 0) {
+    // CORREÇÃO: Agora com formato "2025-Q1", startsWith funciona perfeitamente
     periodosFiltrados = trimestres.filter(t => filtroAno === "todos" ? true : t.startsWith(filtroAno)).sort()
   } else if (periodo === "ano" && anos && anos.length > 0) {
     periodosFiltrados = filtroAno === "todos" ? anos.map(String).sort() : [filtroAno]
@@ -168,6 +309,47 @@ export default function DreTablePostgreSQL() {
     return `${diff.toFixed(1)}%`
   }
 
+  // Função para calcular análise horizontal (variação vs período anterior)
+  const calcularAnaliseHorizontal = (item: DreItem, periodoLabel: string): number => {
+    if (periodo === "mes") return item.analise_horizontal_mensal?.[periodoLabel] ?? 0
+    if (periodo === "trimestre") return item.analise_horizontal_trimestral?.[periodoLabel] ?? 0
+    if (periodo === "ano") return item.analise_horizontal_anual?.[periodoLabel] ?? 0
+    return 0
+  }
+
+  // Função para calcular análise vertical (representatividade sobre Faturamento)
+  const calcularAnaliseVertical = (item: DreItem, periodoLabel: string): number => {
+    if (periodo === "mes") return item.analise_vertical_mensal?.[periodoLabel] ?? 0
+    if (periodo === "trimestre") return item.analise_vertical_trimestral?.[periodoLabel] ?? 0
+    if (periodo === "ano") return item.analise_vertical_anual?.[periodoLabel] ?? 0
+    return 0
+  }
+
+  // Função para renderizar análise horizontal com setas
+  const renderAnaliseHorizontal = (valor: number) => {
+    if (valor === 0 || isNaN(valor)) return <span className="text-muted-foreground">-</span>
+    
+    const isPositive = valor > 0
+    const sign = isPositive ? "+" : "-"
+    
+    return (
+      <span>
+        {sign}{Math.abs(valor).toFixed(1)}%
+      </span>
+    )
+  }
+
+  // Função para renderizar análise vertical
+  const renderAnaliseVertical = (valor: number) => {
+    if (valor === 0) return <span className="text-muted-foreground">-</span>
+    
+    return (
+      <span className="font-medium">
+        {valor.toFixed(1)}%
+      </span>
+    )
+  }
+
   // Função para renderizar valor da diferença
   const renderValorDiferenca = (real: number, orcado: number) => {
     const diff = real - orcado
@@ -192,19 +374,12 @@ export default function DreTablePostgreSQL() {
 
   // Função para renderizar nome com operador matemático
   const renderNomeComOperador = (item: DreItem) => {
-    const operadores: Record<string, string> = {
-      "+": "+",
-      "-": "-", 
-      "=": "=",
-      "+/-": "±"
-    }
-    
-    const operador = operadores[item.tipo] || ""
-    const nomeComOperador = operador ? `(${operador}) ${item.nome}` : item.nome
+    // CORREÇÃO: Usar descricao se disponível, senão usar nome (que já vem com operador do backend)
+    const nomeExibicao = item.descricao || item.nome
     
     return (
       <span className={item.tipo === "=" ? "font-semibold" : ""}>
-        {nomeComOperador}
+        {nomeExibicao}
       </span>
     )
   }
@@ -241,43 +416,65 @@ export default function DreTablePostgreSQL() {
       headerRow1.push(p)
       if (showOrcado) headerRow1.push("")
       if (showDiferenca) headerRow1.push("")
+      if (showAnaliseVertical) {
+        headerRow1.push("") // AV
+      }
+      if (showAnaliseHorizontal) {
+        headerRow1.push("") // AH
+      }
     })
     headerRow1.push("Total")
     if (showOrcado) headerRow1.push("")
     if (showDiferenca) headerRow1.push("")
+    if (showAnaliseVertical) {
+      headerRow1.push("") // AV
+    }
+    if (showAnaliseHorizontal) {
+      headerRow1.push("") // AH
+    }
 
     const excelHeader1 = ws.addRow(headerRow1)
     excelHeader1.font = { bold: true }
 
-    // Segunda linha do cabeçalho - só adiciona se houver mais de uma coluna
-    if (showOrcado || showDiferenca) {
-      const headerRow2 = [""]
-      periodosFiltrados.forEach(() => {
-        headerRow2.push("Real")
-        if (showOrcado) headerRow2.push("Orçado")
-        if (showDiferenca) headerRow2.push("Dif.")
-      })
+    // Segunda linha do cabeçalho - Real, Orçado, Dif., AV, AH
+    const headerRow2 = [""]
+    periodosFiltrados.forEach(() => {
       headerRow2.push("Real")
       if (showOrcado) headerRow2.push("Orçado")
       if (showDiferenca) headerRow2.push("Dif.")
-
-      const excelHeader2 = ws.addRow(headerRow2)
-      excelHeader2.font = { bold: true }
+      if (showAnaliseVertical) {
+        headerRow2.push("AV")
+      }
+      if (showAnaliseHorizontal) {
+        headerRow2.push("AH")
+      }
+    })
+    headerRow2.push("Real")
+    if (showOrcado) headerRow2.push("Orçado")
+    if (showDiferenca) headerRow2.push("Dif.")
+    if (showAnaliseVertical) {
+      headerRow2.push("AV")
+    }
+    if (showAnaliseHorizontal) {
+      headerRow2.push("AH")
     }
 
+    const excelHeader2 = ws.addRow(headerRow2)
+    excelHeader2.font = { bold: true }
+
     // Mesclar células da primeira linha - só se houver segunda linha
-    if (showOrcado || showDiferenca) {
+    if (showOrcado || showDiferenca || showAnaliseVertical || showAnaliseHorizontal) {
       ws.mergeCells(1, 1, 2, 1) // Coluna Descrição
       let colIndex = 2
       periodosFiltrados.forEach(() => {
-        const colSpan = 1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)
+        const colSpan = 1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0) + (showAnaliseVertical ? 1 : 0) + (showAnaliseHorizontal ? 1 : 0) // Real + Orçado + Dif. + AV + AH
         if (colSpan > 1) {
           ws.mergeCells(1, colIndex, 1, colIndex + colSpan - 1)
         }
         colIndex += colSpan
       })
       // Mesclar colunas do total
-      const totalColSpan = 1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)
+      const totalColSpan = 1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0) + (showAnaliseVertical ? 1 : 0) // Real + Orçado + Dif. + AV
       if (totalColSpan > 1) {
         ws.mergeCells(1, colIndex, 1, colIndex + totalColSpan - 1)
       }
@@ -285,37 +482,61 @@ export default function DreTablePostgreSQL() {
 
     // Adicionar dados
     data.forEach(item => {
-      const total = calcularTotal(
-        periodo === "mes" ? item.valores_mensais :
-        periodo === "trimestre" ? item.valores_trimestrais :
-        item.valores_anuais
-      )
-      const totalOrc = calcularTotalOrcamento(
-        periodo === "mes" ? item.orcamentos_mensais :
-        periodo === "trimestre" ? item.orcamentos_trimestrais :
-        item.orcamentos_anuais
-      )
+      // CORREÇÃO: Usar descricao se disponível, senão usar nome (que já vem com operador do backend)
+      const nomeExibicao = item.descricao || item.nome
 
-      const operadores: Record<string, string> = {
-        "+": "+",
-        "-": "-", 
-        "=": "=",
-        "+/-": "±"
-      }
-      const operador = operadores[item.tipo] || ""
-      const nomeComOperador = operador ? `(${operador}) ${item.nome}` : item.nome
-
-      const row: (string | number)[] = [nomeComOperador]
+      const row: (string | number)[] = [nomeExibicao]
       periodosFiltrados.forEach(p => {
         const real = Math.round(calcularValor(item, p))
         const orcado = Math.round(calcularOrcamento(item, p))
+        const analiseHorizontal = calcularAnaliseHorizontal(item, p)
+        const analiseVertical = calcularAnaliseVertical(item, p)
+        
         row.push(real)
         if (showOrcado) row.push(orcado)
         if (showDiferenca) row.push(real - orcado)
+        if (showAnaliseVertical) {
+          row.push(analiseVertical)
+        }
+        if (showAnaliseHorizontal) {
+          row.push(analiseHorizontal)
+        }
       })
-      row.push(Math.round(total))
-      if (showOrcado) row.push(Math.round(totalOrc))
-      if (showDiferenca) row.push(Math.round(total - totalOrc))
+      
+      // Total
+      const total = Math.round(calcularTotal(
+        periodo === "mes" ? item.valores_mensais :
+        periodo === "trimestre" ? item.valores_trimestrais :
+        item.valores_anuais
+      ))
+      const totalOrc = Math.round(calcularTotalOrcamento(
+        periodo === "mes" ? item.orcamentos_mensais :
+        periodo === "trimestre" ? item.orcamentos_trimestrais :
+        item.orcamentos_anuais
+      ))
+      
+      row.push(total)
+      if (showOrcado) row.push(totalOrc)
+      if (showDiferenca) row.push(total - totalOrc)
+      
+      // Total AV e AH (média ponderada) - apenas se estiverem ativos
+      if (showAnaliseVertical) {
+        const totalAnaliseVertical = periodosFiltrados.reduce((sum, p) => {
+          const av = calcularAnaliseVertical(item, p)
+          return sum + av
+        }, 0) / periodosFiltrados.length
+        
+        row.push(totalAnaliseVertical)
+      }
+      
+      if (showAnaliseHorizontal) {
+        const totalAnaliseHorizontal = periodosFiltrados.reduce((sum, p) => {
+          const ah = calcularAnaliseHorizontal(item, p)
+          return sum + ah
+        }, 0) / periodosFiltrados.length
+        
+        row.push(totalAnaliseHorizontal)
+      }
 
       const excelRow = ws.addRow(row)
       if (item.tipo === "=") {
@@ -327,66 +548,6 @@ export default function DreTablePostgreSQL() {
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
       saveAs(blob, `DRE_Nivel0_PostgreSQL_${periodo}_${filtroAno}.xlsx`)
     })
-  }
-
-  const renderItem = (item: DreItem): React.ReactNode => {
-    const total = calcularTotal(
-      periodo === "mes" ? item.valores_mensais :
-      periodo === "trimestre" ? item.valores_trimestrais :
-      item.valores_anuais
-    )
-    const totalOrcamento = calcularTotalOrcamento(
-      periodo === "mes" ? item.orcamentos_mensais :
-      periodo === "trimestre" ? item.orcamentos_trimestrais :
-      item.valores_anuais
-    )
-
-    return (
-      <TableRow key={item.nome} className={item.tipo === "=" ? "font-semibold bg-muted/20" : ""}>
-        <TableCell className="py-3 md:sticky md:left-0 md:z-10 bg-background border-r border-border">
-          <div className="flex items-center gap-2">
-            {renderNomeComOperador(item)}
-          </div>
-        </TableCell>
-
-        {periodosFiltrados.map(p => {
-          const valor = calcularValor(item, p)
-          const orcamento = calcularOrcamento(item, p)
-          
-          return (
-            <React.Fragment key={p}>
-              <TableCell className="text-right">
-                {renderValor(valor)}
-              </TableCell>
-              {showOrcado && (
-                <TableCell className="text-right">
-                  {renderValorOrcamento(orcamento)}
-                </TableCell>
-              )}
-              {showDiferenca && (
-                <TableCell className="text-right">
-                  {renderValorDiferenca(valor, orcamento)}
-                </TableCell>
-              )}
-            </React.Fragment>
-          )
-        })}
-
-        <TableCell className="text-right font-medium">
-          {renderValor(total)}
-        </TableCell>
-        {showOrcado && (
-          <TableCell className="text-right font-medium">
-            {renderValorOrcamento(totalOrcamento)}
-          </TableCell>
-        )}
-        {showDiferenca && (
-          <TableCell className="text-right font-medium">
-            {renderValorDiferenca(total, totalOrcamento)}
-          </TableCell>
-        )}
-      </TableRow>
-    )
   }
 
   if (loading) {
@@ -513,8 +674,43 @@ export default function DreTablePostgreSQL() {
                   />
                   Diferença
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowAnaliseVertical(!showAnaliseVertical)}>
+                  <Checkbox
+                    checked={showAnaliseVertical}
+                    onCheckedChange={setShowAnaliseVertical}
+                    className="mr-2"
+                  />
+                  Análise Vertical (AV)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowAnaliseHorizontal(!showAnaliseHorizontal)}>
+                  <Checkbox
+                    checked={showAnaliseHorizontal}
+                    onCheckedChange={setShowAnaliseHorizontal}
+                    className="mr-2"
+                  />
+                  Análise Horizontal (AH)
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={expandirTodasClassificacoes} 
+              variant="outline" 
+              size="sm"
+              title="Expandir todas as classificações"
+            >
+              <ChevronsDown className="h-4 w-4" />
+            </Button>
+            <Button 
+              onClick={recolherTodasClassificacoes} 
+              variant="outline" 
+              size="sm"
+              title="Recolher todas as classificações"
+            >
+              <ChevronsUp className="h-4 w-4" />
+            </Button>
           </div>
 
           <div className="text-sm text-muted-foreground">
@@ -528,8 +724,8 @@ export default function DreTablePostgreSQL() {
             <TableHeader>
               {/* Primeira linha do cabeçalho - períodos */}
               <TableRow>
-                <TableHead 
-                  rowSpan={showOrcado || showDiferenca ? 2 : 1} 
+                <TableHead
+                  rowSpan={2} 
                   className="min-w-[300px] md:sticky md:left-0 md:z-10 bg-background border-r font-semibold"
                 >
                   Descrição
@@ -537,59 +733,254 @@ export default function DreTablePostgreSQL() {
                 {periodosFiltrados.map((p) => (
                   <TableHead 
                     key={p} 
-                    colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)} 
+                    colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0) + (showAnaliseVertical ? 1 : 0) + (showAnaliseHorizontal ? 1 : 0)} 
                     className="text-center min-w-[120px] bg-muted/30 border-r font-semibold"
                   >
                     {p}
                   </TableHead>
                 ))}
                 <TableHead 
-                  colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)} 
+                  colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0) + (showAnaliseVertical ? 1 : 0)} 
                   className="text-center min-w-[120px] bg-muted/30 font-semibold"
                 >
                   Total
                 </TableHead>
               </TableRow>
-              {/* Segunda linha do cabeçalho - Real, Orçado, Dif. - só aparece se houver mais de uma coluna */}
-              {(showOrcado || showDiferenca) && (
-                <TableRow>
-                  {periodosFiltrados.map((p) => (
-                    <React.Fragment key={`${p}-sub`}>
-                      <TableHead className="text-right min-w-[120px] bg-secondary/30">
-                        Real
+              {/* Segunda linha do cabeçalho - Real, Orçado, Dif., AV */}
+              <TableRow>
+                {periodosFiltrados.map((p) => (
+                  <React.Fragment key={`${p}-sub`}>
+                    <TableHead className="text-right min-w-[120px] bg-secondary/30">
+                      Real
+                    </TableHead>
+                    {showOrcado && (
+                      <TableHead className="text-right min-w-[120px] bg-muted/20">
+                        Orçado
                       </TableHead>
-                      {showOrcado && (
-                        <TableHead className="text-right min-w-[120px] bg-muted/20">
-                          Orçado
-                        </TableHead>
-                      )}
-                      {showDiferenca && (
-                        <TableHead className="text-right min-w-[120px] bg-muted/20">
-                          Dif.
-                        </TableHead>
-                      )}
-                    </React.Fragment>
-                  ))}
-                  {/* Colunas do Total */}
-                  <TableHead className="text-right min-w-[120px] bg-secondary/30">
-                    Real
+                    )}
+                    {showDiferenca && (
+                      <TableHead className="text-right min-w-[120px] bg-muted/20">
+                        Dif.
+                      </TableHead>
+                    )}
+                    {showAnaliseVertical && (
+                      <TableHead className="text-center min-w-[80px] bg-muted/20 border-l">
+                        AV
+                      </TableHead>
+                    )}
+                    {showAnaliseHorizontal && (
+                      <TableHead className="text-center min-w-[80px] bg-muted/20 border-l">
+                        AH
+                      </TableHead>
+                    )}
+                  </React.Fragment>
+                ))}
+                {/* Colunas do Total */}
+                <TableHead className="text-right min-w-[120px] bg-secondary/30">
+                  Real
+                </TableHead>
+                {showOrcado && (
+                  <TableHead className="text-right min-w-[120px] bg-muted/20">
+                    Orçado
                   </TableHead>
-                  {showOrcado && (
-                    <TableHead className="text-right min-w-[120px] bg-muted/20">
-                      Orçado
-                    </TableHead>
-                  )}
-                  {showDiferenca && (
-                    <TableHead className="text-right min-w-[120px] bg-muted/20">
-                      Dif.
-                    </TableHead>
-                  )}
-                </TableRow>
-              )}
+                )}
+                {showDiferenca && (
+                  <TableHead className="text-right min-w-[120px] bg-muted/20">
+                    Dif.
+                  </TableHead>
+                )}
+                {showAnaliseVertical && (
+                  <TableHead className="text-center min-w-[80px] bg-muted/20 border-l">
+                    AV
+                  </TableHead>
+                )}
+
+              </TableRow>
             </TableHeader>
             <TableBody>
               {data && data.length > 0 ? (
-                data.map(item => renderItem(item))
+                data.map(item => {
+                  const total = calcularTotal(
+                    periodo === "mes" ? item.valores_mensais :
+                    periodo === "trimestre" ? item.valores_trimestrais :
+                    item.valores_anuais
+                  )
+                  const totalOrcamento = calcularTotalOrcamento(
+                    periodo === "mes" ? item.orcamentos_mensais :
+                    periodo === "trimestre" ? item.orcamentos_trimestrais :
+                    item.orcamentos_anuais
+                  )
+
+                  return (
+                    <React.Fragment key={item.nome}>
+                      <TableRow className={item.tipo === "=" ? "font-semibold bg-muted/20" : ""}>
+                        <TableCell className="py-3 md:sticky md:left-0 md:z-10 bg-background border-r border-border">
+                          <div className="flex items-center gap-2">
+                            {renderNomeComOperador(item)}
+                            {item.expandivel && (
+                              <button
+                                onClick={() => toggleExpansao(item)}
+                                className="p-1 hover:bg-muted rounded transition-colors"
+                                title={expandedItems[item.nome] ? "Colapsar" : "Expandir"}
+                              >
+                                <ChevronDown 
+                                  className={`h-4 w-4 transition-transform ${
+                                    expandedItems[item.nome] ? 'rotate-180' : ''
+                                  }`} 
+                                />
+                              </button>
+                            )}
+                          </div>
+                        </TableCell>
+
+                        {periodosFiltrados.map(p => {
+                          const valor = calcularValor(item, p)
+                          const orcamento = calcularOrcamento(item, p)
+                          const analiseHorizontal = calcularAnaliseHorizontal(item, p)
+                          const analiseVertical = calcularAnaliseVertical(item, p)
+                          
+                          return (
+                            <React.Fragment key={p}>
+                              <TableCell className="text-right">
+                                {renderValor(valor)}
+                              </TableCell>
+                              {showOrcado && (
+                                <TableCell className="text-right">
+                                  {renderValorOrcamento(orcamento)}
+                                </TableCell>
+                              )}
+                              {showDiferenca && (
+                                <TableCell className="text-right">
+                                  {renderValorDiferenca(valor, orcamento)}
+                                </TableCell>
+                              )}
+                                             {showAnaliseVertical && (
+                 <TableCell className="text-center border-l">
+                   {renderAnaliseVertical(analiseVertical)}
+                 </TableCell>
+               )}
+               {showAnaliseHorizontal && (
+                 <TableCell className="text-center border-l">
+                   {renderAnaliseHorizontal(analiseHorizontal)}
+                 </TableCell>
+               )}
+                            </React.Fragment>
+                          )
+                        })}
+
+                        <TableCell className="text-right font-medium">
+                          {renderValor(total)}
+                        </TableCell>
+                        {showOrcado && (
+                          <TableCell className="text-right font-medium">
+                            {renderValorOrcamento(totalOrcamento)}
+                          </TableCell>
+                        )}
+                        {showDiferenca && (
+                          <TableCell className="text-right font-medium">
+                            {renderValorDiferenca(total, totalOrcamento)}
+                          </TableCell>
+                        )}
+                        {showAnaliseVertical && (
+                          <TableCell className="text-center font-medium border-l">
+                            {(() => {
+                              const totalAV = periodosFiltrados.reduce((sum, p) => {
+                                const av = calcularAnaliseVertical(item, p)
+                                return sum + av
+                              }, 0) / periodosFiltrados.length
+                              return renderAnaliseVertical(totalAV)
+                            })()}
+                          </TableCell>
+                        )}
+
+                      </TableRow>
+
+                      {/* Renderizar classificações expandidas */}
+                      {item.expandivel && expandedItems[item.nome] && item.classificacoes && Array.isArray(item.classificacoes) && item.classificacoes.length > 0 && (
+                        item.classificacoes.map(classificacao => {
+                          const totalClass = calcularTotal(
+                            periodo === "mes" ? classificacao.valores_mensais :
+                            periodo === "trimestre" ? classificacao.valores_trimestrais :
+                            classificacao.valores_anuais
+                          )
+                          
+                          return (
+                                                      <TableRow key={`${item.nome}-${classificacao.nome}`} className="bg-muted">
+                            <TableCell className="py-2 md:sticky md:left-0 md:z-20 bg-muted border-r border-border pl-8">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-muted-foreground">
+                                    {classificacao.nome}
+                                  </span>
+                                </div>
+                              </TableCell>
+
+                              {periodosFiltrados.map(p => {
+                                const valor = calcularValor(classificacao, p)
+                                const orcamento = calcularOrcamento(classificacao, p)
+                                const analiseHorizontal = calcularAnaliseHorizontal(classificacao, p)
+                                const analiseVertical = calcularAnaliseVertical(classificacao, p)
+                                
+                                return (
+                                  <React.Fragment key={`${p}-class`}>
+                                    <TableCell className="text-right py-2">
+                                      {renderValor(valor)}
+                                    </TableCell>
+                                    {showOrcado && (
+                                      <TableCell className="text-right py-2">
+                                        {renderValorOrcamento(orcamento)}
+                                      </TableCell>
+                                    )}
+                                    {showDiferenca && (
+                                      <TableCell className="text-right py-2">
+                                        {renderValorDiferenca(valor, orcamento)}
+                                      </TableCell>
+                                    )}
+                                    {showAnaliseVertical && (
+                                      <TableCell className="text-center py-2 border-l">
+                                        {renderAnaliseVertical(analiseVertical)}
+                                      </TableCell>
+                                    )}
+                                    {showAnaliseHorizontal && (
+                                      <TableCell className="text-center py-2 border-l">
+                                        {renderAnaliseHorizontal(analiseHorizontal)}
+                                      </TableCell>
+                                    )}
+                                  </React.Fragment>
+                                )
+                              })}
+
+                              <TableCell className="text-right font-medium py-2">
+                                {renderValor(totalClass)}
+                              </TableCell>
+                              {showOrcado && (
+                                <TableCell className="text-right font-medium py-2">
+                                  {renderValorOrcamento(0)}
+                                </TableCell>
+                              )}
+                              {showDiferenca && (
+                                <TableCell className="text-right font-medium py-2">
+                                  {renderValorDiferenca(totalClass, 0)}
+                                </TableCell>
+                              )}
+                              {showAnaliseVertical && (
+                                <TableCell className="text-center font-medium py-2 border-l">
+                                  {(() => {
+                                    const totalAV = periodosFiltrados.reduce((sum, p) => {
+                                      const av = calcularAnaliseVertical(classificacao, p)
+                                      return sum + av
+                                    }, 0) / periodosFiltrados.length
+                                    return renderAnaliseVertical(totalAV)
+                                  })()}
+                                </TableCell>
+                              )}
+
+                            </TableRow>
+                          )
+                        })
+                      )}
+                    </React.Fragment>
+                  )
+                })
               ) : (
                 <TableRow>
                   <TableCell colSpan={periodosFiltrados.length + 1} className="text-center py-8 text-muted-foreground">
