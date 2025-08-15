@@ -241,20 +241,38 @@ export default function DreTable() {
           maximumFractionDigits: 0,
         })}
       </span>
-      {showVertical && verticalPct && verticalPct !== "–" && (
-        <span className="text-xs text-muted-foreground">AV {verticalPct}</span>
-      )}
-      {showHorizontal && horizontalPct && horizontalPct !== "–" && (
-        <span className="text-xs text-muted-foreground">AH {horizontalPct}</span>
-      )}
     </div>
   );
 
-  // Nova função para renderizar valor orçamento com AV/AH do orçamento
-  const renderValorOrcamento = (
-    valor: number,
+  // Função separada para renderizar AV/AH após Orçado e Diferença
+  const renderAnalises = (
     verticalPct?: string,
     horizontalPct?: string
+  ) => {
+    console.log('🎯 renderAnalises chamada com:', { 
+      verticalPct, 
+      horizontalPct, 
+      showVertical, 
+      showHorizontal,
+      willShowVertical: showVertical && verticalPct && verticalPct !== "–",
+      willShowHorizontal: showHorizontal && horizontalPct && horizontalPct !== "–"
+    });
+    
+    return (
+      <div className="flex flex-col text-right">
+        {showVertical && verticalPct && verticalPct !== "–" && (
+          <span className="text-xs text-muted-foreground">AV {verticalPct}</span>
+        )}
+        {showHorizontal && horizontalPct && horizontalPct !== "–" && (
+          <span className="text-xs text-muted-foreground">AH {horizontalPct}</span>
+        )}
+      </div>
+    );
+  };
+
+  // Nova função para renderizar valor orçamento sem AV/AH (será renderizado separadamente)
+  const renderValorOrcamento = (
+    valor: number
   ) => (
     <div className="flex flex-col text-right">
       <span className={valor < 0 ? "text-red-500" : ""}>
@@ -263,12 +281,6 @@ export default function DreTable() {
           maximumFractionDigits: 0,
         })}
       </span>
-      {showVertical && verticalPct && verticalPct !== "–" && (
-        <span className="text-xs text-muted-foreground">AV {verticalPct}</span>
-      )}
-      {showHorizontal && horizontalPct && horizontalPct !== "–" && (
-        <span className="text-xs text-muted-foreground">AH {horizontalPct}</span>
-      )}
     </div>
   );
 
@@ -280,10 +292,12 @@ export default function DreTable() {
     const headerRow1 = ["Descrição"]
     periodosFiltrados.forEach(p => {
       headerRow1.push(p)
+      if (showVertical || showHorizontal) headerRow1.push("")
       if (showOrcado) headerRow1.push("")
       if (showDiferenca) headerRow1.push("")
     })
     headerRow1.push("Total")
+    if (showVertical || showHorizontal) headerRow1.push("")
     if (showOrcado) headerRow1.push("")
     if (showDiferenca) headerRow1.push("")
 
@@ -295,10 +309,12 @@ export default function DreTable() {
       const headerRow2 = [""]
       periodosFiltrados.forEach(() => {
         headerRow2.push("Real")
+        if (showVertical || showHorizontal) headerRow2.push("AV/AH")
         if (showOrcado) headerRow2.push("Orçado")
         if (showDiferenca) headerRow2.push("Dif.")
       })
       headerRow2.push("Real")
+      if (showVertical || showHorizontal) headerRow2.push("AV/AH")
       if (showOrcado) headerRow2.push("Orçado")
       if (showDiferenca) headerRow2.push("Dif.")
 
@@ -311,14 +327,14 @@ export default function DreTable() {
       ws.mergeCells(1, 1, 2, 1) // Coluna Descrição
       let colIndex = 2
       periodosFiltrados.forEach(() => {
-        const colSpan = 1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)
+        const colSpan = 1 + ((showVertical || showHorizontal) ? 1 : 0) + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)
         if (colSpan > 1) {
           ws.mergeCells(1, colIndex, 1, colIndex + colSpan - 1)
         }
         colIndex += colSpan
       })
       // Mesclar colunas do total
-      const totalColSpan = 1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)
+      const totalColSpan = 1 + ((showVertical || showHorizontal) ? 1 : 0) + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)
       if (totalColSpan > 1) {
         ws.mergeCells(1, colIndex, 1, colIndex + totalColSpan - 1)
       }
@@ -352,10 +368,19 @@ export default function DreTable() {
           const real = Math.round(calcularValor(item, p))
           const orcado = Math.round(calcularOrcamento(item, p))
           row.push(real)
+          if (showVertical || showHorizontal) {
+            const av = item.vertical_mensais?.[p] || item.vertical_trimestrais?.[p] || item.vertical_anuais?.[p] || "–"
+            const ah = item.horizontal_mensais?.[p] || item.horizontal_trimestrais?.[p] || item.horizontal_anuais?.[p] || "–"
+            row.push(`${av} ${ah}`)
+          }
           if (showOrcado) row.push(orcado)
           if (showDiferenca) row.push(real - orcado)
         })
         row.push(Math.round(total))
+        if (showVertical || showHorizontal) {
+          const avTotal = item.vertical_total || "–"
+          row.push(avTotal)
+        }
         if (showOrcado) row.push(Math.round(totalOrc))
         if (showDiferenca) row.push(Math.round(total - totalOrc))
 
@@ -379,6 +404,14 @@ export default function DreTable() {
   }
 
   const renderItem = (item: DreItem, level = 0): React.ReactNode => {
+    console.log('🎬 renderItem chamada para:', {
+      nome: item.nome,
+      level,
+      expandivel: item.expandivel,
+      hasClassificacoes: !!item.classificacoes,
+      classificacoesLength: item.classificacoes?.length || 0
+    });
+    
     const isOpen = openSections[item.nome]
     const hasChildren = item.expandivel && item.classificacoes && item.classificacoes.length > 0
 
@@ -454,11 +487,60 @@ export default function DreTable() {
             return (
               <React.Fragment key={p}>
                 <TableCell className="text-right">
-                  {renderValor(valor, getVerticalPct(), getHorizontalPct())}
+                  {renderValor(valor)}
                 </TableCell>
+                {/* Colunas de AV/AH DEPOIS de Real */}
+                {(() => {
+                  const shouldShow = showVertical || showHorizontal;
+                  const verticalPct = getVerticalPct();
+                  const horizontalPct = getHorizontalPct();
+                  
+                  // Debug mais detalhado para classificações
+                  if (level > 0) {
+                    console.log('🔍 CLASSIFICAÇÃO - Renderizando coluna AV/AH:', { 
+                      shouldShow, 
+                      showVertical, 
+                      showHorizontal, 
+                      itemNome: item.nome,
+                      level,
+                      verticalPct,
+                      horizontalPct,
+                      hasVerticalMensais: !!item.vertical_mensais,
+                      hasHorizontalMensais: !!item.horizontal_mensais,
+                      verticalMensaisKeys: item.vertical_mensais ? Object.keys(item.vertical_mensais) : [],
+                      horizontalMensaisKeys: item.horizontal_mensais ? Object.keys(item.horizontal_mensais) : [],
+                      itemKeys: Object.keys(item)
+                    });
+                  }
+                  
+                  // Log para todos os itens (incluindo principais)
+                  console.log('📊 ITEM - Dados de análise:', {
+                    itemNome: item.nome,
+                    level,
+                    shouldShow,
+                    showVertical,
+                    showHorizontal,
+                    verticalPct,
+                    horizontalPct,
+                    hasVerticalMensais: !!item.vertical_mensais,
+                    hasHorizontalMensais: !!item.horizontal_mensais
+                  });
+                  
+                  if (shouldShow) {
+                    console.log('✅ Renderizando coluna AV/AH para:', item.nome);
+                    return (
+                      <TableCell className="text-right">
+                        {renderAnalises(verticalPct, horizontalPct)}
+                      </TableCell>
+                    );
+                  } else {
+                    console.log('❌ NÃO renderizando coluna AV/AH para:', item.nome, { shouldShow, showVertical, showHorizontal });
+                    return null;
+                  }
+                })()}
                 {showOrcado && (
                   <TableCell className="text-right">
-                    {renderValorOrcamento(orcamento, getVerticalOrcPct(), getHorizontalOrcPct())}
+                    {renderValorOrcamento(orcamento)}
                   </TableCell>
                 )}
                 {showDiferenca && (
@@ -471,11 +553,17 @@ export default function DreTable() {
           })}
 
           <TableCell className="text-right font-medium">
-            {renderValor(total, totalVerticalPct, undefined)}
+            {renderValor(total)}
           </TableCell>
+          {/* Coluna de AV/AH do Total DEPOIS de Real */}
+          {(showVertical || showHorizontal) && (
+            <TableCell className="text-right font-medium">
+              {renderAnalises(totalVerticalPct, undefined)}
+            </TableCell>
+          )}
           {showOrcado && (
             <TableCell className="text-right font-medium">
-              {renderValorOrcamento(totalOrcamento, item.vertical_orcamentos_total, undefined)}
+              {renderValorOrcamento(totalOrcamento)}
             </TableCell>
           )}
           {showDiferenca && (
@@ -485,7 +573,18 @@ export default function DreTable() {
           )}
         </TableRow>
 
-        {hasChildren && isOpen && item.classificacoes?.map(child => renderItem(child, level + 1))}
+        {hasChildren && isOpen && item.classificacoes?.map(child => {
+          console.log('🔄 Renderizando classificação:', {
+            nome: child.nome,
+            level: level + 1,
+            hasVerticalMensais: !!child.vertical_mensais,
+            hasHorizontalMensais: !!child.horizontal_mensais,
+            verticalMensaisKeys: child.vertical_mensais ? Object.keys(child.vertical_mensais) : [],
+            horizontalMensaisKeys: child.horizontal_mensais ? Object.keys(child.horizontal_mensais) : [],
+            allKeys: Object.keys(child)
+          });
+          return renderItem(child, level + 1);
+        })}
       </React.Fragment>
     )
   }
@@ -645,14 +744,14 @@ export default function DreTable() {
                 {periodosFiltrados.map((p) => (
                   <TableHead 
                     key={p} 
-                    colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)} 
+                    colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0) + ((showVertical || showHorizontal) ? 1 : 0)} 
                     className="text-center min-w-[120px] bg-muted/30 border-r font-semibold"
                   >
                     {p}
                   </TableHead>
                 ))}
                 <TableHead 
-                  colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0)} 
+                  colSpan={1 + (showOrcado ? 1 : 0) + (showDiferenca ? 1 : 0) + ((showVertical || showHorizontal) ? 1 : 0)} 
                   className="text-center min-w-[120px] bg-muted/30 font-semibold"
                 >
                   Total
@@ -666,6 +765,11 @@ export default function DreTable() {
                       <TableHead className="text-right min-w-[120px] bg-secondary/30">
                         Real
                       </TableHead>
+                      {(showVertical || showHorizontal) && (
+                        <TableHead className="text-right min-w-[120px] bg-muted/10">
+                          AV/AH
+                        </TableHead>
+                      )}
                       {showOrcado && (
                         <TableHead className="text-right min-w-[120px] bg-muted/20">
                           Orçado
@@ -682,6 +786,11 @@ export default function DreTable() {
                   <TableHead className="text-right min-w-[120px] bg-secondary/30">
                     Real
                   </TableHead>
+                  {(showVertical || showHorizontal) && (
+                    <TableHead className="text-right min-w-[120px] bg-muted/10">
+                      AV/AH
+                    </TableHead>
+                  )}
                   {showOrcado && (
                     <TableHead className="text-right min-w-[120px] bg-muted/20">
                       Orçado

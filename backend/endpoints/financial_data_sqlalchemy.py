@@ -53,7 +53,7 @@ def get_financial_repository() -> FinancialDataRepository:
     return FinancialDataRepository()
 
 # Importar funções dos helpers PostgreSQL
-from helpers_postgresql.data_processor_postgresql import calcular_mom_postgresql, calcular_pmr_pmp_postgresql
+from helpers_postgresql.dre.data_processor_postgresql import calcular_mom_postgresql, calcular_pmr_pmp_postgresql
 
 @router.get("/", response_model=List[FinancialDataResponse])
 async def get_financial_data(

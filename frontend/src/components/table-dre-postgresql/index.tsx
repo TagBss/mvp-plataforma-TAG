@@ -31,13 +31,27 @@ type DreItem = {
   orcamento_total?: number
   classificacoes?: DreItem[]
   descricao?: string // Adicionado para a nova renderização
-  // Análise Horizontal e Vertical
-  analise_horizontal_mensal?: Record<string, number>
-  analise_vertical_mensal?: Record<string, number>
-  analise_horizontal_trimestral?: Record<string, number>
-  analise_vertical_trimestral?: Record<string, number>
-  analise_horizontal_anual?: Record<string, number>
-  analise_vertical_anual?: Record<string, number>
+  // Análise Horizontal e Vertical (campos padrão)
+  analise_horizontal_mensal?: Record<string, number | string>
+  analise_vertical_mensal?: Record<string, number | string>
+  analise_horizontal_trimestral?: Record<string, number | string>
+  analise_vertical_trimestral?: Record<string, number | string>
+  analise_horizontal_anual?: Record<string, number | string>
+  analise_vertical_anual?: Record<string, number | string>
+  // Análise Horizontal e Vertical (campos das classificações)
+  horizontal_mensais?: Record<string, number | string>
+  vertical_mensais?: Record<string, number | string>
+  horizontal_trimestrais?: Record<string, number | string>
+  vertical_trimestrais?: Record<string, number | string>
+  horizontal_anuais?: Record<string, number | string>
+  vertical_anuais?: Record<string, number | string>
+  // Campos alternativos das classificações (para compatibilidade)
+  analise_horizontal_mensal?: Record<string, number | string>
+  analise_vertical_mensal?: Record<string, number | string>
+  analise_horizontal_trimestral?: Record<string, number | string>
+  analise_vertical_trimestral?: Record<string, number | string>
+  analise_horizontal_anual?: Record<string, number | string>
+  analise_vertical_anual?: Record<string, number | string>
 }
 
 type DreResponse = {
@@ -311,23 +325,66 @@ export default function DreTablePostgreSQL() {
 
   // Função para calcular análise horizontal (variação vs período anterior)
   const calcularAnaliseHorizontal = (item: DreItem, periodoLabel: string): number => {
-    if (periodo === "mes") return item.analise_horizontal_mensal?.[periodoLabel] ?? 0
-    if (periodo === "trimestre") return item.analise_horizontal_trimestral?.[periodoLabel] ?? 0
-    if (periodo === "ano") return item.analise_horizontal_anual?.[periodoLabel] ?? 0
+    let valor: any = 0
+    
+    // Tentar primeiro os campos das classificações (horizontal_*)
+    if (periodo === "mes") valor = item.horizontal_mensais?.[periodoLabel]
+    else if (periodo === "trimestre") valor = item.horizontal_trimestrais?.[periodoLabel]
+    else if (periodo === "ano") valor = item.horizontal_anuais?.[periodoLabel]
+    
+    // Se não encontrar, tentar os campos padrão (analise_horizontal_*)
+    if (valor === undefined || valor === 0) {
+      if (periodo === "mes") valor = item.analise_horizontal_mensal?.[periodoLabel]
+      else if (periodo === "trimestre") valor = item.analise_horizontal_trimestral?.[periodoLabel]
+      else if (periodo === "ano") valor = item.analise_horizontal_anual?.[periodoLabel]
+    }
+    
+    // Se o valor for uma string (ex: "105.17%"), extrair o número
+    if (typeof valor === 'string') {
+      const numero = parseFloat(valor.replace('%', ''))
+      return isNaN(numero) ? 0 : numero
+    }
+    
+    // Se for número, retornar diretamente
+    if (typeof valor === 'number') return valor
+    
     return 0
   }
 
   // Função para calcular análise vertical (representatividade sobre Faturamento)
   const calcularAnaliseVertical = (item: DreItem, periodoLabel: string): number => {
-    if (periodo === "mes") return item.analise_vertical_mensal?.[periodoLabel] ?? 0
-    if (periodo === "trimestre") return item.analise_vertical_trimestral?.[periodoLabel] ?? 0
-    if (periodo === "ano") return item.analise_vertical_anual?.[periodoLabel] ?? 0
+    let valor: any = 0
+    
+    // Tentar primeiro os campos das classificações (vertical_*)
+    if (periodo === "mes") valor = item.vertical_mensais?.[periodoLabel]
+    else if (periodo === "trimestre") valor = item.vertical_trimestrais?.[periodoLabel]
+    else if (periodo === "ano") valor = item.vertical_anuais?.[periodoLabel]
+    
+    // Se não encontrar, tentar os campos padrão (analise_vertical_*)
+    if (valor === undefined || valor === 0) {
+      if (periodo === "mes") valor = item.analise_vertical_mensal?.[periodoLabel]
+      else if (periodo === "trimestre") valor = item.analise_vertical_trimestral?.[periodoLabel]
+      else if (periodo === "ano") valor = item.analise_vertical_anual?.[periodoLabel]
+    }
+    
+    // Se o valor for uma string (ex: "100.00%"), extrair o número
+    if (typeof valor === 'string') {
+      const numero = parseFloat(valor.replace('%', ''))
+      return isNaN(numero) ? 0 : numero
+    }
+    
+    // Se for número, retornar diretamente
+    if (typeof valor === 'number') return valor
+    
     return 0
   }
 
   // Função para renderizar análise horizontal com setas
   const renderAnaliseHorizontal = (valor: number) => {
-    if (valor === 0 || isNaN(valor)) return <span className="text-muted-foreground">-</span>
+    // Validação adicional para garantir que valor seja um número válido
+    if (typeof valor !== 'number' || isNaN(valor) || valor === 0) {
+      return <span className="text-muted-foreground">-</span>
+    }
     
     const isPositive = valor > 0
     const sign = isPositive ? "+" : "-"
@@ -341,7 +398,10 @@ export default function DreTablePostgreSQL() {
 
   // Função para renderizar análise vertical
   const renderAnaliseVertical = (valor: number) => {
-    if (valor === 0) return <span className="text-muted-foreground">-</span>
+    // Validação adicional para garantir que valor seja um número válido
+    if (typeof valor !== 'number' || isNaN(valor) || valor === 0) {
+      return <span className="text-muted-foreground">-</span>
+    }
     
     return (
       <span className="font-medium">
