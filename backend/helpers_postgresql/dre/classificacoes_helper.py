@@ -35,6 +35,7 @@ class ClassificacoesHelper:
     @staticmethod
     def fetch_faturamento_data(connection: Connection) -> List[Any]:
         """Busca dados de faturamento para análise vertical"""
+        
         faturamento_query = text("""
             SELECT 
                 TO_CHAR(fd.competencia, 'YYYY-MM') as periodo_mensal,
@@ -189,17 +190,17 @@ class ClassificacoesHelper:
         vertical_mensais = {}
         for mes, valor in dados['mensais'].items():
             base = faturamento_mensal.get(mes, 0)
-            vertical_mensais[mes] = calcular_analise_vertical_postgresql(valor, base)
+            vertical_mensais[mes] = calcular_analise_vertical_postgresql(valor, base, classificacao_item['nome'])
         
         vertical_trimestrais = {}
         for tri, valor in dados['trimestrais'].items():
             base = faturamento_trimestral.get(tri, 0)
-            vertical_trimestrais[tri] = calcular_analise_vertical_postgresql(valor, base)
+            vertical_trimestrais[tri] = calcular_analise_vertical_postgresql(valor, base, classificacao_item['nome'])
         
         vertical_anuais = {}
         for ano, valor in dados['anuais'].items():
             base = faturamento_anual.get(ano, 0)
-            vertical_anuais[ano] = calcular_analise_vertical_postgresql(valor, base)
+            vertical_anuais[ano] = calcular_analise_vertical_postgresql(valor, base, classificacao_item['nome'])
         
         # Adicionar análises ao item de classificação
         classificacao_item.update({

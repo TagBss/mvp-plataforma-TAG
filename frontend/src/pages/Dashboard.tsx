@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from '../components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { TrendingUp, TrendingDown, Activity, DollarSign } from 'lucide-react'
 import { useDashboard, useHealthCheck } from '../hooks/useFinancialData'
-import DreTable from '../components/table-dre'
+import DreTable from '../components/table-dre-postgresql'
 import DfcTable from '../components/table-dfc'
 import LoadingSpinner from '../components/LoadingSpinner'
 

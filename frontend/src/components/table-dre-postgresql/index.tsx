@@ -45,13 +45,6 @@ type DreItem = {
   vertical_trimestrais?: Record<string, number | string>
   horizontal_anuais?: Record<string, number | string>
   vertical_anuais?: Record<string, number | string>
-  // Campos alternativos das classificações (para compatibilidade)
-  analise_horizontal_mensal?: Record<string, number | string>
-  analise_vertical_mensal?: Record<string, number | string>
-  analise_horizontal_trimestral?: Record<string, number | string>
-  analise_vertical_trimestral?: Record<string, number | string>
-  analise_horizontal_anual?: Record<string, number | string>
-  analise_vertical_anual?: Record<string, number | string>
 }
 
 type DreResponse = {
@@ -82,6 +75,7 @@ export default function DreTablePostgreSQL() {
   const [dataSource, setDataSource] = useState<string>("")
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
   const [classificacoesCache, setClassificacoesCache] = useState<Record<string, DreItem[]>>({})
+  const [showValoresZerados, setShowValoresZerados] = useState<boolean>(false)
 
   useEffect(() => {
     console.log("🔄 Iniciando carregamento DRE N0 PostgreSQL...")
@@ -310,7 +304,12 @@ export default function DreTablePostgreSQL() {
   }
 
   const calcularTotal = (valores: Record<string, number> | undefined): number => {
-    return periodosFiltrados.reduce((total, p) => total + (valores?.[p] ?? 0), 0)
+    const resultado = periodosFiltrados.reduce((total, p) => {
+      const valor = valores?.[p] ?? 0;
+      return total + valor;
+    }, 0);
+    
+    return resultado;
   }
 
   const calcularTotalOrcamento = (orcamentos: Record<string, number> | undefined): number => {
@@ -322,6 +321,39 @@ export default function DreTablePostgreSQL() {
     const diff = ((real - orcado) / orcado) * 100
     return `${diff.toFixed(1)}%`
   }
+
+  // Função para calcular análise vertical dinâmica do total
+  const calcularVerticalTotalDinamica = (): number => {
+    // CORREÇÃO: Usar apenas o Faturamento como base, não a soma de todas as contas
+    const faturamentoItem = data.find(item => item.nome === "( + ) Faturamento");
+    
+    if (!faturamentoItem) {
+      return 0;
+    }
+    
+    const totalFaturamento = calcularTotal(
+      periodo === "mes" ? faturamentoItem.valores_mensais :
+      periodo === "trimestre" ? faturamentoItem.valores_trimestrais :
+      faturamentoItem.valores_anuais
+    );
+    
+    return Math.abs(totalFaturamento);
+  };
+
+  // Função para calcular AV% dinâmica do total
+  const calcularAVTotalDinamica = (valorTotal: number): string | undefined => {
+    const totalGeral = calcularVerticalTotalDinamica();
+    
+    if (totalGeral === 0) {
+      return undefined;
+    }
+    
+    // CORREÇÃO: Manter o sinal do valor original
+    const percentual = (valorTotal / totalGeral) * 100;
+    const resultado = `${percentual.toFixed(1)}%`;
+    
+    return resultado;
+  };
 
   // Função para calcular análise horizontal (variação vs período anterior)
   const calcularAnaliseHorizontal = (item: DreItem, periodoLabel: string): number => {
@@ -540,8 +572,8 @@ export default function DreTablePostgreSQL() {
       }
     }
 
-    // Adicionar dados
-    data.forEach(item => {
+    // Adicionar dados (respeitando filtro de valores zerados)
+    data.filter(item => temValoresZerados(item)).forEach(item => {
       // CORREÇÃO: Usar descricao se disponível, senão usar nome (que já vem com operador do backend)
       const nomeExibicao = item.descricao || item.nome
 
@@ -609,6 +641,23 @@ export default function DreTablePostgreSQL() {
       saveAs(blob, `DRE_Nivel0_PostgreSQL_${periodo}_${filtroAno}.xlsx`)
     })
   }
+
+  // Função para verificar se um item tem valores não-zerados no período atual
+  const temValoresZerados = (item: DreItem): boolean => {
+    if (showValoresZerados) return true; // Se mostrar valores zerados, retorna true para todos
+    
+    const valores = periodo === "mes" ? item.valores_mensais :
+                   periodo === "trimestre" ? item.valores_trimestrais :
+                   item.valores_anuais;
+    
+    if (!valores) return false;
+    
+    // Verificar se há pelo menos um valor não-zerado (> 0.01 para evitar problemas de precisão)
+    return periodosFiltrados.some(p => {
+      const valor = valores[p] || 0;
+      return Math.abs(valor) > 0.01;
+    });
+  };
 
   if (loading) {
     return (
@@ -773,8 +822,19 @@ export default function DreTablePostgreSQL() {
             </Button>
           </div>
 
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => setShowValoresZerados(!showValoresZerados)} 
+              variant="outline"
+              size="sm"
+              title={showValoresZerados ? "Ocultar valores zerados" : "Mostrar valores zerados"}
+            >
+              {showValoresZerados ? "Com valores zerados" : "Sem valores zerados"}
+            </Button>
+          </div>
+
           <div className="text-sm text-muted-foreground">
-            📊 {data.length} categorias encontradas
+            {data.filter(item => temValoresZerados(item)).length} categorias visíveis
           </div>
         </div>
 
@@ -859,7 +919,7 @@ export default function DreTablePostgreSQL() {
             </TableHeader>
             <TableBody>
               {data && data.length > 0 ? (
-                data.map(item => {
+                data.filter(item => temValoresZerados(item)).map(item => {
                   const total = calcularTotal(
                     periodo === "mes" ? item.valores_mensais :
                     periodo === "trimestre" ? item.valores_trimestrais :
@@ -943,13 +1003,7 @@ export default function DreTablePostgreSQL() {
                         )}
                         {showAnaliseVertical && (
                           <TableCell className="text-center font-medium border-l">
-                            {(() => {
-                              const totalAV = periodosFiltrados.reduce((sum, p) => {
-                                const av = calcularAnaliseVertical(item, p)
-                                return sum + av
-                              }, 0) / periodosFiltrados.length
-                              return renderAnaliseVertical(totalAV)
-                            })()}
+                            {calcularAVTotalDinamica(total)}
                           </TableCell>
                         )}
 
@@ -957,7 +1011,7 @@ export default function DreTablePostgreSQL() {
 
                       {/* Renderizar classificações expandidas */}
                       {item.expandivel && expandedItems[item.nome] && item.classificacoes && Array.isArray(item.classificacoes) && item.classificacoes.length > 0 && (
-                        item.classificacoes.map(classificacao => {
+                        item.classificacoes.filter(classificacao => temValoresZerados(classificacao)).map(classificacao => {
                           const totalClass = calcularTotal(
                             periodo === "mes" ? classificacao.valores_mensais :
                             periodo === "trimestre" ? classificacao.valores_trimestrais :
@@ -1024,13 +1078,7 @@ export default function DreTablePostgreSQL() {
                               )}
                               {showAnaliseVertical && (
                                 <TableCell className="text-center font-medium py-2 border-l">
-                                  {(() => {
-                                    const totalAV = periodosFiltrados.reduce((sum, p) => {
-                                      const av = calcularAnaliseVertical(classificacao, p)
-                                      return sum + av
-                                    }, 0) / periodosFiltrados.length
-                                    return renderAnaliseVertical(totalAV)
-                                  })()}
+                                  {calcularAVTotalDinamica(totalClass)}
                                 </TableCell>
                               )}
 

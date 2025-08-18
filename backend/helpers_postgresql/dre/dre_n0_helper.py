@@ -5,9 +5,7 @@ from typing import Dict, Any, List, Tuple
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from helpers_postgresql.dre.analysis_helper_postgresql import (
-    calcular_analise_horizontal_postgresql, 
-    calcular_analise_vertical_postgresql,
-    calcular_analises_horizontais_movimentacoes_postgresql
+    calcular_analise_vertical_postgresql, determinar_base_analise_vertical, calcular_analises_horizontais_movimentacoes_postgresql
 )
 
 class DreN0Helper:
@@ -389,18 +387,23 @@ class DreN0Helper:
                 analise_vertical_trimestral = {tri: "100.00%" for tri in valores_trimestrais.keys()}
                 analise_vertical_anual = {ano: "100.00%" for ano in valores_anuais.keys()}
             else:
-                # Para outras contas, usar função já existente
+                # Para outras contas, usar função já existente com base apropriada
+                # Determinar base apropriada para cada período
+                bases_mensais = determinar_base_analise_vertical(row.nome_conta, valores_mensais, faturamento_mensais)
+                bases_trimestrais = determinar_base_analise_vertical(row.nome_conta, valores_trimestrais, faturamento_trimestrais)
+                bases_anuais = determinar_base_analise_vertical(row.nome_conta, valores_anuais, faturamento_anuais)
+                
                 for mes in valores_mensais.keys():
-                    faturamento_mes = faturamento_mensais.get(mes, 0)
-                    analise_vertical_mensal[mes] = calcular_analise_vertical_postgresql(valores_mensais[mes], faturamento_mes)
+                    base_mes = bases_mensais.get(mes, faturamento_mensais.get(mes, 0))
+                    analise_vertical_mensal[mes] = calcular_analise_vertical_postgresql(valores_mensais[mes], base_mes, row.nome_conta)
                 
                 for tri in valores_trimestrais.keys():
-                    faturamento_tri = faturamento_trimestrais.get(tri, 0)
-                    analise_vertical_trimestral[tri] = calcular_analise_vertical_postgresql(valores_trimestrais[tri], faturamento_tri)
+                    base_tri = bases_trimestrais.get(tri, faturamento_trimestrais.get(tri, 0))
+                    analise_vertical_trimestral[tri] = calcular_analise_vertical_postgresql(valores_trimestrais[tri], base_tri, row.nome_conta)
                 
                 for ano in valores_anuais.keys():
-                    faturamento_ano = faturamento_anuais.get(str(ano), 0)
-                    analise_vertical_anual[ano] = calcular_analise_vertical_postgresql(valores_anuais[ano], faturamento_ano)
+                    base_ano = bases_anuais.get(ano, faturamento_anuais.get(str(ano), 0))
+                    analise_vertical_anual[ano] = calcular_analise_vertical_postgresql(valores_anuais[ano], base_ano, row.nome_conta)
         else:
             # Fallback se não houver dados de faturamento
             analise_vertical_mensal = {mes: "–" for mes in valores_mensais.keys()}
@@ -540,7 +543,7 @@ class DreN0Helper:
         analise_horizontal_trimestral = analises_horizontais["horizontal_trimestrais"]
         analise_horizontal_anual = analises_horizontais["horizontal_anuais"]
         
-        # Análises verticais para totalizadores (baseada no faturamento)
+        # Calcular análises verticais para totalizadores
         analise_vertical_mensal = {}
         analise_vertical_trimestral = {}
         analise_vertical_anual = {}
@@ -550,21 +553,23 @@ class DreN0Helper:
             faturamento_trimestrais = faturamento_data.valores_trimestrais or {}
             faturamento_anuais = faturamento_data.valores_anuais or {}
             
-            # Calcular AV usando função já existente
+            # Para totalizadores, usar função já existente com base apropriada
+            # Determinar base apropriada para cada período
+            bases_mensais = determinar_base_analise_vertical(tot.nome_conta, valores_mensais, faturamento_mensais)
+            bases_trimestrais = determinar_base_analise_vertical(tot.nome_conta, valores_trimestrais, faturamento_trimestrais)
+            bases_anuais = determinar_base_analise_vertical(tot.nome_conta, valores_anuais, faturamento_anuais)
+            
             for mes in meses:
-                faturamento_mes = faturamento_mensais.get(mes, 0)
-                valor_mes = valores_mensais.get(mes, 0)
-                analise_vertical_mensal[mes] = calcular_analise_vertical_postgresql(valor_mes, faturamento_mes)
+                base_mes = bases_mensais.get(mes, faturamento_mensais.get(mes, 0))
+                analise_vertical_mensal[mes] = calcular_analise_vertical_postgresql(valores_mensais.get(mes, 0), base_mes, tot.nome_conta)
             
             for tri in trimestres:
-                faturamento_tri = faturamento_trimestrais.get(tri, 0)
-                valor_tri = valores_trimestrais.get(tri, 0)
-                analise_vertical_trimestral[tri] = calcular_analise_vertical_postgresql(valor_tri, faturamento_tri)
+                base_tri = bases_trimestrais.get(tri, faturamento_trimestrais.get(tri, 0))
+                analise_vertical_trimestral[tri] = calcular_analise_vertical_postgresql(valores_trimestrais.get(tri, 0), base_tri, tot.nome_conta)
             
             for ano in anos:
-                faturamento_ano = faturamento_anuais.get(str(ano), 0)
-                valor_ano = valores_anuais.get(str(ano), 0)
-                analise_vertical_anual[str(ano)] = calcular_analise_vertical_postgresql(valor_ano, faturamento_ano)
+                base_ano = bases_anuais.get(str(ano), faturamento_anuais.get(str(ano), 0))
+                analise_vertical_anual[str(ano)] = calcular_analise_vertical_postgresql(valores_anuais.get(str(ano), 0), base_ano, tot.nome_conta)
         else:
             # Fallback se não houver dados de faturamento
             analise_vertical_mensal = {mes: "–" for mes in meses}

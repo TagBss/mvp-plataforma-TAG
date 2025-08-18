@@ -169,14 +169,17 @@ export default function DfcTablePostgreSQL() {
 
   // Função para calcular análise vertical dinâmica do total
   const calcularVerticalTotalDinamica = (): number => {
-    return data.reduce((somaGeral, item) => {
-      const totalItem = calcularTotal(
-        periodo === "mes" ? item.valores_mensais :
-        periodo === "trimestre" ? item.valores_trimestrais :
-        item.valores_anuais
-      );
-      return somaGeral + Math.abs(totalItem);
-    }, 0);
+    // CORREÇÃO: Usar apenas o Faturamento como base, não a soma de todas as contas
+    const faturamentoItem = data.find(item => item.nome === "( + ) Faturamento");
+    if (!faturamentoItem) return 0;
+    
+    const totalFaturamento = calcularTotal(
+      periodo === "mes" ? faturamentoItem.valores_mensais :
+      periodo === "trimestre" ? faturamentoItem.valores_trimestrais :
+      faturamentoItem.valores_anuais
+    );
+    
+    return Math.abs(totalFaturamento);
   };
 
   // Função para calcular AV% dinâmica do total

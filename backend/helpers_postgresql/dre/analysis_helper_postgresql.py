@@ -4,14 +4,61 @@ Helper para análises financeiras PostgreSQL - versão independente da versão E
 import pandas as pd
 from typing import Dict, Any
 
-def calcular_analise_vertical_postgresql(valor: float, base: float) -> str:
-    """Calcula análise vertical (percentual do total) para PostgreSQL"""
+def determinar_base_analise_vertical(nome_conta: str, valores_periodo: Dict[str, float], faturamento_periodo: Dict[str, float]) -> Dict[str, float]:
+    """Determina a base apropriada para análise vertical de cada conta"""
+    
+    bases = {}
+    
+    for periodo, valor in valores_periodo.items():
+        faturamento = faturamento_periodo.get(periodo, 0)
+        
+        # Determinar base baseada no tipo de conta
+        if "( + ) Faturamento" in nome_conta:
+            # Faturamento sempre 100% sobre si mesmo
+            base = valor
+        elif "( = ) Receita Bruta" in nome_conta:
+            # Receita Bruta = Faturamento
+            base = faturamento
+        elif "( - ) Tributos" in nome_conta:
+            # Tributos sobre Receita Líquida (mais apropriado)
+            # Buscar Receita Líquida do período
+            base = faturamento  # Temporariamente sobre faturamento
+        elif "( = ) Receita Líquida" in nome_conta:
+            # Receita Líquida sobre Receita Bruta
+            base = faturamento
+        elif "( - ) CMV" in nome_conta or "( - ) CSP" in nome_conta or "( - ) CPV" in nome_conta:
+            # Custos sobre Receita Líquida
+            base = faturamento  # Temporariamente sobre faturamento
+        elif "( = ) Resultado Bruto" in nome_conta:
+            # Resultado Bruto sobre Receita Líquida
+            base = faturamento  # Temporariamente sobre faturamento
+        else:
+            # Para outras contas, usar faturamento como base padrão
+            base = faturamento
+        
+        bases[periodo] = base
+    
+    return bases
+
+def calcular_analise_vertical_postgresql(valor: float, base: float, tipo_conta: str = None) -> str:
+    """Calcula análise vertical (percentual do total) para PostgreSQL com base apropriada"""
     try:
         if base == 0:
             return "–"
+        
+        # Validar se os valores são números válidos
+        if not isinstance(valor, (int, float)) or not isinstance(base, (int, float)):
+            return "–"
+        
+        if pd.isna(valor) or pd.isna(base):
+            return "–"
+        
+        # Calcular percentual
         percentual = (valor / base) * 100
+        
         return f"{percentual:.2f}%"
-    except (ValueError, TypeError, ZeroDivisionError):
+        
+    except (ValueError, TypeError, ZeroDivisionError) as e:
         return "–"
 
 def calcular_analise_horizontal_postgresql(valor_atual: float, valor_anterior: float) -> str:

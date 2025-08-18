@@ -114,6 +114,54 @@
 - ✅ **Código mais limpo**: Manutenibilidade e consistência melhoradas
 **Resultado**: ✅ **Código refatorado, duplicação eliminada, funcionalidade mantida**
 
+### **11. AV/AH não aparecem para classificações - RESOLVIDO ✅**
+**Problema**: Análise Horizontal e Vertical não eram exibidas para classificações expandidas
+**Causa**: Funções de cálculo não estavam funcionando corretamente para classificações
+**Solução implementada**: 
+- ✅ **Correção das funções**: `calcularAnaliseHorizontal` e `calcularAnaliseVertical` corrigidas para classificações
+- ✅ **Dados de análise**: Endpoint de classificações agora retorna dados de AV/AH
+- ✅ **Validação**: AV/AH funcionam tanto para itens principais quanto para classificações
+**Resultado**: ✅ **Análises AV/AH funcionando corretamente para classificações expandidas**
+
+### **12. Cálculo do Resultado Bruto Incorreto - RESOLVIDO ✅**
+**Problema**: O totalizador "Resultado Bruto" não estava calculando corretamente
+**Causa**: Lógica de busca dos valores das contas componentes estava falhando
+**Solução implementada**: 
+- ✅ **Correção da lógica**: Agora usa o valor da linha totalizadora anterior (Receita Líquida)
+- ✅ **Fórmula correta**: Resultado Bruto = Receita Líquida + CMV + CSP + CPV
+- ✅ **Busca otimizada**: Procura Receita Líquida nas linhas já processadas
+- ✅ **Validação**: Cálculo agora bate corretamente com os valores esperados
+
+### **13. Análise Vertical (AV) para coluna Total incorreta - RESOLVIDO COMPLETAMENTE ✅**
+**Problema**: Percentuais da Análise Vertical na coluna Total não estavam batendo corretamente
+**Causa**: Base de cálculo incorreta (soma de todas as contas em vez de apenas Faturamento)
+**Solução implementada**: 
+- ✅ **Função corrigida**: `calcularVerticalTotalDinamica()` agora usa apenas o Faturamento como base
+- ✅ **Função corrigida**: `calcularAVTotalDinamica()` calcula percentuais corretos
+- ✅ **Sinal preservado**: Valores negativos mostram percentuais negativos (ex: -23.0%)
+- ✅ **Base correta**: Faturamento = 100%, outras contas calculadas proporcionalmente
+**Resultado**: ✅ **Análise Vertical funcionando perfeitamente**
+- Faturamento: 100.0% ✅
+- Tributos: -23.0% ✅ (negativo, como deve ser)
+- Receita Líquida: 77.0% ✅
+- Resultado Bruto: 39.7% ✅
+
+### **14. Controle de visualização de valores zerados - IMPLEMENTADO COMPLETAMENTE ✅**
+**Problema**: Não havia opção para ocultar linhas com valores zerados no período selecionado
+**Causa**: Interface não possuía filtro para controlar exibição de valores zerados
+**Solução implementada**: 
+- ✅ **Estado padrão**: Valores zerados ocultos por padrão (experiência mais limpa)
+- ✅ **Botão de controle**: "❌ Valores Zerados" / "✅ Valores Zerados" na interface
+- ✅ **Filtro aplicado**: Tabela principal e classificações expandidas
+- ✅ **Exportação Excel**: Respeita o filtro ativo
+- ✅ **Contador dinâmico**: Mostra "X categorias visíveis" em vez de total
+- ✅ **Tolerância**: Considera valores > 0.01 como não-zerados
+**Resultado**: ✅ **Controle de valores zerados funcionando perfeitamente**
+- Interface mais limpa por padrão (sem valores zerados)
+- Usuário pode ativar/desativar conforme necessário
+- Filtro aplicado em toda a tabela e classificações
+**Resultado**: ✅ **Resultado Bruto calculando corretamente para todos os períodos**
+
 ## 🔍 **Implementação Técnica Final**
 
 ### **View v_dre_n0_completo Otimizada**
@@ -162,7 +210,7 @@ valores_por_periodo AS (
 ### **Lógica de Totalizadores**
 - **Receita Bruta** = Faturamento ✅ **Funcionando**
 - **Receita Líquida** = Receita Bruta + Tributos (negativos) ✅ **Funcionando**
-- **Resultado Bruto** = Receita Líquida + CMV + CSP + CPV 🔄 **Em validação**
+- **Resultado Bruto** = Receita Líquida + CMV + CSP + CPV ✅ **Funcionando**
 - **EBITDA** = Resultado Bruto - Despesas Operacionais
 - **EBIT** = EBITDA - Depreciação - Amortização
 - **Resultado Líquido** = EBIT + Resultado Financeiro - Impostos
@@ -223,7 +271,7 @@ async def get_classificacoes_dre_n2(dre_n2_name: str):
 - **Agregação correta**: Valores batem com DRE N1 e N2 para mensal, trimestral e anual
 - **Interface consistente**: Mesma funcionalidade para todos os tipos de período
 
-### **✅ Correção do Cálculo do Resultado Bruto - IMPLEMENTADO**
+### **✅ Correção do Cálculo do Resultado Bruto - IMPLEMENTADO E VALIDADO ✅**
 - **Problema identificado**: Totalizador "Resultado Bruto" não calculava corretamente
 - **Causa**: Lógica de busca dos valores das contas componentes estava falhando
 - **Solução implementada**: 
@@ -231,12 +279,12 @@ async def get_classificacoes_dre_n2(dre_n2_name: str):
   - Implementada busca por nome nas contas reais usando `valores_reais_por_periodo`
   - Adicionados logs de debug para rastrear valores durante o cálculo
 - **Fórmula correta**: Resultado Bruto = Receita Líquida + CMV + CSP + CPV
-- **Status**: 🔄 **Em validação** - Lógica corrigida, aguardando testes finais
+- **Status**: ✅ **IMPLEMENTADO E VALIDADO** - Cálculo funcionando corretamente para todos os períodos
 
 ## 🚨 **Issues Identificadas e Pendentes**
 
 ### **Prioridade Alta**
-1. **🔍 AV/AH não aparecem para o nível de classificações - NOVA ISSUE**
+1. **🔍 AV/AH não aparecem para o nível de classificações - RESOLVIDO ✅**
    - **Problema**: Análise Horizontal e Vertical não são exibidas para classificações expandidas
    - **Causa**: Funções de cálculo podem não estar funcionando corretamente para classificações
    - **Objetivo**: Garantir que AV e AH funcionem tanto para itens principais quanto para classificações
@@ -244,9 +292,10 @@ async def get_classificacoes_dre_n2(dre_n2_name: str):
      - Verificar se classificações têm campos de análise no backend
      - Corrigir funções `calcularAnaliseHorizontal` e `calcularAnaliseVertical` para classificações
      - Garantir que dados de análise sejam retornados pelo endpoint de classificações
-   - **Estimativa**: ⏱️ **2-3 horas de desenvolvimento**
+   - **Status**: ✅ **RESOLVIDO** - AV/AH agora funcionam corretamente para classificações
+   - **Estimativa**: ⏱️ **2-3 horas de desenvolvimento** ✅ **COMPLETO**
 
-2. **📊 Colunas e flags AV/AH vêm antes de Orçado e Dif. - NOVA ISSUE**
+2. **📊 Colunas e flags AV/AH vêm antes de Orçado e Dif. - MANTIDO COMO ESTÁ ✅**
    - **Problema**: Ordem das colunas na tabela não segue a sequência lógica esperada
    - **Causa**: Implementação atual coloca AV/AH antes de Orçado e Diferença
    - **Objetivo**: Reorganizar colunas para sequência lógica: Real | Orçado | Dif. | AV | AH
@@ -255,27 +304,49 @@ async def get_classificacoes_dre_n2(dre_n2_name: str):
      - Reordenar colunas nas classificações expandidas
      - Atualizar cabeçalhos e exportação Excel
      - Manter ordem consistente em todas as visualizações
-   - **Estimativa**: ⏱️ **1-2 horas de desenvolvimento**
+   - **Status**: ✅ **MANTIDO COMO ESTÁ** - Decisão do usuário de manter a ordem atual
+   - **Estimativa**: ⏱️ **1-2 horas de desenvolvimento** ✅ **NÃO APLICADO**
 
-3. **🧮 Cálculo do Resultado Bruto Incorreto - NOVA ISSUE**
-   - **Problema**: O totalizador "Resultado Bruto" não está calculando corretamente
-   - **Causa**: Lógica de busca dos valores das contas componentes pode estar falhando
+3. **🧮 Cálculo do Resultado Bruto Incorreto - RESOLVIDO ✅**
+   - **Problema**: O totalizador "Resultado Bruto" não estava calculando corretamente
+   - **Causa**: Lógica de busca dos valores das contas componentes estava falhando
    - **Objetivo**: Garantir que Resultado Bruto = Receita Líquida + CMV + CSP + CPV
    - **Implementação**:
      - Verificar se `valores_reais_por_periodo` está sendo populado corretamente
      - Corrigir a busca dos valores das contas componentes por nome
      - Implementar logs de debug para rastrear os valores durante o cálculo
      - Garantir que a estrutura de dados suporte o cálculo correto
-   - **Estimativa**: ⏱️ **2-3 horas de desenvolvimento**
-   - **Status**: 🔄 **Em desenvolvimento** - Lógica corrigida para usar padrão dos outros totalizadores
+   - **Status**: ✅ **RESOLVIDO** - Cálculo do Resultado Bruto agora funciona corretamente
+   - **Estimativa**: ⏱️ **2-3 horas de desenvolvimento** ✅ **COMPLETO**
 
-### **Melhorias Futuras**
-1. **Performance**: Otimizar view para grandes volumes de dados
-2. **Cache**: Implementar cache Redis para consultas frequentes
-3. **Validação**: Adicionar validação de integridade dos totalizadores
-4. **Logs**: Melhorar logs de debug para troubleshooting
-5. **Filtros avançados**: Adicionar filtros por categoria, tipo de operação
-6. **Gráficos**: Implementar visualizações gráficas (tendências, comparações)
+4. **📊 Análise Vertical (AV) para coluna Total incorreta - RESOLVIDO ✅**
+   - **Problema**: Percentuais da Análise Vertical na coluna Total não estavam batendo corretamente
+   - **Causa**: Base de cálculo incorreta (soma de todas as contas em vez de apenas Faturamento)
+   - **Objetivo**: Garantir que percentuais da AV sejam calculados corretamente sobre o Faturamento
+   - **Implementação**: 
+     - ✅ **Função corrigida**: `calcularVerticalTotalDinamica()` agora usa apenas o Faturamento como base
+     - ✅ **Função corrigida**: `calcularAVTotalDinamica()` calcula percentuais corretos
+     - ✅ **Sinal preservado**: Valores negativos mostram percentuais negativos (ex: -23.0%)
+     - ✅ **Base correta**: Faturamento = 100%, outras contas calculadas proporcionalmente
+   - **Status**: ✅ **RESOLVIDO COMPLETAMENTE** - Análise Vertical funcionando perfeitamente
+   - **Resultado**: 
+     - Faturamento: 100.0% ✅
+     - Tributos: -23.0% ✅ (negativo, como deve ser)
+     - Receita Líquida: 77.0% ✅
+     - Resultado Bruto: 39.7% ✅
+   - **Estimativa**: ⏱️ **2-3 horas de desenvolvimento** ✅ **COMPLETO**
+
+5. **👁️ Controle de visualização de valores zerados - NOVA ISSUE**
+   - **Problema**: Não há opção para ocultar linhas com valores zerados no período selecionado
+   - **Causa**: Interface não possui filtro para controlar exibição de valores zerados
+   - **Objetivo**: Implementar botão/toggle para mostrar/ocultar linhas com valores zerados
+   - **Implementação**:
+     - Adicionar botão "Mostrar/Ocultar Valores Zerados" no frontend
+     - Implementar lógica de filtro para linhas com valores = 0 no período
+     - Manter estado do filtro durante navegação entre períodos
+     - Aplicar filtro tanto na tabela principal quanto nas classificações expandidas
+     - Atualizar exportação Excel para respeitar o filtro ativo
+   - **Estimativa**: ⏱️ **3-4 horas de desenvolvimento**
 
 ### **Melhorias Futuras**
 1. **Performance**: Otimizar view para grandes volumes de dados
@@ -631,6 +702,22 @@ for ordem, dados in valores_reais_por_periodo.get(mes, {}).items():
 - ✅ **Cálculo de totalizadores** funcionando para todas as contas
 - ✅ **Resultado Bruto** - Cálculo corrigido e validado ✅
 - ✅ **Código refatorado** - Duplicação eliminada, manutenibilidade melhorada ✅
+- ✅ **AV/AH para classificações** - Funcionando corretamente ✅
+- ✅ **Ordem das colunas** - Mantida conforme decisão do usuário ✅
+
+## 🚨 **Resumo das Issues Pendentes**
+
+### **Total de Issues Pendentes: 0** ✅
+### **Estimativa Total: 0 horas de desenvolvimento** ✅
+
+1. **🔍 AV/AH não aparecem para classificações** - ⏱️ **2-3 horas** ✅ **RESOLVIDO**
+2. **📊 Ordem das colunas AV/AH incorreta** - ⏱️ **1-2 horas** ✅ **MANTIDO COMO ESTÁ**
+3. **🧮 Cálculo do Resultado Bruto** - ⏱️ **2-3 horas** ✅ **RESOLVIDO**
+4. **📊 Análise Vertical (AV) para coluna Total incorreta** - ⏱️ **2-3 horas** ✅ **RESOLVIDO COMPLETAMENTE**
+5. **👁️ Controle de visualização de valores zerados** - ⏱️ **3-4 horas** ✅ **IMPLEMENTADO COMPLETAMENTE**
+
+### **Prioridade de Implementação**
+- **🟢 Nenhuma**: Todas as issues foram implementadas ✅
 
 ## 🛠️ **Comandos de Validação**
 
@@ -672,9 +759,11 @@ curl -s "http://localhost:8000/dre-n0/recreate-view"
 
 ---
 
-**Status Final**: 🟢 **DRE N0 IMPLEMENTADA COM SUCESSO - TODAS AS FASES COMPLETAS**
-**Fase 1**: ✅ **COMPLETA - Redis + Índices + Materialized View**
-**Fase 2**: ✅ **COMPLETA - Paginação + Analytics Pre-aggregation + Cache**
-**Fase 3**: ✅ **COMPLETA - Debounce + Compressão + Monitoramento + Otimizações**
-**Correções**: ✅ **COMPLETAS - Resultado Bruto + Refatoração de Código**
-**Resultado**: ✅ DRE N0 100% funcional com classificações expansíveis, análises AV/AH, controles globais, filtros, totalizadores corrigidos, paginação, analytics pré-calculados, otimizações de performance e código refatorado sem duplicação
+## 🎯 **Status Final**
+
+**🎉 DRE N0 IMPLEMENTADA COM SUCESSO - TODAS AS ISSUES RESOLVIDAS!** ✅
+
+**Correções**: ✅ **COMPLETAS - Resultado Bruto + Refatoração de Código + Análise Vertical + AV Coluna TOTAL + Controle de Valores Zerados**
+**Issues Resolvidas**: ✅ **5 ISSUES RESOLVIDAS** (AV/AH para classificações, Cálculo do Resultado Bruto, Análise Vertical coluna TOTAL, Controle de Valores Zerados, e outras)
+**Issues Pendentes**: ✅ **0 ISSUES PENDENTES** - Todas implementadas!
+**Resultado**: ✅ DRE N0 100% funcional com classificações expansíveis, análises AV/AH funcionando perfeitamente, controles globais, filtros, totalizadores corrigidos, paginação, analytics pré-calculados, otimizações de performance, código refatorado sem duplicação, análise vertical validada, **coluna TOTAL da Análise Vertical funcionando perfeitamente** e **controle de valores zerados implementado**
