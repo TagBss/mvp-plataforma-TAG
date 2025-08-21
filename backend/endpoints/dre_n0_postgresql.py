@@ -45,7 +45,7 @@ async def get_dre_n0(
         engine = get_engine()
         
         with engine.connect() as connection:
-            # Verificar e criar view se necessário
+            # Verificar se a view existe (sem forçar recriação)
             view_exists = DreN0Helper.check_view_exists(connection)
             
             if not view_exists:
@@ -54,10 +54,7 @@ async def get_dre_n0(
                     raise HTTPException(status_code=500, detail="Erro ao criar view DRE N0")
                 print("✅ View v_dre_n0_completo criada com formato correto dos trimestres")
             else:
-                print("🔄 View DRE N0 já existe, forçando recriação para aplicar correções...")
-                if not DreN0Helper.create_dre_n0_view(connection):
-                    raise HTTPException(status_code=500, detail="Erro ao recriar view DRE N0")
-                print("✅ View v_dre_n0_completo recriada com formato correto dos trimestres")
+                print("✅ View DRE N0 já existe, usando view existente")
             
             # Buscar dados da view DRE N0
             rows = DreN0Helper.fetch_dre_n0_data(connection)
@@ -276,17 +273,17 @@ async def recreate_dre_n0_view():
                 WITH dados_limpos AS (
                     -- Filtrar dados válidos da financial_data
                     SELECT 
-                        fd.dre_n2,
-                        fd.dre_n1,
+                        
+                        
                         fd.competencia,
                         fd.valor_original,
                         TO_CHAR(fd.competencia, 'YYYY-MM') as periodo_mensal,
                         CONCAT(EXTRACT(YEAR FROM fd.competencia), '-Q', EXTRACT(QUARTER FROM fd.competencia)) as periodo_trimestral,
                         EXTRACT(YEAR FROM fd.competencia)::text as periodo_anual
                     FROM financial_data fd
-                    WHERE fd.dre_n2 IS NOT NULL 
-                    AND fd.dre_n2::text <> '' 
-                    AND fd.dre_n2::text <> 'nan'
+                    WHERE  IS NOT NULL 
+                    AND ::text <> '' 
+                    AND ::text <> 'nan'
                     AND fd.valor_original IS NOT NULL 
                     AND fd.competencia IS NOT NULL
                 ),

@@ -19,46 +19,28 @@ async def view_database():
         Session = sessionmaker(bind=engine)
         session = Session()
         
-        # Listar todas as tabelas
+        # Listar todas as tabelas e views
         tables_query = """
-        SELECT table_name 
+        SELECT table_name, table_type
         FROM information_schema.tables 
         WHERE table_schema = 'public'
-        ORDER BY table_name;
+        AND table_type IN ('BASE TABLE', 'VIEW')
+        ORDER BY table_type DESC, table_name;
         """
         
         tables_result = session.execute(text(tables_query)).fetchall()
-        tables = [row[0] for row in tables_result]
         
-        # Listar todas as views
-        views_query = """
-        SELECT viewname 
-        FROM pg_views 
-        WHERE schemaname = 'public'
-        ORDER BY viewname;
-        """
-        
-        views_result = session.execute(text(views_query)).fetchall()
-        views = [row[0] for row in views_result]
-        
-        # Contar registros de cada tabela
+        # Contar registros de cada tabela e view
         table_info = []
-        for table in tables:
+        for row in tables_result:
+            table_name = row[0]
+            table_type = "table" if row[1] == "BASE TABLE" else "view"
             try:
-                count_query = f"SELECT COUNT(*) FROM {table}"
+                count_query = f"SELECT COUNT(*) FROM {table_name}"
                 count = session.execute(text(count_query)).scalar()
-                table_info.append({"name": table, "count": count, "type": "table"})
+                table_info.append({"name": table_name, "count": count, "type": table_type})
             except Exception as e:
-                table_info.append({"name": table, "count": f"Erro: {e}", "type": "table"})
-        
-        # Contar registros de cada view
-        for view in views:
-            try:
-                count_query = f"SELECT COUNT(*) FROM {view}"
-                count = session.execute(text(count_query)).scalar()
-                table_info.append({"name": view, "count": count, "type": "view"})
-            except Exception as e:
-                table_info.append({"name": view, "count": f"Erro: {e}", "type": "view"})
+                table_info.append({"name": table_name, "count": f"Erro: {e}", "type": table_type})
         
         session.close()
         
@@ -186,7 +168,7 @@ async def view_database():
                 </div>
                 
                 <div style="margin-top: 30px; text-align: center; color: #666;">
-                    <p>Total de tabelas: {len(tables)} | Total de views: {len(views)} | Atualizado em {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}</p>
+                    <p>Total de tabelas: {len([t for t in table_info if t['type'] == 'table'])} | Total de views: {len([t for t in table_info if t['type'] == 'view'])} | Atualizado em {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}</p>
                 </div>
             </div>
         </body>
@@ -826,8 +808,8 @@ async def view_table_data(table_name: str, limit: int = 100):
                     COUNT(emissao) as with_emissao,
                     COUNT(competencia) as with_competencia,
                     COUNT(vencimento) as with_vencimento,
-                    COUNT(dfc_n1) as with_dfc_n1,
-                    COUNT(dfc_n2) as with_dfc_n2,
+                    COUNT(dfc_n1_id) as with_dfc_n1,
+                    COUNT(dfc_n2_id) as with_dfc_n2,
                     COUNT(origem) as with_origem
                 FROM financial_data
             """
@@ -1117,3 +1099,422 @@ async def view_table_structure(table_name: str):
         </body>
         </html>
         """
+
+# ============================================================================
+# NOVOS ENDPOINTS PARA TABELAS DE CADASTRO, PLANO DE CONTAS E DE/PARA
+# ============================================================================
+
+from fastapi import HTTPException, Depends, Query
+from sqlalchemy.orm import Session
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+import uuid
+
+from database.connection_sqlalchemy import DatabaseSession
+from database.schema_sqlalchemy import (
+    GrupoEmpresa, Empresa, Categoria, PlanoDeContas, DePara
+)
+
+def generate_uuid() -> str:
+    """Gera UUID único para identificação"""
+    return str(uuid.uuid4())
+
+def get_db():
+    """Dependency para obter sessão do banco"""
+    with DatabaseSession() as session:
+        yield session
+
+# ============================================================================
+# ENDPOINTS DE CADASTRO
+# ============================================================================
+
+@router.get("/cadastro/grupos-empresa", response_model=List[Dict[str, Any]])
+async def listar_grupos_empresa(db: Session = Depends(get_db)):
+    """Lista todos os grupos empresariais"""
+    try:
+        grupos = db.query(GrupoEmpresa).filter(GrupoEmpresa.is_active == True).all()
+        return [
+            {
+                "id": grupo.id,
+                "nome": grupo.nome,
+                "descricao": grupo.descricao,
+                "empresas_count": len(grupo.empresas),
+                "created_at": grupo.created_at.isoformat() if grupo.created_at else None
+            }
+            for grupo in grupos
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao listar grupos: {str(e)}")
+
+@router.post("/cadastro/grupos-empresa")
+async def criar_grupo_empresa(
+    nome: str,
+    descricao: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Cria novo grupo empresarial"""
+    try:
+        # Verificar se já existe
+        existing = db.query(GrupoEmpresa).filter(GrupoEmpresa.nome == nome).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Grupo com este nome já existe")
+        
+        grupo = GrupoEmpresa(
+            id=generate_uuid(),
+            nome=nome,
+            descricao=descricao,
+            is_active=True
+        )
+        
+        db.add(grupo)
+        db.commit()
+        
+        return {"success": True, "id": grupo.id, "message": "Grupo criado com sucesso"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao criar grupo: {str(e)}")
+
+@router.get("/cadastro/empresas", response_model=List[Dict[str, Any]])
+async def listar_empresas(db: Session = Depends(get_db)):
+    """Lista todas as empresas"""
+    try:
+        empresas = db.query(Empresa).filter(Empresa.is_active == True).all()
+        return [
+            {
+                "id": empresa.id,
+                "nome": empresa.nome,
+                "grupo_empresa": empresa.grupo_empresa.nome if empresa.grupo_empresa else None,
+                "cnpj": empresa.cnpj,
+                "razao_social": empresa.razao_social,
+                "categorias_count": len(empresa.categorias),
+                "created_at": empresa.created_at.isoformat() if empresa.created_at else None
+            }
+            for empresa in empresas
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao listar empresas: {str(e)}")
+
+@router.post("/cadastro/empresas")
+async def criar_empresa(
+    nome: str,
+    grupo_empresa_id: str,
+    cnpj: Optional[str] = None,
+    razao_social: Optional[str] = None,
+    nome_fantasia: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Cria nova empresa"""
+    try:
+        # Verificar se grupo existe
+        grupo = db.query(GrupoEmpresa).filter(GrupoEmpresa.id == grupo_empresa_id).first()
+        if not grupo:
+            raise HTTPException(status_code=400, detail="Grupo empresarial não encontrado")
+        
+        # Verificar se empresa já existe
+        existing = db.query(Empresa).filter(Empresa.nome == nome).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Empresa com este nome já existe")
+        
+        empresa = Empresa(
+            id=generate_uuid(),
+            nome=nome,
+            grupo_empresa_id=grupo_empresa_id,
+            cnpj=cnpj,
+            razao_social=razao_social,
+            nome_fantasia=nome_fantasia or nome,
+            is_active=True
+        )
+        
+        db.add(empresa)
+        db.commit()
+        
+        return {"success": True, "id": empresa.id, "message": "Empresa criada com sucesso"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao criar empresa: {str(e)}")
+
+@router.get("/cadastro/categorias", response_model=List[Dict[str, Any]])
+async def listar_categorias(
+    empresa_id: Optional[str] = Query(None, description="Filtrar por empresa"),
+    db: Session = Depends(get_db)
+):
+    """Lista categorias, opcionalmente filtradas por empresa"""
+    try:
+        query = db.query(Categoria).filter(Categoria.is_active == True)
+        
+        if empresa_id:
+            query = query.filter(Categoria.empresa_id == empresa_id)
+        
+        categorias = query.all()
+        return [
+            {
+                "id": categoria.id,
+                "nome": categoria.nome,
+                "tipo": categoria.tipo,
+                "empresa": categoria.empresa.nome if categoria.empresa else None,
+                "descricao": categoria.descricao,
+                "created_at": categoria.created_at.isoformat() if categoria.created_at else None
+            }
+            for categoria in categorias
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao listar categorias: {str(e)}")
+
+# ============================================================================
+# ENDPOINTS DE PLANO DE CONTAS
+# ============================================================================
+
+@router.get("/plano-contas", response_model=List[Dict[str, Any]])
+async def listar_plano_contas(
+    empresa_id: Optional[str] = Query(None, description="Filtrar por empresa"),
+    conta_pai: Optional[str] = Query(None, description="Filtrar por conta pai"),
+    db: Session = Depends(get_db)
+):
+    """Lista plano de contas"""
+    try:
+        query = db.query(PlanoDeContas).filter(PlanoDeContas.is_active == True)
+        
+        if empresa_id:
+            query = query.filter(PlanoDeContas.empresa_id == empresa_id)
+        
+        if conta_pai:
+            query = query.filter(PlanoDeContas.conta_pai == conta_pai)
+        
+        plano_contas = query.order_by(PlanoDeContas.ordem).all()
+        
+        return [
+            {
+                "id": item.id,
+                "conta": item.conta,
+                "nome_conta": item.nome_conta,
+                "conta_pai": item.conta_pai,
+                "tipo_conta": item.tipo_conta,
+                "nivel": item.nivel,
+                "ordem": item.ordem,
+                "classificacao_dre": item.classificacao_dre,
+                "classificacao_dfc": item.classificacao_dfc,
+                "centro_custo": item.centro_custo,
+                "empresa": item.empresa.nome if item.empresa else None,
+                "observacoes": item.observacoes
+            }
+            for item in plano_contas
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao listar plano de contas: {str(e)}")
+
+@router.post("/plano-contas")
+async def criar_plano_conta(
+    empresa_id: str,
+    conta: str,
+    nome_conta: str,
+    conta_pai: Optional[str] = None,
+    tipo_conta: Optional[str] = None,
+    nivel: int = 1,
+    ordem: Optional[int] = None,
+    classificacao_dre: Optional[str] = None,
+    classificacao_dfc: Optional[str] = None,
+    centro_custo: Optional[str] = None,
+    observacoes: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Cria nova conta no plano de contas"""
+    try:
+        # Verificar se empresa existe
+        empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+        if not empresa:
+            raise HTTPException(status_code=400, detail="Empresa não encontrada")
+        
+        # Verificar se conta já existe
+        existing = db.query(PlanoDeContas).filter(
+            PlanoDeContas.empresa_id == empresa_id,
+            PlanoDeContas.conta == conta
+        ).first()
+        
+        if existing:
+            raise HTTPException(status_code=400, detail="Conta já existe para esta empresa")
+        
+        # Definir ordem se não fornecida
+        if ordem is None:
+            max_ordem = db.query(PlanoDeContas).filter(
+                PlanoDeContas.empresa_id == empresa_id
+            ).order_by(PlanoDeContas.ordem.desc()).first()
+            ordem = (max_ordem.ordem + 1) if max_ordem else 1
+        
+        plano_conta = PlanoDeContas(
+            empresa_id=empresa_id,
+            conta_pai=conta_pai,
+            conta=conta,
+            nome_conta=nome_conta,
+            tipo_conta=tipo_conta,
+            nivel=nivel,
+            ordem=ordem,
+            classificacao_dre=classificacao_dre,
+            classificacao_dfc=classificacao_dfc,
+            centro_custo=centro_custo,
+            observacoes=observacoes,
+            is_active=True
+        )
+        
+        db.add(plano_conta)
+        db.commit()
+        
+        return {"success": True, "id": plano_conta.id, "message": "Conta criada com sucesso"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao criar conta: {str(e)}")
+
+# ============================================================================
+# ENDPOINTS DE DE/PARA
+# ============================================================================
+
+@router.get("/de-para", response_model=List[Dict[str, Any]])
+async def listar_de_para(
+    empresa_id: Optional[str] = Query(None, description="Filtrar por empresa"),
+    tipo_mapeamento: Optional[str] = Query(None, description="Filtrar por tipo"),
+    db: Session = Depends(get_db)
+):
+    """Lista tabela de mapeamento de_para"""
+    try:
+        query = db.query(DePara).filter(DePara.is_active == True)
+        
+        if empresa_id:
+            query = query.filter(DePara.empresa_id == empresa_id)
+        
+        if tipo_mapeamento:
+            query = query.filter(DePara.tipo_mapeamento == tipo_mapeamento)
+        
+        de_para_list = query.all()
+        
+        return [
+            {
+                "id": item.id,
+                "origem_sistema": item.origem_sistema,
+                "codigo_origem": item.codigo_origem,
+                "descricao_origem": item.descricao_origem,
+                "codigo_destino": item.codigo_destino,
+                "descricao_destino": item.descricao_destino,
+                "tipo_mapeamento": item.tipo_mapeamento,
+                "empresa": item.empresa.nome if item.empresa else None,
+                "observacoes": item.observacoes
+            }
+            for item in de_para_list
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao listar de_para: {str(e)}")
+
+@router.post("/de-para")
+async def criar_de_para(
+    empresa_id: str,
+    codigo_origem: str,
+    descricao_origem: str,
+    codigo_destino: str,
+    descricao_destino: str,
+    origem_sistema: Optional[str] = None,
+    tipo_mapeamento: Optional[str] = None,
+    observacoes: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Cria novo mapeamento de_para"""
+    try:
+        # Verificar se empresa existe
+        empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+        if not empresa:
+            raise HTTPException(status_code=400, detail="Empresa não encontrada")
+        
+        # Verificar se mapeamento já existe
+        existing = db.query(DePara).filter(
+            DePara.empresa_id == empresa_id,
+            DePara.codigo_origem == codigo_origem,
+            DePara.origem_sistema == origem_sistema
+        ).first()
+        
+        if existing:
+            raise HTTPException(status_code=400, detail="Mapeamento já existe para esta origem")
+        
+        de_para = DePara(
+            empresa_id=empresa_id,
+            origem_sistema=origem_sistema,
+            codigo_origem=codigo_origem,
+            descricao_origem=descricao_origem,
+            codigo_destino=codigo_destino,
+            descricao_destino=descricao_destino,
+            tipo_mapeamento=tipo_mapeamento,
+            observacoes=observacoes,
+            is_active=True
+        )
+        
+        db.add(de_para)
+        db.commit()
+        
+        return {"success": True, "id": de_para.id, "message": "Mapeamento criado com sucesso"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao criar mapeamento: {str(e)}")
+
+# ============================================================================
+# ENDPOINTS DE ESTATÍSTICAS
+# ============================================================================
+
+@router.get("/stats/overview")
+async def estatisticas_gerais(db: Session = Depends(get_db)):
+    """Estatísticas gerais do sistema"""
+    try:
+        stats = {
+            "grupos_empresa": db.query(GrupoEmpresa).filter(GrupoEmpresa.is_active == True).count(),
+            "empresas": db.query(Empresa).filter(Empresa.is_active == True).count(),
+            "categorias": db.query(Categoria).filter(Categoria.is_active == True).count(),
+            "plano_contas": db.query(PlanoDeContas).filter(PlanoDeContas.is_active == True).count(),
+            "de_para": db.query(DePara).filter(DePara.is_active == True).count()
+        }
+        
+        return stats
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao obter estatísticas: {str(e)}")
+
+@router.get("/stats/empresa/{empresa_id}")
+async def estatisticas_empresa(empresa_id: str, db: Session = Depends(get_db)):
+    """Estatísticas específicas de uma empresa"""
+    try:
+        empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+        if not empresa:
+            raise HTTPException(status_code=404, detail="Empresa não encontrada")
+        
+        stats = {
+            "empresa": {
+                "id": empresa.id,
+                "nome": empresa.nome,
+                "grupo": empresa.grupo_empresa.nome if empresa.grupo_empresa else None
+            },
+            "categorias": db.query(Categoria).filter(
+                Categoria.empresa_id == empresa_id,
+                Categoria.is_active == True
+            ).count(),
+            "plano_contas": db.query(PlanoDeContas).filter(
+                PlanoDeContas.empresa_id == empresa_id,
+                PlanoDeContas.is_active == True
+            ).count(),
+            "de_para": db.query(DePara).filter(
+                DePara.empresa_id == empresa_id,
+                DePara.is_active == True
+            ).count()
+        }
+        
+        return stats
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao obter estatísticas da empresa: {str(e)}")

@@ -51,9 +51,42 @@ def get_session():
 def create_tables():
     """Cria todas as tabelas no banco"""
     from database.schema_sqlalchemy import Base
+    from sqlalchemy import text
     
     engine = get_engine()
+    
+    # Dropar apenas as tabelas específicas que precisamos recriar
+    print("🗑️ Dropando tabelas específicas...")
+    with engine.connect() as conn:
+        # Desabilitar foreign key checks temporariamente
+        conn.execute(text("SET session_replication_role = replica"))
+        
+        # Dropar apenas as tabelas que precisamos recriar
+        tables_to_drop = [
+            'de_para',
+            'plano_de_contas', 
+            'categorias',
+            'empresas',
+            'grupos_empresa'
+        ]
+        
+        for table in tables_to_drop:
+            try:
+                conn.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
+                print(f"✅ Tabela {table} dropada")
+            except Exception as e:
+                print(f"⚠️ Erro ao dropar {table}: {e}")
+        
+        # Reabilitar foreign key checks
+        conn.execute(text("SET session_replication_role = DEFAULT"))
+        conn.commit()
+    
+    print("✅ Tabelas específicas dropadas!")
+    
+    # Criar todas as tabelas novamente
+    print("📋 Criando tabelas...")
     Base.metadata.create_all(bind=engine)
+    print("✅ Tabelas criadas!")
 
 # Context manager para sessões
 class DatabaseSession:

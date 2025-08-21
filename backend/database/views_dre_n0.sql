@@ -29,7 +29,7 @@ WITH dados_agregados AS (
     FROM dre_structure_n0 ds0
     LEFT JOIN financial_data fd ON (
         -- Relacionar com dados financeiros baseado na estrutura DRE
-        fd.dre_n1 IS NOT NULL OR fd.dre_n2 IS NOT NULL
+        fd.dre_n1_id IS NOT NULL OR fd.dre_n2_id IS NOT NULL
     )
     WHERE ds0.is_active = true
 ),
@@ -191,7 +191,7 @@ FROM (
         SUM(fd.valor_original) as valor_periodo
     FROM dre_structure_n0 ds0
     LEFT JOIN financial_data fd ON (
-        fd.dre_n1 IS NOT NULL OR fd.dre_n2 IS NOT NULL
+        fd.dre_n1_id IS NOT NULL OR fd.dre_n2_id IS NOT NULL
     )
     WHERE ds0.is_active = true
     GROUP BY 

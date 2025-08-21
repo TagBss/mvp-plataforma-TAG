@@ -1,11 +1,59 @@
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
+# ============================================================================
+# DEPENDÊNCIAS PRINCIPAIS
+# ============================================================================
+
+# ORM e Banco de Dados
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
+python-dotenv==1.0.1
+
+# Processamento de Dados
 pandas==2.1.4
+openpyxl==3.1.2
+xlrd==2.0.1
+
+# Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# Validação e Serialização
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Utilitários
 python-multipart==0.0.6
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-python-dotenv==1.0.0
-redis==5.0.1
-aioredis==2.0.1
+
+# ============================================================================
+# DEPENDÊNCIAS DE DESENVOLVIMENTO
+# ============================================================================
+
+# Testes
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.2
+
+# Linting e Formatação
+black==23.11.0
+flake8==6.1.0
+isort==5.12.0
+
+# ============================================================================
+# DEPENDÊNCIAS OPCIONAIS
+# ============================================================================
+
+# Cache (para futuras implementações)
+# redis==5.0.1
+
+# Monitoramento (para futuras implementações)
+# prometheus-client==0.19.0
+# structlog==23.2.0
+
+# ============================================================================
+# VERSÕES MÍNIMAS COMPATÍVEIS
+# ============================================================================
+
+# Python >= 3.8
+# PostgreSQL >= 12
+# FastAPI >= 0.100

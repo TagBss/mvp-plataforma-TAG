@@ -116,18 +116,18 @@ async def create_materialized_view():
                 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_dre_n0_analytics AS
                 WITH dados_agregados AS (
                     SELECT 
-                        fd.dre_n2,
-                        fd.dre_n1,
+                        
+                        
                         fd.competencia,
                         TO_CHAR(fd.competencia, 'YYYY-MM') as periodo_mensal,
                         CONCAT(EXTRACT(YEAR FROM fd.competencia), '-Q', EXTRACT(QUARTER FROM fd.competencia)) as periodo_trimestral,
                         EXTRACT(YEAR FROM fd.competencia)::text as periodo_anual,
                         SUM(fd.valor_original) as valor_total
                     FROM financial_data fd
-                    WHERE fd.dre_n2 IS NOT NULL 
+                    WHERE  IS NOT NULL 
                     AND fd.valor_original IS NOT NULL 
                     AND fd.competencia IS NOT NULL
-                    GROUP BY fd.dre_n2, fd.dre_n1, fd.competencia
+                    GROUP BY   fd.competencia
                 ),
                 analises_horizontais AS (
                     SELECT 

@@ -19,23 +19,21 @@ class DreN0Helper:
             drop_view = text("DROP VIEW IF EXISTS v_dre_n0_completo")
             connection.execute(drop_view)
             
-            # Criar view corrigida com lógica de totalizadores e todos os períodos
+            # Criar view corrigida com relacionamentos corretos usando IDs
             create_view = text("""
                 CREATE OR REPLACE VIEW v_dre_n0_completo AS
                 WITH dados_limpos AS (
-                    -- Filtrar dados válidos da financial_data
+                    -- Filtrar dados válidos da financial_data usando IDs corrigidos
                     SELECT 
-                        fd.dre_n2,
-                        fd.dre_n1,
+                        fd.dre_n1_id,
+                        fd.dre_n2_id,
                         fd.competencia,
                         fd.valor_original,
                         TO_CHAR(fd.competencia, 'YYYY-MM') as periodo_mensal,
                         CONCAT(EXTRACT(YEAR FROM fd.competencia), '-Q', EXTRACT(QUARTER FROM fd.competencia)) as periodo_trimestral,
                         EXTRACT(YEAR FROM fd.competencia)::text as periodo_anual
                     FROM financial_data fd
-                    WHERE fd.dre_n2 IS NOT NULL 
-                    AND fd.dre_n2::text <> '' 
-                    AND fd.dre_n2::text <> 'nan'
+                    WHERE (fd.dre_n1_id IS NOT NULL OR fd.dre_n2_id IS NOT NULL)
                     AND fd.valor_original IS NOT NULL 
                     AND fd.competencia IS NOT NULL
                 ),
@@ -45,20 +43,15 @@ class DreN0Helper:
                         ds0.name as nome_conta,
                         ds0.operation_type as tipo_operacao,
                         ds0.order_index as ordem,
-                        CASE 
-                            WHEN ds0.description LIKE 'Conta DRE N0: %' 
-                            THEN SUBSTRING(ds0.description FROM 15)
-                            ELSE ds0.description
-                        END as descricao,
-                        CASE 
-                            WHEN ds0.operation_type = '=' THEN NULL
-                            ELSE ds0.name
-                        END as nome_para_match
+                        ds0.description as descricao,
+                        ds0.dre_niveis,
+                        ds0.dre_n1_id,
+                        ds0.dre_n2_id
                     FROM dre_structure_n0 ds0
                     WHERE ds0.is_active = true
                 ),
                 valores_mensais AS (
-                    -- Valores mensais agregados
+                    -- Valores mensais agregados usando relacionamentos por ID
                     SELECT 
                         e.dre_n0_id,
                         e.nome_conta,
@@ -74,17 +67,16 @@ class DreN0Helper:
                         END as valor_calculado
                     FROM estrutura_n0 e
                     LEFT JOIN dados_limpos d ON (
-                        e.nome_para_match IS NOT NULL AND (
-                            (d.dre_n1 = e.nome_para_match)
-                            OR
-                            (d.dre_n2 = e.nome_para_match)
-                        )
+                        -- Usar relacionamentos por ID em vez de match por nome
+                        (e.dre_niveis = 'dre_n1' AND e.dre_n1_id = d.dre_n1_id)
+                        OR
+                        (e.dre_niveis = 'dre_n2' AND e.dre_n2_id = d.dre_n2_id)
                     )
                     WHERE e.tipo_operacao != '='
                     GROUP BY e.dre_n0_id, e.nome_conta, e.tipo_operacao, e.ordem, e.descricao, d.periodo_mensal
                 ),
                 valores_trimestrais AS (
-                    -- Valores trimestrais agregados (soma dos meses)
+                    -- Valores trimestrais agregados usando relacionamentos por ID
                     SELECT 
                         e.dre_n0_id,
                         e.nome_conta,
@@ -100,17 +92,16 @@ class DreN0Helper:
                         END as valor_calculado
                     FROM estrutura_n0 e
                     LEFT JOIN dados_limpos d ON (
-                        e.nome_para_match IS NOT NULL AND (
-                            (d.dre_n1 = e.nome_para_match)
-                            OR
-                            (d.dre_n2 = e.nome_para_match)
-                        )
+                        -- Usar relacionamentos por ID em vez de match por nome
+                        (e.dre_niveis = 'dre_n1' AND e.dre_n1_id = d.dre_n1_id)
+                        OR
+                        (e.dre_niveis = 'dre_n2' AND e.dre_n2_id = d.dre_n2_id)
                     )
                     WHERE e.tipo_operacao != '='
                     GROUP BY e.dre_n0_id, e.nome_conta, e.tipo_operacao, e.ordem, e.descricao, d.periodo_trimestral
                 ),
                 valores_anuais AS (
-                    -- Valores anuais agregados (soma dos meses)
+                    -- Valores anuais agregados usando relacionamentos por ID
                     SELECT 
                         e.dre_n0_id,
                         e.nome_conta,
@@ -126,11 +117,10 @@ class DreN0Helper:
                         END as valor_calculado
                     FROM estrutura_n0 e
                     LEFT JOIN dados_limpos d ON (
-                        e.nome_para_match IS NOT NULL AND (
-                            (d.dre_n1 = e.nome_para_match)
-                            OR
-                            (d.dre_n2 = e.nome_para_match)
-                        )
+                        -- Usar relacionamentos por ID em vez de match por nome
+                        (e.dre_niveis = 'dre_n1' AND e.dre_n1_id = d.dre_n1_id)
+                        OR
+                        (e.dre_niveis = 'dre_n2' AND e.dre_n2_id = d.dre_n2_id)
                     )
                     WHERE e.tipo_operacao != '='
                     GROUP BY e.dre_n0_id, e.nome_conta, e.tipo_operacao, e.ordem, e.descricao, d.periodo_anual
@@ -193,7 +183,7 @@ class DreN0Helper:
                     '{}'::jsonb as orcamentos_anuais,
                     0 as orcamento_total,
                     0 as valor_total,
-                    'v_dre_n0_todos_periodos' as source
+                    'v_dre_n0_relacionamentos_corrigidos' as source
                     
                 FROM valores_agregados
                 
@@ -205,11 +195,7 @@ class DreN0Helper:
                     ds0.name as nome_conta,
                     ds0.operation_type as tipo_operacao,
                     ds0.order_index as ordem,
-                    CASE 
-                        WHEN ds0.description LIKE 'Conta DRE N0: %' 
-                        THEN SUBSTRING(ds0.description FROM 15)
-                        ELSE ds0.description
-                    END as descricao,
+                    ds0.description as descricao,
                     'CAR' as origem,
                     'BLUEFIT' as empresa,
                     '{}'::jsonb as valores_mensais,

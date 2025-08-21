@@ -93,6 +93,14 @@ export default function DreTablePostgreSQL() {
             anos: result.anos.length
           })
           
+          // Debug: verificar quais itens são expansíveis
+          const expansiveis = result.data.filter(item => item.expandivel)
+          console.log("🔽 Itens expansíveis:", expansiveis.map(item => ({
+            nome: item.nome,
+            expandivel: item.expandivel,
+            tipo: item.tipo
+          })))
+          
           setData(result.data)
           setMeses(result.meses)
           setTrimestres(result.trimestres)
@@ -154,6 +162,7 @@ export default function DreTablePostgreSQL() {
       }
 
       console.log(`🔍 Buscando classificações para: ${dreN2Name}`)
+      
       const response = await api.get(`/dre-n0/classificacoes/${encodeURIComponent(dreN2Name)}`)
       
       if (response.data.success) {
@@ -204,6 +213,7 @@ export default function DreTablePostgreSQL() {
     
     for (const item of data) {
       if (item.expandivel) {
+        console.log(`🔽 Expandindo: ${item.nome}`)
         novasExpansoes[item.nome] = true
         
         // Buscar classificações se ainda não estiverem no cache
@@ -211,9 +221,12 @@ export default function DreTablePostgreSQL() {
           try {
             const classificacoes = await buscarClassificacoes(item.nome)
             novasClassificacoes[item.nome] = classificacoes
+            console.log(`✅ Classificações para ${item.nome}: ${classificacoes.length}`)
           } catch (error) {
             console.error(`❌ Erro ao buscar classificações para ${item.nome}:`, error)
           }
+        } else {
+          console.log(`📋 Usando cache para ${item.nome}: ${classificacoesCache[item.nome].length}`)
         }
       }
     }
@@ -253,6 +266,7 @@ export default function DreTablePostgreSQL() {
     
     if (!isExpanded) {
       // Expandir: buscar classificações
+      console.log(`🔽 Expandindo classificações para: ${item.nome}`)
       const classificacoes = await buscarClassificacoes(item.nome)
       
       // Atualizar o item com as classificações
@@ -263,6 +277,12 @@ export default function DreTablePostgreSQL() {
             : d
         )
       )
+      
+      // Atualizar cache
+      setClassificacoesCache(prev => ({
+        ...prev,
+        [item.nome]: classificacoes
+      }))
     }
     
     // Alternar estado de expansão
@@ -270,6 +290,8 @@ export default function DreTablePostgreSQL() {
       ...prev,
       [item.nome]: !isExpanded
     }))
+    
+    console.log(`✅ Estado de expansão para ${item.nome}: ${!isExpanded}`)
   }
 
   let periodosFiltrados: string[] = []
@@ -1019,8 +1041,8 @@ export default function DreTablePostgreSQL() {
                           )
                           
                           return (
-                                                      <TableRow key={`${item.nome}-${classificacao.nome}`} className="bg-muted">
-                            <TableCell className="py-2 md:sticky md:left-0 md:z-20 bg-muted border-r border-border pl-8">
+                            <TableRow key={`${item.nome}-${classificacao.nome}`} className="bg-muted/30">
+                              <TableCell className="py-2 md:sticky md:left-0 md:z-20 bg-muted/30 border-r border-border pl-8">
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm text-muted-foreground">
                                     {classificacao.nome}

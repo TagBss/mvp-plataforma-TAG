@@ -244,6 +244,107 @@ class RolePermission(Base):
     created_at = Column(DateTime, default=datetime.now)
 
 # ============================================================================
+# NOVAS TABELAS DE CADASTRO E ESTRUTURA
+# ============================================================================
+
+class GrupoEmpresa(Base):
+    """Grupo empresarial (ex: Bluefit T8)"""
+    __tablename__ = "grupos_empresa"
+    
+    id = Column(String(36), primary_key=True)  # UUID
+    nome = Column(String(200), nullable=False, unique=True)
+    empresa_id = Column(String(36), ForeignKey('empresas.id'), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # Relacionamentos
+    empresa = relationship("Empresa", back_populates="grupos_empresa")
+    categorias = relationship("Categoria", back_populates="grupo_empresa")
+
+class Empresa(Base):
+    """Empresas específicas (ex: Bluefit)"""
+    __tablename__ = "empresas"
+    
+    id = Column(String(36), primary_key=True)  # UUID
+    nome = Column(String(200), nullable=False, unique=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # Relacionamentos
+    grupos_empresa = relationship("GrupoEmpresa", back_populates="empresa")
+
+class Categoria(Base):
+    """Categorias de classificação (ex: Cliente, Fornecedor, etc)"""
+    __tablename__ = "categorias"
+    
+    id = Column(String(36), primary_key=True)  # UUID
+    nome = Column(String(200), nullable=False)
+    grupo_empresa_id = Column(String(36), ForeignKey('grupos_empresa.id'), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # Relacionamentos
+    grupo_empresa = relationship("GrupoEmpresa", back_populates="categorias")
+
+class PlanoDeContas(Base):
+    """Plano de contas da Bluefit (aba 'plano_de_contas')"""
+    __tablename__ = "plano_de_contas"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    grupo_empresa_id = Column(String(36), ForeignKey('grupos_empresa.id'), nullable=False)
+    
+    # Estrutura hierárquica
+    conta_pai = Column(String(200))  # Aumentado de 50 para 200
+    conta = Column(String(100), nullable=False)  # Aumentado de 50 para 100
+    nome_conta = Column(String(500), nullable=False)  # Aumentado de 300 para 500
+    tipo_conta = Column(String(100))  # Aumentado de 50 para 100
+    nivel = Column(Integer)  # Nível na hierarquia
+    ordem = Column(Integer)  # Ordem de exibição
+    
+    # Classificações DRE
+    classificacao_dre = Column(String(200))  # DRE Nível 1
+    classificacao_dre_n2 = Column(String(200))  # DRE Nível 2
+    
+    # Classificações DFC
+    classificacao_dfc = Column(String(200))  # DFC Nível 1
+    classificacao_dfc_n2 = Column(String(200))  # DFC Nível 2
+    
+    centro_custo = Column(String(200))  # Aumentado de 100 para 200
+    
+    # Metadados
+    observacoes = Column(Text)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # Relacionamentos
+    grupo_empresa = relationship("GrupoEmpresa")
+
+class DePara(Base):
+    """Tabela de mapeamento/de_para da Bluefit (aba 'de_para')"""
+    __tablename__ = "de_para"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    grupo_empresa_id = Column(String(36), ForeignKey('grupos_empresa.id'), nullable=False)
+    
+    # Campos de origem e destino
+    origem_sistema = Column(String(100))  # Sistema de origem
+    descricao_origem = Column(String(300))  # Descrição no sistema de origem
+    descricao_destino = Column(String(300))  # Descrição no sistema atual
+    
+    # Metadados
+    observacoes = Column(Text)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # Relacionamentos
+    grupo_empresa = relationship("GrupoEmpresa")
+
+# ============================================================================
 # ÍNDICES PARA PERFORMANCE
 # ============================================================================
 
@@ -267,3 +368,12 @@ Index('idx_dre_n1_parent', DREStructureN1.dre_n0_id)
 Index('idx_dre_n2_parent', DREStructureN2.dre_n1_id)
 Index('idx_dre_n2_order', DREStructureN2.order_index)
 Index('idx_dre_classification_parent', DREClassification.dre_n2_id)
+
+# Índices para novas tabelas
+Index('idx_grupo_empresa_empresa', GrupoEmpresa.empresa_id)
+Index('idx_categoria_grupo_empresa', Categoria.grupo_empresa_id)
+Index('idx_plano_contas_grupo_empresa', PlanoDeContas.grupo_empresa_id)
+Index('idx_plano_contas_conta', PlanoDeContas.conta)
+Index('idx_de_para_grupo_empresa', DePara.grupo_empresa_id)
+Index('idx_de_para_origem', DePara.descricao_origem)
+Index('idx_de_para_destino', DePara.descricao_destino)

@@ -11,30 +11,47 @@ class ClassificacoesHelper:
     
     @staticmethod
     def fetch_classificacoes_data(connection: Connection, dre_n2_name: str) -> List[Any]:
-        """Busca dados de classificações para uma conta DRE N2 específica"""
+        """Busca dados de classificações para uma conta DRE N2 específica usando fluxo padrão"""
+        
+        print(f"🔍 Buscando classificações para DRE N2: {dre_n2_name}")
+        
+        # FLUXO CORRETO: financial_data → de_para → plano_de_contas → classificacao_dre_n2
+        # CORREÇÃO: Usar plano_de_contas.nome_conta em vez de financial_data.classificacao
+        # RESULTADO: Nomes corretos do plano de contas (ex: "Gympass" em vez de "Receitas diretasgympass")
         query = text("""
-            SELECT 
-                fd.classificacao,
+            SELECT DISTINCT 
+                pc.nome_conta as classificacao,
                 fd.valor_original,
                 TO_CHAR(fd.competencia, 'YYYY-MM') as periodo_mensal,
                 CONCAT(EXTRACT(YEAR FROM fd.competencia), '-Q', EXTRACT(QUARTER FROM fd.competencia)) as periodo_trimestral,
                 EXTRACT(YEAR FROM fd.competencia)::text as periodo_anual
             FROM financial_data fd
-            WHERE fd.dre_n2 = :dre_n2_name
+            JOIN de_para dp ON fd.classificacao = dp.descricao_origem
+            JOIN plano_de_contas pc ON dp.descricao_destino = pc.conta_pai
+            WHERE pc.classificacao_dre_n2 LIKE '%' || :dre_n2_name || '%'
             AND fd.classificacao IS NOT NULL 
             AND fd.classificacao::text <> ''
             AND fd.classificacao::text <> 'nan'
             AND fd.valor_original IS NOT NULL 
             AND fd.competencia IS NOT NULL
-            ORDER BY fd.classificacao, fd.competencia
+            ORDER BY pc.nome_conta, TO_CHAR(fd.competencia, 'YYYY-MM')
         """)
         
         result = connection.execute(query, {"dre_n2_name": dre_n2_name})
-        return result.fetchall()
+        dados = result.fetchall()
+        
+        print(f"📊 Encontradas {len(dados)} classificações únicas para {dre_n2_name}")
+        
+        # Mostrar algumas classificações encontradas para debug
+        if dados:
+            classificacoes_unicas = list(set([row.classificacao for row in dados]))
+            print(f"🔍 Classificações encontradas: {classificacoes_unicas[:3]}...")
+        
+        return dados
     
     @staticmethod
     def fetch_faturamento_data(connection: Connection) -> List[Any]:
-        """Busca dados de faturamento para análise vertical"""
+        """Busca dados de faturamento para análise vertical usando fluxo correto"""
         
         faturamento_query = text("""
             SELECT 
@@ -43,7 +60,9 @@ class ClassificacoesHelper:
                 EXTRACT(YEAR FROM fd.competencia)::text as periodo_anual,
                 SUM(fd.valor_original) as valor_faturamento
             FROM financial_data fd
-            WHERE fd.dre_n2 = '( + ) Faturamento'
+            JOIN de_para dp ON fd.classificacao = dp.descricao_origem
+            JOIN plano_de_contas pc ON dp.descricao_destino = pc.conta_pai
+            WHERE pc.classificacao_dre_n2 LIKE '%Faturamento%'
             AND fd.valor_original IS NOT NULL 
             AND fd.competencia IS NOT NULL
             GROUP BY 
