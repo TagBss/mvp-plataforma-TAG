@@ -1041,8 +1041,8 @@ export default function DreTablePostgreSQL() {
                           )
                           
                           return (
-                            <TableRow key={`${item.nome}-${classificacao.nome}`} className="bg-muted/30">
-                              <TableCell className="py-2 md:sticky md:left-0 md:z-20 bg-muted/30 border-r border-border pl-8">
+                            <TableRow key={`${item.nome}-${classificacao.nome}`} className="bg-muted">
+                              <TableCell className="py-2 md:sticky md:left-0 md:z-20 bg-muted border-r border-border pl-8">
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm text-muted-foreground">
                                     {classificacao.nome}
