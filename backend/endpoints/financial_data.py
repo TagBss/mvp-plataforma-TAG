@@ -10,7 +10,7 @@ from decimal import Decimal
 from database.repository import FinancialDataRepository
 from database.connection import get_database
 
-router = APIRouter(prefix="/financial-data", tags=["Financial Data"])
+router = APIRouter(prefix="/financial-data", tags=["financial-data"])
 
 # Pydantic models
 class FinancialDataCreate(BaseModel):

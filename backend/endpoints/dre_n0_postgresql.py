@@ -13,7 +13,7 @@ import json
 import time
 import asyncio
 
-router = APIRouter(prefix="/dre-n0", tags=["DRE Nível 0"])
+router = APIRouter(prefix="/dre-n0", tags=["dre-n0-postgresql"])
 
 @router.get("/")
 async def get_dre_n0(

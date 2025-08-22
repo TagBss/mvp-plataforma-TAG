@@ -14,6 +14,7 @@ from endpoints.dre_postgresql_simple import router as dre_postgresql_simple_rout
 from endpoints.dre_postgresql_debug import router as dre_postgresql_debug_router
 from endpoints.dre_postgresql_views import router as dre_postgresql_views_router
 from endpoints.dre_n0_postgresql import router as dre_n0_postgresql_router
+from endpoints.backup_admin import router as backup_admin_router
 from auth import auth_router
 
 
@@ -72,17 +73,18 @@ app.add_middleware(
 )
 
 # Incluir routers dos endpoints
-app.include_router(auth_router, tags=["Authentication"])
+app.include_router(auth_router, tags=["authentication"])
 app.include_router(dre_router, tags=["DRE"])
 app.include_router(dfc_router, tags=["DFC"])
-app.include_router(financial_data_router, tags=["Financial Data"])
-app.include_router(financial_data_specialized_router, tags=["Financial Data - Specialized"])
-app.include_router(database_admin_router, tags=["Database Admin"])
-app.include_router(dre_postgresql_router, tags=["DRE PostgreSQL"])
-app.include_router(dre_postgresql_simple_router, tags=["DRE PostgreSQL Simple"])
-app.include_router(dre_postgresql_debug_router, tags=["DRE PostgreSQL Debug"])
-app.include_router(dre_postgresql_views_router, tags=["DRE PostgreSQL Views"])
-app.include_router(dre_n0_postgresql_router, tags=["DRE N0 PostgreSQL"])
+app.include_router(financial_data_router, tags=["financial-data"])
+app.include_router(financial_data_specialized_router, tags=["financial-data-specialized"])
+app.include_router(database_admin_router, tags=["database-admin"])
+app.include_router(dre_postgresql_router, tags=["dre-postgresql"])
+app.include_router(dre_postgresql_simple_router, tags=["dre-postgresql-simple"])
+app.include_router(dre_postgresql_debug_router, tags=["dre-postgresql-debug"])
+app.include_router(dre_postgresql_views_router, tags=["dre-postgresql-views"])
+app.include_router(dre_n0_postgresql_router, tags=["dre-n0-postgresql"])
+app.include_router(backup_admin_router, tags=["admin-backups"])
 
 @app.get("/")
 def root():

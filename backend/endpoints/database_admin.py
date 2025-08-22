@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
 import pandas as pd
 
-router = APIRouter(prefix="/admin", tags=["Database Admin"])
+router = APIRouter(prefix="/admin", tags=["database-admin"])
 
 @router.get("/database", response_class=HTMLResponse)
 async def view_database():
@@ -19,12 +19,14 @@ async def view_database():
         Session = sessionmaker(bind=engine)
         session = Session()
         
-        # Listar todas as tabelas e views
+        # Listar apenas tabelas e views atuais (excluindo backups)
         tables_query = """
         SELECT table_name, table_type
         FROM information_schema.tables 
         WHERE table_schema = 'public'
         AND table_type IN ('BASE TABLE', 'VIEW')
+        AND table_name NOT LIKE '%_backup_%'
+        AND table_name NOT LIKE 'backup_summary_%'
         ORDER BY table_type DESC, table_name;
         """
         
@@ -119,10 +121,11 @@ async def view_database():
                     <p>Banco: <strong>tag_financeiro</strong> | Host: <strong>localhost:5432</strong></p>
                 </div>
                 
-                <h2>📊 Tabelas e Views do Banco de Dados</h2>
+                <h2>📊 Tabelas e Views Ativas do Sistema</h2>
                 <p style="color: #666; margin-bottom: 20px;">
                     <span style="color: #2c3e50;">📋 Tabelas</span> | 
                     <span style="color: #e74c3c;">👁️ Views SQL</span>
+                    <br><small style="color: #95a5a6;">💡 Apenas tabelas e views em uso ativo (backups não incluídos)</small>
                 </p>
                 <div class="table-grid">
         """
@@ -167,8 +170,15 @@ async def view_database():
                     <a href="/admin/test-views" class="btn" style="background: #27ae60;">🧪 Testar Views</a>
                 </div>
                 
+                <div class="links" style="margin-top: 20px;">
+                    <h3>💾 Sistema de Backups</h3>
+                    <a href="/admin/backups" class="btn" style="background: #16a085;">📦 Gerenciar Backups</a>
+                    <a href="/admin/create-backup" class="btn" style="background: #e67e22;">🔄 Criar Novo Backup</a>
+                </div>
+                
                 <div style="margin-top: 30px; text-align: center; color: #666;">
-                    <p>Total de tabelas: {len([t for t in table_info if t['type'] == 'table'])} | Total de views: {len([t for t in table_info if t['type'] == 'view'])} | Atualizado em {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}</p>
+                    <p>📊 <strong>Tabelas ativas:</strong> {len([t for t in table_info if t['type'] == 'table'])} | <strong>Views ativas:</strong> {len([t for t in table_info if t['type'] == 'view'])} | <strong>Atualizado:</strong> {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}</p>
+                    <p style="color: #95a5a6; font-size: 14px;">💾 Para ver backups, use a seção "Sistema de Backups" abaixo</p>
                 </div>
             </div>
         </body>
@@ -1518,3 +1528,794 @@ async def estatisticas_empresa(empresa_id: str, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao obter estatísticas da empresa: {str(e)}")
+
+# ============================================================================
+# ENDPOINTS DE BACKUP
+# ============================================================================
+
+@router.get("/backups", response_class=HTMLResponse)
+async def view_backups():
+    """Interface para gerenciar backups"""
+    try:
+        engine = get_engine()
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        
+        # Buscar todas as tabelas de backup
+        backup_query = """
+        SELECT 
+            table_name,
+            table_type,
+            CASE 
+                WHEN table_name LIKE '%_backup_%' THEN 'BACKUP'
+                ELSE 'ORIGINAL'
+            END as object_type,
+            CASE 
+                WHEN table_name LIKE '%_backup_%' THEN 
+                    SUBSTRING(table_name FROM 'backup_([0-9]{8})$')
+                ELSE NULL
+            END as backup_date
+        FROM information_schema.tables 
+        WHERE table_schema = 'public'
+        AND (
+            table_name LIKE '%_backup_%' 
+            OR table_name LIKE 'backup_summary_%'
+        )
+        ORDER BY 
+            CASE 
+                WHEN table_name LIKE '%_backup_%' THEN 1
+                WHEN table_name LIKE 'backup_summary_%' THEN 2
+                ELSE 3
+            END,
+            table_name
+        """
+        
+        backup_result = session.execute(text(backup_query)).fetchall()
+        
+        # Organizar backups por data
+        backup_groups = {}
+        for row in backup_result:
+            backup_date = row.backup_date or 'summary'
+            if backup_date not in backup_groups:
+                backup_groups[backup_date] = []
+            backup_groups[backup_date].append({
+                'table_name': row.table_name,
+                'table_type': row.table_type,
+                'object_type': row.object_type,
+                'backup_date': row.backup_date
+            })
+        
+        # Contar registros de cada backup
+        for date, backups in backup_groups.items():
+            for backup in backups:
+                try:
+                    count_query = f"SELECT COUNT(*) FROM {backup['table_name']}"
+                    count = session.execute(text(count_query)).scalar()
+                    backup['record_count'] = count
+                except Exception as e:
+                    backup['record_count'] = f"Erro: {e}"
+        
+        session.close()
+        
+        # Gerar HTML
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Gerenciar Backups - TAG Financeiro</title>
+            <meta charset="utf-8">
+            <style>
+                body {{ 
+                    font-family: Arial, sans-serif; 
+                    margin: 20px; 
+                    background-color: #f5f5f5;
+                }}
+                .container {{ 
+                    max-width: 1200px; 
+                    margin: 0 auto; 
+                    background: white; 
+                    padding: 20px; 
+                    border-radius: 10px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }}
+                .header {{ 
+                    background: #16a085; 
+                    color: white; 
+                    padding: 20px; 
+                    border-radius: 5px; 
+                    margin-bottom: 20px;
+                }}
+                .backup-section {{
+                    margin: 20px 0;
+                    padding: 20px;
+                    border: 1px solid #ddd;
+                    border-radius: 5px;
+                    background: #f9f9f9;
+                }}
+                .backup-date {{
+                    font-size: 24px;
+                    font-weight: bold;
+                    color: #16a085;
+                    margin-bottom: 15px;
+                    border-bottom: 2px solid #16a085;
+                    padding-bottom: 10px;
+                }}
+                .backup-grid {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    gap: 15px;
+                }}
+                .backup-card {{
+                    border: 1px solid #ddd;
+                    border-radius: 5px;
+                    padding: 15px;
+                    background: white;
+                    transition: transform 0.2s;
+                }}
+                .backup-card:hover {{
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                }}
+                .backup-name {{
+                    font-weight: bold;
+                    color: #2c3e50;
+                    font-size: 16px;
+                    margin-bottom: 10px;
+                }}
+                .backup-count {{
+                    color: #27ae60;
+                    font-size: 20px;
+                    font-weight: bold;
+                }}
+                .backup-type {{
+                    color: #7f8c8d;
+                    font-size: 14px;
+                    margin-top: 5px;
+                }}
+                .btn {{ 
+                    background: #3498db; 
+                    color: white; 
+                    padding: 8px 15px; 
+                    text-decoration: none; 
+                    border-radius: 3px; 
+                    margin: 5px;
+                    display: inline-block;
+                }}
+                .btn:hover {{ background: #2980b9; }}
+                .btn-danger {{ 
+                    background: #e74c3c; 
+                }}
+                .btn-danger:hover {{ 
+                    background: #c0392b; 
+                }}
+                .btn-success {{ 
+                    background: #27ae60; 
+                }}
+                .btn-success:hover {{ 
+                    background: #229954; 
+                }}
+                .actions {{
+                    margin-top: 15px;
+                    text-align: center;
+                }}
+                .no-backups {{
+                    text-align: center;
+                    color: #7f8c8d;
+                    font-style: italic;
+                    padding: 40px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>💾 Sistema de Backups - TAG Financeiro</h1>
+                    <p>Gerenciamento de backups automáticos das tabelas e views</p>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <a href="/admin/database" class="btn">← Voltar ao Admin</a>
+                    <a href="/admin/create-backup" class="btn btn-success">🔄 Criar Novo Backup</a>
+                </div>
+        """
+        
+        if not backup_groups:
+            html_content += """
+                <div class="no-backups">
+                    <h2>📦 Nenhum backup encontrado</h2>
+                    <p>Clique em "Criar Novo Backup" para fazer o primeiro backup do sistema.</p>
+                </div>
+            """
+        else:
+            for date, backups in backup_groups.items():
+                if date == 'summary':
+                    section_title = "📋 Tabelas de Resumo"
+                    date_display = "Resumo dos Backups"
+                else:
+                    try:
+                        date_obj = pd.Timestamp.strptime(date, "%Y%m%d")
+                        date_display = date_obj.strftime("%d/%m/%Y")
+                    except:
+                        date_display = date
+                    section_title = f"📅 Backup de {date_display}"
+                
+                html_content += f"""
+                    <div class="backup-section">
+                        <div class="backup-date">{section_title}</div>
+                        <div class="backup-grid">
+                """
+                
+                for backup in backups:
+                    if backup['object_type'] == 'BACKUP':
+                        icon = "📦"
+                        color = "#16a085"
+                    else:
+                        icon = "📋"
+                        color = "#7f8c8d"
+                    
+                    # Construir o botão de remoção separadamente
+                    delete_button = ""
+                    if date != 'summary':
+                        delete_button = f'<a href="/admin/delete-backup/{date}" class="btn btn-danger" onclick="return confirm(\\"Tem certeza que deseja remover este backup?\\")">🗑️ Remover</a>'
+                    
+                    html_content += f"""
+                        <div class="backup-card">
+                            <div class="backup-name" style="color: {color};">{icon} {backup['table_name']}</div>
+                            <div class="backup-count">{backup['record_count']} registros</div>
+                            <div class="backup-type">Tipo: {backup['table_type']}</div>
+                            <div class="actions">
+                                <a href="/admin/table/{backup['table_name']}" class="btn">Ver Dados</a>
+                                <a href="/admin/table/{backup['table_name']}/structure" class="btn">Estrutura</a>
+                                {delete_button}
+                            </div>
+                        </div>
+                    """
+                
+                html_content += """
+                        </div>
+                    </div>
+                """
+        
+        html_content += """
+                <div style="margin-top: 30px; text-align: center; color: #666;">
+                    <p>💡 Dica: Os backups são criados automaticamente com data no nome (formato: YYYYMMDD)</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return html_content
+        
+    except Exception as e:
+        return f"""
+        <html>
+        <body style="font-family: Arial; padding: 20px;">
+            <h1>❌ Erro ao Carregar Backups</h1>
+            <p>Não foi possível carregar os backups:</p>
+            <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{str(e)}</pre>
+            <p><a href="/admin/database">← Voltar ao Admin</a></p>
+        </body>
+        </html>
+        """
+
+@router.get("/create-backup", response_class=HTMLResponse)
+async def create_backup_interface():
+    """Interface para criar novo backup"""
+    try:
+        html_content = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Criar Backup - TAG Financeiro</title>
+            <meta charset="utf-8">
+            <style>
+                body {{ 
+                    font-family: Arial, sans-serif; 
+                    margin: 20px; 
+                    background-color: #f5f5f5;
+                }}
+                .container {{ 
+                    max-width: 800px; 
+                    margin: 0 auto; 
+                    background: white; 
+                    padding: 20px; 
+                    border-radius: 10px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }}
+                .header {{ 
+                    background: #e67e22; 
+                    color: white; 
+                    padding: 20px; 
+                    border-radius: 5px; 
+                    margin-bottom: 20px;
+                }}
+                .info-box {{
+                    background: #ecf0f1;
+                    border-left: 4px solid #e67e22;
+                    padding: 15px;
+                    margin: 20px 0;
+                    border-radius: 5px;
+                }}
+                .btn {{ 
+                    background: #3498db; 
+                    color: white; 
+                    padding: 12px 20px; 
+                    text-decoration: none; 
+                    border-radius: 5px; 
+                    margin: 10px;
+                    display: inline-block;
+                    font-size: 16px;
+                }}
+                .btn:hover {{ background: #2980b9; }}
+                .btn-success {{ 
+                    background: #27ae60; 
+                }}
+                .btn-success:hover {{ 
+                    background: #229954; 
+                }}
+                .btn-warning {{ 
+                    background: #f39c12; 
+                }}
+                .btn-warning:hover {{ 
+                    background: #e67e22; 
+                }}
+                .backup-list {{
+                    background: #f8f9fa;
+                    padding: 20px;
+                    border-radius: 5px;
+                    margin: 20px 0;
+                }}
+                .backup-item {{
+                    padding: 10px;
+                    border-bottom: 1px solid #dee2e6;
+                }}
+                .backup-item:last-child {{
+                    border-bottom: none;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🔄 Criar Novo Backup - TAG Financeiro</h1>
+                    <p>Criação de backup completo das tabelas e views do sistema</p>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <a href="/admin/backups" class="btn">← Voltar aos Backups</a>
+                    <a href="/admin/database" class="btn">🏠 Admin Principal</a>
+                </div>
+                
+                <div class="info-box">
+                    <h3>📋 O que será backupado:</h3>
+                    <div class="backup-list">
+                        <div class="backup-item"><strong>📊 Tabelas de Estrutura:</strong> dre_structure_n0, dre_structure_n1, dre_structure_n2, dfc_structure_n1, dfc_structure_n2</div>
+                        <div class="backup-item"><strong>👁️ Views DRE:</strong> v_dre_n0_completo, v_dre_n0_simples, v_dre_n0_por_periodo</div>
+                        <div class="backup-item"><strong>💾 Tabelas Principais:</strong> financial_data, de_para, plano_de_contas, grupo_empresa</div>
+                    </div>
+                </div>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <h3>🚀 Executar Backup</h3>
+                    <p>Clique no botão abaixo para executar o script de backup:</p>
+                    <a href="/admin/execute-backup" class="btn btn-success" style="font-size: 18px; padding: 15px 30px;">🔄 Executar Backup Agora</a>
+                </div>
+                
+                <div class="info-box">
+                    <h3>💡 Informações:</h3>
+                    <ul>
+                        <li>O backup será criado com a data atual no nome (formato: YYYYMMDD)</li>
+                        <li>Uma tabela de resumo será criada para facilitar o gerenciamento</li>
+                        <li>O processo pode levar alguns minutos dependendo do volume de dados</li>
+                        <li>Após a conclusão, você será redirecionado para a lista de backups</li>
+                    </ul>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return html_content
+        
+    except Exception as e:
+        return f"""
+        <html>
+        <body style="font-family: Arial; padding: 20px;">
+            <h1>❌ Erro ao Carregar Interface</h1>
+            <p>Não foi possível carregar a interface de criação de backup:</p>
+            <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{str(e)}</pre>
+            <p><a href="/admin/backups">← Voltar aos Backups</a></p>
+        </body>
+        </html>
+        """
+
+@router.get("/execute-backup", response_class=HTMLResponse)
+async def execute_backup():
+    """Executa o script de backup e mostra o resultado"""
+    try:
+        import subprocess
+        import sys
+        import os
+        
+        # Caminho para o script de backup
+        script_path = os.path.join(os.path.dirname(__file__), "..", "create_backup_with_date.py")
+        
+        # Executar o script
+        result = subprocess.run([sys.executable, script_path], 
+                              capture_output=True, text=True, cwd=os.path.dirname(script_path))
+        
+        if result.returncode == 0:
+            # Backup bem-sucedido
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Backup Concluído - TAG Financeiro</title>
+                <meta charset="utf-8">
+                <style>
+                    body {{ 
+                        font-family: Arial, sans-serif; 
+                        margin: 20px; 
+                        background-color: #f5f5f5;
+                    }}
+                    .container {{ 
+                        max-width: 800px; 
+                        margin: 0 auto; 
+                        background: white; 
+                        padding: 20px; 
+                        border-radius: 10px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    }}
+                    .header {{ 
+                        background: #27ae60; 
+                        color: white; 
+                        padding: 20px; 
+                        border-radius: 5px; 
+                        margin-bottom: 20px;
+                    }}
+                    .success-box {{
+                        background: #d4edda;
+                        border: 1px solid #c3e6cb;
+                        color: #155724;
+                        padding: 20px;
+                        border-radius: 5px;
+                        margin: 20px 0;
+                    }}
+                    .btn {{ 
+                        background: #3498db; 
+                        color: white; 
+                        padding: 12px 20px; 
+                        text-decoration: none; 
+                        border-radius: 5px; 
+                        margin: 10px;
+                        display: inline-block;
+                    }}
+                    .btn:hover {{ background: #2980b9; }}
+                    .btn-success {{ 
+                        background: #27ae60; 
+                    }}
+                    .btn-success:hover {{ 
+                        background: #229954; 
+                    }}
+                    pre {{
+                        background: #f8f9fa;
+                        padding: 15px;
+                        border-radius: 5px;
+                        overflow-x: auto;
+                        white-space: pre-wrap;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>✅ Backup Concluído com Sucesso!</h1>
+                        <p>O backup foi criado e está disponível para gerenciamento</p>
+                    </div>
+                    
+                    <div class="success-box">
+                        <h3>🎉 Backup Executado com Sucesso!</h3>
+                        <p>O script de backup foi executado e todas as tabelas foram backupadas.</p>
+                    </div>
+                    
+                    <div style="margin: 20px 0;">
+                        <h3>📋 Log de Execução:</h3>
+                        <pre>{result.stdout}</pre>
+                    </div>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="/admin/backups" class="btn btn-success">📦 Ver Backups</a>
+                        <a href="/admin/database" class="btn">🏠 Admin Principal</a>
+                    </div>
+                    
+                    <div style="margin-top: 30px; text-align: center; color: #666;">
+                        <p>💡 O backup foi criado com sucesso! Você pode agora gerenciar os backups através da interface.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+        else:
+            # Erro no backup
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <body style="font-family: Arial; padding: 20px;">
+                <h1>❌ Erro no Backup</h1>
+                <p>Ocorreu um erro durante a execução do backup:</p>
+                <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{result.stderr}</pre>
+                <p><a href="/admin/create-backup">← Tentar Novamente</a></p>
+            </body>
+            </html>
+            """
+        
+        return html_content
+        
+    except Exception as e:
+        return f"""
+        <html>
+        <body style="font-family: Arial; padding: 20px;">
+            <h1>❌ Erro ao Executar Backup</h1>
+            <p>Não foi possível executar o script de backup:</p>
+            <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{str(e)}</pre>
+            <p><a href="/admin/create-backup">← Voltar</a></p>
+        </body>
+        </html>
+        """
+
+@router.get("/delete-backup/{backup_date}", response_class=HTMLResponse)
+async def delete_backup_interface(backup_date: str):
+    """Interface para confirmar e deletar backup"""
+    try:
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Remover Backup - TAG Financeiro</title>
+            <meta charset="utf-8">
+            <style>
+                body {{ 
+                    font-family: Arial, sans-serif; 
+                    margin: 20px; 
+                    background-color: #f5f5f5;
+                }}
+                .container {{ 
+                    max-width: 600px; 
+                    margin: 0 auto; 
+                    background: white; 
+                    padding: 20px; 
+                    border-radius: 10px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }}
+                .header {{ 
+                    background: #e74c3c; 
+                    color: white; 
+                    padding: 20px; 
+                    border-radius: 5px; 
+                    margin-bottom: 20px;
+                }}
+                .warning-box {{
+                    background: #fff3cd;
+                    border: 1px solid #ffeaa7;
+                    color: #856404;
+                    padding: 20px;
+                    border-radius: 5px;
+                    margin: 20px 0;
+                }}
+                .btn {{ 
+                    background: #3498db; 
+                    color: white; 
+                    padding: 12px 20px; 
+                    text-decoration: none; 
+                    border-radius: 5px; 
+                    margin: 10px;
+                    display: inline-block;
+                }}
+                .btn:hover {{ background: #2980b9; }}
+                .btn-danger {{ 
+                    background: #e74c3c; 
+                }}
+                .btn-danger:hover {{ 
+                    background: #c0392b; 
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🗑️ Remover Backup - TAG Financeiro</h1>
+                    <p>Confirmação para remoção de backup</p>
+                </div>
+                
+                <div class="warning-box">
+                    <h3>⚠️ Atenção!</h3>
+                    <p>Você está prestes a remover o backup da data <strong>{backup_date}</strong>.</p>
+                    <p>Esta ação irá:</p>
+                    <ul>
+                        <li>Remover todas as tabelas de backup desta data</li>
+                        <li>Remover a tabela de resumo</li>
+                        <li>Esta ação <strong>NÃO PODE</strong> ser desfeita</li>
+                    </ul>
+                </div>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <h3>🤔 Confirmar Remoção?</h3>
+                    <p>Deseja realmente remover este backup?</p>
+                    <a href="/admin/confirm-delete-backup/{backup_date}" class="btn btn-danger">🗑️ Sim, Remover Backup</a>
+                    <a href="/admin/backups" class="btn">❌ Cancelar</a>
+                </div>
+                
+                <div style="margin-top: 30px; text-align: center; color: #666;">
+                    <p>💡 Se você não tem certeza, é recomendado manter o backup por segurança.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return html_content
+        
+    except Exception as e:
+        return f"""
+        <html>
+        <body style="font-family: Arial; padding: 20px;">
+            <h1>❌ Erro ao Carregar Interface</h1>
+            <p>Não foi possível carregar a interface de remoção:</p>
+            <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{str(e)}</pre>
+            <p><a href="/admin/backups">← Voltar aos Backups</a></p>
+        </body>
+        </html>
+        """
+
+@router.get("/confirm-delete-backup/{backup_date}", response_class=HTMLResponse)
+async def confirm_delete_backup(backup_date: str):
+    """Confirma e executa a remoção do backup"""
+    try:
+        engine = get_engine()
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        
+        # Verificar se a tabela de resumo existe
+        summary_table = f"backup_summary_{backup_date}"
+        check_query = f"""
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_name = '{summary_table}'
+        """
+        
+        result = session.execute(text(check_query))
+        if not result.fetchone():
+            return """
+            <html>
+            <body style="font-family: Arial; padding: 20px;">
+                <h1>❌ Backup Não Encontrado</h1>
+                <p>O backup especificado não foi encontrado.</p>
+                <p><a href="/admin/backups">← Voltar aos Backups</a></p>
+            </body>
+            </html>
+            """
+        
+        # Buscar todas as tabelas de backup desta data
+        backup_tables_query = f"""
+        SELECT backup_name 
+        FROM {summary_table}
+        WHERE backup_name IS NOT NULL
+        """
+        
+        result = session.execute(text(backup_tables_query))
+        backup_tables = [row.backup_name for row in result]
+        
+        # Remover tabelas de backup
+        deleted_tables = []
+        for table_name in backup_tables:
+            try:
+                drop_query = f"DROP TABLE IF EXISTS {table_name}"
+                session.execute(text(drop_query))
+                deleted_tables.append(table_name)
+            except Exception as e:
+                print(f"Erro ao remover tabela {table_name}: {e}")
+        
+        # Remover tabela de resumo
+        try:
+            drop_summary_query = f"DROP TABLE IF EXISTS {summary_table}"
+            session.execute(text(drop_summary_query))
+        except Exception as e:
+            print(f"Erro ao remover tabela de resumo: {e}")
+        
+        session.commit()
+        session.close()
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Backup Removido - TAG Financeiro</title>
+            <meta charset="utf-8">
+            <style>
+                body {{ 
+                    font-family: Arial, sans-serif; 
+                    margin: 20px; 
+                    background-color: #f5f5f5;
+                }}
+                .container {{ 
+                    max-width: 600px; 
+                    margin: 0 auto; 
+                    background: white; 
+                    padding: 20px; 
+                    border-radius: 10px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }}
+                .header {{ 
+                    background: #27ae60; 
+                    color: white; 
+                    padding: 20px; 
+                    border-radius: 5px; 
+                    margin-bottom: 20px;
+                }}
+                .success-box {{
+                    background: #d4edda;
+                    border: 1px solid #c3e6cb;
+                    color: #155724;
+                    padding: 20px;
+                    border-radius: 5px;
+                    margin: 20px 0;
+                }}
+                .btn {{ 
+                    background: #3498db; 
+                    color: white; 
+                    padding: 12px 20px; 
+                    text-decoration: none; 
+                    border-radius: 5px; 
+                    margin: 10px;
+                    display: inline-block;
+                }}
+                .btn:hover {{ background: #2980b9; }}
+                .btn-success {{ 
+                    background: #27ae60; 
+                }}
+                .btn-success:hover {{ 
+                    background: #229954; 
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>✅ Backup Removido com Sucesso!</h1>
+                    <p>O backup da data {backup_date} foi removido do sistema</p>
+                </div>
+                
+                <div class="success-box">
+                    <h3>🗑️ Remoção Concluída</h3>
+                    <p>O backup foi removido com sucesso.</p>
+                    <p><strong>Tabelas removidas:</strong> {len(deleted_tables)}</p>
+                    <p><strong>Data do backup:</strong> {backup_date}</p>
+                </div>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="/admin/backups" class="btn btn-success">📦 Voltar aos Backups</a>
+                    <a href="/admin/database" class="btn">🏠 Admin Principal</a>
+                </div>
+                
+                <div style="margin-top: 30px; text-align: center; color: #666;">
+                    <p>💡 O backup foi removido permanentemente do sistema.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return html_content
+        
+    except Exception as e:
+        return f"""
+        <html>
+        <body style="font-family: Arial; padding: 20px;">
+            <h1>❌ Erro ao Remover Backup</h1>
+            <p>Ocorreu um erro durante a remoção do backup:</p>
+            <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{str(e)}</pre>
+            <p><a href="/admin/backups">← Voltar aos Backups</a></p>
+        </body>
+        </html>
+        """

@@ -9,7 +9,7 @@ import traceback
 
 from database.repository_specialized import SpecializedFinancialRepository
 
-router = APIRouter(prefix="/financial-data", tags=["Financial Data - Specialized"])
+router = APIRouter(prefix="/financial-data", tags=["financial-data-specialized"])
 
 # Dependency
 def get_specialized_repository() -> SpecializedFinancialRepository:

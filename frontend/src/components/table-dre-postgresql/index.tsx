@@ -45,6 +45,13 @@ type DreItem = {
   vertical_trimestrais?: Record<string, number | string>
   horizontal_anuais?: Record<string, number | string>
   vertical_anuais?: Record<string, number | string>
+  // NOVAS COLUNAS: AV total calculada no backend
+  av_total_percentual?: number
+  av_total_formatada?: string
+  // NOVAS COLUNAS: AV total dinâmica por período
+  av_total_mensal?: Record<string, number>
+  av_total_trimestral?: Record<string, number>
+  av_total_anual?: Record<string, number>
 }
 
 type DreResponse = {
@@ -86,21 +93,6 @@ export default function DreTablePostgreSQL() {
         
         const result: DreResponse = res.data
         if (result.success) {
-          console.log("📊 Dados processados:", {
-            categorias: result.data.length,
-            meses: result.meses.length,
-            trimestres: result.trimestres.length,
-            anos: result.anos.length
-          })
-          
-          // Debug: verificar quais itens são expansíveis
-          const expansiveis = result.data.filter(item => item.expandivel)
-          console.log("🔽 Itens expansíveis:", expansiveis.map(item => ({
-            nome: item.nome,
-            expandivel: item.expandivel,
-            tipo: item.tipo
-          })))
-          
           setData(result.data)
           setMeses(result.meses)
           setTrimestres(result.trimestres)
@@ -110,7 +102,6 @@ export default function DreTablePostgreSQL() {
           if (result.anos && result.anos.length > 0) {
             const ultimoAno = Math.max(...result.anos)
             setFiltroAno(String(ultimoAno))
-            console.log("📅 Ano filtrado:", ultimoAno)
           }
         } else {
           console.error("❌ Resposta não foi bem-sucedida:", result)
@@ -157,34 +148,13 @@ export default function DreTablePostgreSQL() {
     try {
       // Verificar se já está no cache
       if (classificacoesCache[dreN2Name]) {
-        console.log(`📋 Usando classificações do cache para: ${dreN2Name}`)
         return classificacoesCache[dreN2Name]
       }
 
-      console.log(`🔍 Buscando classificações para: ${dreN2Name}`)
-      
       const response = await api.get(`/dre-n0/classificacoes/${encodeURIComponent(dreN2Name)}`)
       
       if (response.data.success) {
         const classificacoes = response.data.data
-        console.log(`✅ Classificações encontradas: ${classificacoes.length} para ${dreN2Name}`)
-        console.log(`📊 Períodos disponíveis:`, {
-          meses: response.data.meses?.length || 0,
-          trimestres: response.data.trimestres?.length || 0,
-          anos: response.data.anos?.length || 0
-        })
-        
-        // Verificar se as classificações têm valores trimestrais e anuais
-        if (classificacoes.length > 0) {
-          const primeiraClass = classificacoes[0]
-          console.log(`🔍 Primeira classificação:`, {
-            nome: primeiraClass.nome,
-            temTrimestrais: Object.keys(primeiraClass.valores_trimestrais || {}).length > 0,
-            temAnuais: Object.keys(primeiraClass.valores_anuais || {}).length > 0,
-            trimestres: Object.keys(primeiraClass.valores_trimestrais || {}),
-            anos: Object.keys(primeiraClass.valores_anuais || {})
-          })
-        }
         
         // Adicionar ao cache
         setClassificacoesCache(prev => ({
@@ -194,7 +164,6 @@ export default function DreTablePostgreSQL() {
         
         return classificacoes
       } else {
-        console.log(`⚠️ Nenhuma classificação encontrada para: ${dreN2Name}`)
         return []
       }
     } catch (error) {
@@ -221,13 +190,26 @@ export default function DreTablePostgreSQL() {
           try {
             const classificacoes = await buscarClassificacoes(item.nome)
             novasClassificacoes[item.nome] = classificacoes
-            console.log(`✅ Classificações para ${item.nome}: ${classificacoes.length}`)
           } catch (error) {
             console.error(`❌ Erro ao buscar classificações para ${item.nome}:`, error)
           }
         } else {
-          console.log(`📋 Usando cache para ${item.nome}: ${classificacoesCache[item.nome].length}`)
+          novasClassificacoes[item.nome] = classificacoesCache[item.nome]
         }
+      }
+      
+      // Atualizar estado de expansão
+      setExpandedItems(novasExpansoes)
+      
+      // Atualizar dados com classificações
+      if (Object.keys(novasClassificacoes).length > 0) {
+        setData(prevData => 
+          prevData.map(d => 
+            novasClassificacoes[d.nome] 
+              ? { ...d, classificacoes: novasClassificacoes[d.nome] }
+              : d
+          )
+        )
       }
     }
     
@@ -347,7 +329,7 @@ export default function DreTablePostgreSQL() {
   // Função para calcular análise vertical dinâmica do total
   const calcularVerticalTotalDinamica = (): number => {
     // CORREÇÃO: Usar apenas o Faturamento como base, não a soma de todas as contas
-    const faturamentoItem = data.find(item => item.nome === "( + ) Faturamento");
+    const faturamentoItem = data.find(item => item.nome === "Faturamento");
     
     if (!faturamentoItem) {
       return 0;
@@ -1025,7 +1007,59 @@ export default function DreTablePostgreSQL() {
                         )}
                         {showAnaliseVertical && (
                           <TableCell className="text-center font-medium border-l">
-                            {calcularAVTotalDinamica(total)}
+                            {(() => {
+                              // REUTILIZAR LÓGICA EXISTENTE: Calcular AV total usando a mesma lógica das outras colunas
+                              let avValue = '0.0%';
+                              
+                              // Buscar dados de faturamento para calcular a base
+                              const faturamentoItem = data.find(item => item.nome === 'Faturamento');
+                              if (!faturamentoItem) return '0.0%';
+                              
+                              // Calcular total da conta atual para o período selecionado
+                              let totalConta = 0;
+                              if (periodo === 'mes') {
+                                totalConta = periodosFiltrados.reduce((sum, mes) => {
+                                  return sum + (item.valores_mensais?.[mes] || 0);
+                                }, 0);
+                              } else if (periodo === 'trimestre') {
+                                totalConta = periodosFiltrados.reduce((sum, tri) => {
+                                  return sum + (item.valores_trimestrais?.[tri] || 0);
+                                }, 0);
+                              } else if (periodo === 'ano') {
+                                totalConta = periodosFiltrados.reduce((sum, ano) => {
+                                  return sum + (item.valores_anuais?.[ano] || 0);
+                                }, 0);
+                              }
+                              
+                              // CORREÇÃO: Para a coluna Total, usar o TOTAL do faturamento (soma de todos os períodos)
+                              // não o faturamento de um período específico
+                              let totalFaturamento = 0;
+                              if (periodo === 'mes') {
+                                totalFaturamento = periodosFiltrados.reduce((sum, mes) => {
+                                  return sum + (faturamentoItem.valores_mensais?.[mes] || 0);
+                                }, 0);
+                              } else if (periodo === 'trimestre') {
+                                totalFaturamento = periodosFiltrados.reduce((sum, tri) => {
+                                  return sum + (faturamentoItem.valores_trimestrais?.[tri] || 0);
+                                }, 0);
+                              } else if (periodo === 'ano') {
+                                totalFaturamento = periodosFiltrados.reduce((sum, ano) => {
+                                  return sum + (faturamentoItem.valores_anuais?.[ano] || 0);
+                                }, 0);
+                              }
+                              
+                              // CORREÇÃO: Para coluna Total, usar totalFaturamento (soma de todos os períodos)
+                              // não faturamentoPeriodo (apenas um período)
+                              if (totalFaturamento > 0) {
+                                  const avPercentual = (totalConta / totalFaturamento) * 100;
+                                  avValue = `${avPercentual.toFixed(1)}%`;
+                              } else {
+                                  // Quando faturamento total é zero, retornar "-"
+                                  avValue = '-';
+                              }
+                              
+                              return avValue;
+                            })()}
                           </TableCell>
                         )}
 
@@ -1100,7 +1134,59 @@ export default function DreTablePostgreSQL() {
                               )}
                               {showAnaliseVertical && (
                                 <TableCell className="text-center font-medium py-2 border-l">
-                                  {calcularAVTotalDinamica(totalClass)}
+                                  {(() => {
+                                    // REUTILIZAR LÓGICA EXISTENTE: Calcular AV total usando a mesma lógica das outras colunas
+                                    let avValue = '0.0%';
+                                    
+                                    // Buscar dados de faturamento para calcular a base
+                                    const faturamentoItem = data.find(item => item.nome === 'Faturamento');
+                                    if (!faturamentoItem) return '0.0%';
+                                    
+                                    // Calcular total da classificação para o período selecionado
+                                    let totalClassificacao = 0;
+                                    if (periodo === 'mes') {
+                                      totalClassificacao = periodosFiltrados.reduce((sum, mes) => {
+                                        return sum + (classificacao.valores_mensais?.[mes] || 0);
+                                      }, 0);
+                                    } else if (periodo === 'trimestre') {
+                                      totalClassificacao = periodosFiltrados.reduce((sum, tri) => {
+                                        return sum + (classificacao.valores_trimestrais?.[tri] || 0);
+                                      }, 0);
+                                    } else if (periodo === 'ano') {
+                                      totalClassificacao = periodosFiltrados.reduce((sum, ano) => {
+                                        return sum + (classificacao.valores_anuais?.[ano] || 0);
+                                      }, 0);
+                                    }
+                                    
+                                    // CORREÇÃO: Para a coluna Total, usar o TOTAL do faturamento (soma de todos os períodos)
+                                    // não o faturamento de um período específico
+                                    let totalFaturamento = 0;
+                                    if (periodo === 'mes') {
+                                      totalFaturamento = periodosFiltrados.reduce((sum, mes) => {
+                                        return sum + (faturamentoItem.valores_mensais?.[mes] || 0);
+                                      }, 0);
+                                    } else if (periodo === 'trimestre') {
+                                      totalFaturamento = periodosFiltrados.reduce((sum, tri) => {
+                                        return sum + (faturamentoItem.valores_trimestrais?.[tri] || 0);
+                                      }, 0);
+                                    } else if (periodo === 'ano') {
+                                      totalFaturamento = periodosFiltrados.reduce((sum, ano) => {
+                                        return sum + (faturamentoItem.valores_anuais?.[ano] || 0);
+                                      }, 0);
+                                    }
+                                    
+                                    // CORREÇÃO: Para coluna Total, usar totalFaturamento (soma de todos os períodos)
+                                    // não faturamentoPeriodo (apenas um período)
+                                    if (totalFaturamento > 0) {
+                                        const avPercentual = (totalClassificacao / totalFaturamento) * 100;
+                                        avValue = `${avPercentual.toFixed(1)}%`;
+                                    } else {
+                                        // Quando faturamento total é zero, retornar "-"
+                                        avValue = '-';
+                                    }
+                                    
+                                    return avValue;
+                                  })()}
                                 </TableCell>
                               )}
 

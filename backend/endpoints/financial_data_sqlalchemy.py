@@ -12,7 +12,7 @@ from database.repository_sqlalchemy import FinancialDataRepository
 from database.connection_sqlalchemy import DatabaseSession
 from database.schema_sqlalchemy import DFCStructureN1, DFCStructureN2, DFCClassification
 
-router = APIRouter(prefix="/financial-data", tags=["Financial Data"])
+router = APIRouter(prefix="/financial-data", tags=["financial-data"])
 
 # Pydantic models
 class FinancialDataCreate(BaseModel):

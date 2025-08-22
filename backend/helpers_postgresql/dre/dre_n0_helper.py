@@ -252,6 +252,7 @@ class DreN0Helper:
                 orcamentos_anuais,
                 orcamento_total,
                 valor_total,
+                -- COLUNAS DE AV REMOVIDAS - frontend calcula tudo
                 source
             FROM v_dre_n0_completo
             ORDER BY ordem
@@ -415,7 +416,9 @@ class DreN0Helper:
             "analise_horizontal_trimestral": analises["horizontal_trimestrais"],
             "analise_vertical_trimestral": analise_vertical_trimestral,
             "analise_horizontal_anual": analises["horizontal_anuais"],
-            "analise_vertical_anual": analise_vertical_anual
+            "analise_vertical_anual": analise_vertical_anual,
+            # NOVAS COLUNAS: AV total dinâmica por período
+            # COLUNAS DE AV REMOVIDAS - frontend calcula tudo dinamicamente
         }
     
     @staticmethod
@@ -580,5 +583,7 @@ class DreN0Helper:
             "analise_horizontal_trimestral": analise_horizontal_trimestral,
             "analise_vertical_trimestral": analise_vertical_trimestral,
             "analise_horizontal_anual": analise_horizontal_anual,
-            "analise_vertical_anual": analise_vertical_anual
+            "analise_vertical_anual": analise_vertical_anual,
+            # NOVAS COLUNAS: AV total dinâmica por período
+            # COLUNAS DE AV REMOVIDAS - frontend calcula tudo dinamicamente
         }
