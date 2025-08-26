@@ -19,7 +19,9 @@ router = APIRouter(prefix="/dre-n0", tags=["dre-n0-postgresql"])
 async def get_dre_n0(
     page: int = Query(1, ge=1, description="Número da página"),
     page_size: int = Query(50, ge=10, le=200, description="Itens por página"),
-    include_all: bool = Query(False, description="Incluir todos os itens (ignora paginação)")
+    include_all: bool = Query(False, description="Incluir todos os itens (ignora paginação)"),
+    empresa_id: Optional[str] = Query(None, description="ID da empresa para filtrar dados"),
+    grupo_empresa_id: Optional[str] = Query(None, description="ID do grupo empresarial para filtrar dados")
 ):
     """Retorna dados da DRE Nível 0 usando a view v_dre_n0_completo com cache Redis e paginação"""
     
@@ -29,10 +31,22 @@ async def get_dre_n0(
         # Tentar buscar do cache primeiro (se não for paginação)
         cache = await get_cache()
         
+        # Incluir filtros na chave do cache
+        cache_key_parts = []
         if include_all:
-            cache_key = "dre_n0:main"
+            cache_key_parts.append("dre_n0:main")
         else:
-            cache_key = f"dre_n0:page_{page}_size_{page_size}"
+            cache_key_parts.append(f"dre_n0:page_{page}_size_{page_size}")
+        
+        if grupo_empresa_id:
+            print(f"🏢 Filtrando DRE N0 por grupo_empresa_id: {grupo_empresa_id}")
+            cache_key_parts.append(f"grupo_{grupo_empresa_id}")
+        
+        if empresa_id:
+            print(f"🏢 Filtrando DRE N0 por empresa_id: {empresa_id}")
+            cache_key_parts.append(f"empresa_{empresa_id}")
+        
+        cache_key = ":".join(cache_key_parts)
             
         cached_result = await cache.get(cache_key)
         
@@ -56,8 +70,13 @@ async def get_dre_n0(
             else:
                 print("✅ View DRE N0 já existe, usando view existente")
             
-            # Buscar dados da view DRE N0
-            rows = DreN0Helper.fetch_dre_n0_data(connection)
+            # Buscar dados da view DRE N0 (filtrado por grupo/empresa se fornecido)
+            if grupo_empresa_id:
+                rows = DreN0Helper.fetch_dre_n0_data_by_grupo_empresa(connection, grupo_empresa_id)
+            elif empresa_id:
+                rows = DreN0Helper.fetch_dre_n0_data_by_empresa(connection, empresa_id)
+            else:
+                rows = DreN0Helper.fetch_dre_n0_data(connection)
             
             if not rows:
                 return {
@@ -577,16 +596,23 @@ async def teste_classificacoes():
     }
 
 @router.get("/classificacoes/{dre_n2_name}")
-async def get_classificacoes_dre_n2(dre_n2_name: str):
+async def get_classificacoes_dre_n2(
+    dre_n2_name: str,
+    empresa_id: Optional[str] = Query(None, description="ID da empresa para filtrar dados")
+):
     """Retorna as classificações de uma conta DRE N2 específica com cache Redis"""
     
     start_time = time.time()
     print(f"🔍 Buscando classificações para: {dre_n2_name}")
+    if empresa_id:
+        print(f"🏢 Filtrando por empresa_id: {empresa_id}")
     
     try:
-        # Tentar buscar do cache primeiro
+        # Tentar buscar do cache primeiro (se não houver filtro de empresa)
         cache = await get_cache()
         cache_key = f"classificacoes:{dre_n2_name}"
+        if empresa_id:
+            cache_key += f":empresa_{empresa_id}"
         cached_result = await cache.get(cache_key)
         
         if cached_result:
@@ -598,19 +624,20 @@ async def get_classificacoes_dre_n2(dre_n2_name: str):
         engine = get_engine()
         
         with engine.connect() as connection:
-            # Usar helper de classificações
-            rows = ClassificacoesHelper.fetch_classificacoes_data(connection, dre_n2_name)
+            # Usar helper de classificações com filtro de empresa
+            rows = ClassificacoesHelper.fetch_classificacoes_data(connection, dre_n2_name, empresa_id)
             
             if not rows:
                 return {
                     "success": False,
-                    "message": f"Nenhuma classificação encontrada para {dre_n2_name}",
+                    "message": f"Nenhuma classificação encontrada para {dre_n2_name}" + (f" na empresa {empresa_id}" if empresa_id else ""),
                     "data": [],
-                    "dre_n2": dre_n2_name
+                    "dre_n2": dre_n2_name,
+                    "empresa_id": empresa_id
                 }
             
-            # Buscar dados de faturamento para análise vertical
-            faturamento_rows = ClassificacoesHelper.fetch_faturamento_data(connection)
+            # Buscar dados de faturamento para análise vertical com filtro de empresa
+            faturamento_rows = ClassificacoesHelper.fetch_faturamento_data(connection, empresa_id)
             
             # Processar classificações
             classificacoes, meses, trimestres, anos = ClassificacoesHelper.process_classificacoes(rows, faturamento_rows)
@@ -623,6 +650,7 @@ async def get_classificacoes_dre_n2(dre_n2_name: str):
             response_data = {
                 "success": True,
                 "dre_n2": dre_n2_name,
+                "empresa_id": empresa_id,
                 "meses": meses_ordenados,
                 "trimestres": trimestres_ordenados,
                 "anos": anos_ordenados,
@@ -635,6 +663,8 @@ async def get_classificacoes_dre_n2(dre_n2_name: str):
             
             execution_time = time.time() - start_time
             print(f"✅ Classificações processadas com sucesso: {len(classificacoes)} itens em {execution_time:.3f}s")
+            if empresa_id:
+                print(f"🏢 Filtradas por empresa_id: {empresa_id}")
             return response_data
             
     except Exception as e:

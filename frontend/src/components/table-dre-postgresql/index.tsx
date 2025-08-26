@@ -83,45 +83,160 @@ export default function DreTablePostgreSQL() {
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
   const [classificacoesCache, setClassificacoesCache] = useState<Record<string, DreItem[]>>({})
   const [showValoresZerados, setShowValoresZerados] = useState<boolean>(false)
+  
+  // 🆕 NOVO ESTADO: Empresa e Grupo Empresarial selecionados
+  const [empresaSelecionada, setEmpresaSelecionada] = useState<string>("")
+  const [grupoEmpresaSelecionado, setGrupoEmpresaSelecionado] = useState<string>("")
+  const [empresas, setEmpresas] = useState<Array<{id: string, nome: string, tipo?: string, grupo_empresa_id?: string}>>([])
+  const [gruposEmpresa, setGruposEmpresa] = useState<Array<{id: string, nome: string, tipo?: string, grupo_empresa_id?: string}>>([])
 
+  // 🆕 NOVO: Carregar lista de empresas e grupos empresariais
   useEffect(() => {
-    console.log("🔄 Iniciando carregamento DRE N0 PostgreSQL...")
-    
-    api.get("/dre-n0/")
-      .then(res => {
-        console.log("✅ Resposta recebida:", res.status, res.data)
-        
-        const result: DreResponse = res.data
-        if (result.success) {
-          setData(result.data)
-          setMeses(result.meses)
-          setTrimestres(result.trimestres)
-          setAnos(result.anos)
-          setDataSource(result.source)
-          
-          if (result.anos && result.anos.length > 0) {
-            const ultimoAno = Math.max(...result.anos)
-            setFiltroAno(String(ultimoAno))
+    const carregarDados = async () => {
+      try {
+        // Carregar grupos empresariais
+        const gruposResponse = await api.get("/admin/cadastro/grupos-empresa")
+        if (gruposResponse.data && Array.isArray(gruposResponse.data)) {
+          const gruposFormatados = gruposResponse.data.map((grupo: any) => ({
+            id: grupo.id,
+            nome: grupo.nome
+          }))
+          setGruposEmpresa(gruposFormatados)
+          // Selecionar primeiro grupo por padrão
+          if (gruposFormatados.length > 0) {
+            setGrupoEmpresaSelecionado(gruposFormatados[0].id)
           }
-        } else {
-          console.error("❌ Resposta não foi bem-sucedida:", result)
-          throw new Error("Resposta não foi bem-sucedida")
         }
-      })
-      .catch(err => {
-        console.error('❌ Erro ao carregar DRE N0 PostgreSQL:', err)
-        console.error('❌ Detalhes do erro:', {
-          message: err.message,
-          response: err.response?.data,
-          status: err.response?.status
-        })
-        setError(`Erro ao carregar dados: ${err.message}`)
-      })
-      .finally(() => {
-        console.log("🏁 Carregamento finalizado")
-        setLoading(false)
-      })
+
+        // Carregar empresas (todas inicialmente)
+        const empresasResponse = await api.get("/admin/cadastro/empresas")
+        if (empresasResponse.data && Array.isArray(empresasResponse.data)) {
+          const empresasFormatadas = empresasResponse.data.map((emp: any) => ({
+            id: emp.id,
+            nome: emp.nome
+          }))
+          setEmpresas(empresasFormatadas)
+        }
+      } catch (error) {
+        console.error("❌ Erro ao carregar dados:", error)
+      }
+    }
+    
+    carregarDados()
   }, [])
+
+  // 🆕 NOVO: Recarregar dados quando empresa mudar
+  useEffect(() => {
+    if (empresaSelecionada) {
+      // Limpar cache de classificações ao trocar filtros
+      setClassificacoesCache({})
+      setExpandedItems({})
+      
+      // Recarregar dados DRE N0 para os filtros selecionados
+      carregarDreN0()
+    }
+  }, [empresaSelecionada])
+
+  // 🆕 NOVO: Filtrar empresas quando grupo empresarial mudar
+  useEffect(() => {
+    const filtrarEmpresasPorGrupo = async () => {
+      if (grupoEmpresaSelecionado) {
+        try {
+          // Buscar empresas do grupo selecionado
+          const empresasResponse = await api.get(`/admin/cadastro/empresas?grupo_empresa_id=${grupoEmpresaSelecionado}`)
+          if (empresasResponse.data && Array.isArray(empresasResponse.data)) {
+            const empresasFormatadas = empresasResponse.data.map((emp: any) => ({
+              id: emp.id,
+              nome: emp.nome,
+              tipo: emp.tipo,
+              grupo_empresa_id: emp.grupo_empresa_id
+            }))
+            setEmpresas(empresasFormatadas)
+            
+            // Selecionar "Consolidado" por padrão se disponível
+            const consolidado = empresasFormatadas.find(emp => emp.tipo === 'consolidado')
+            if (consolidado) {
+              setEmpresaSelecionada(consolidado.id)
+            } else if (empresasFormatadas.length > 0) {
+              setEmpresaSelecionada(empresasFormatadas[0].id)
+            } else {
+              setEmpresaSelecionada("")
+            }
+          }
+        } catch (error) {
+          console.error("❌ Erro ao filtrar empresas por grupo:", error)
+        }
+      } else {
+        // Se nenhum grupo selecionado, carregar todas as empresas
+        try {
+          const empresasResponse = await api.get("/admin/cadastro/empresas")
+          if (empresasResponse.data && Array.isArray(empresasResponse.data)) {
+            const empresasFormatadas = empresasResponse.data.map((emp: any) => ({
+              id: emp.id,
+              nome: emp.nome
+            }))
+            setEmpresas(empresasFormatadas)
+            setEmpresaSelecionada("")
+          }
+        } catch (error) {
+          console.error("❌ Erro ao carregar todas as empresas:", error)
+        }
+      }
+    }
+    
+    filtrarEmpresasPorGrupo()
+  }, [grupoEmpresaSelecionado])
+
+  // 🆕 NOVO: Função para carregar DRE N0
+  const carregarDreN0 = async () => {
+    if (!empresaSelecionada) return
+    
+    setLoading(true)
+    setError(null)
+    
+    try {
+      // Construir URL com filtros
+      const params = new URLSearchParams()
+      
+      // Verificar se é uma opção consolidada
+      const empresaSelecionadaObj = empresas.find(emp => emp.id === empresaSelecionada)
+      const isConsolidado = empresaSelecionadaObj?.tipo === 'consolidado'
+      
+      if (isConsolidado && empresaSelecionadaObj?.grupo_empresa_id) {
+        // Opção consolidada: usar grupo_empresa_id
+        params.append('grupo_empresa_id', empresaSelecionadaObj.grupo_empresa_id)
+        console.log(`🔄 Carregando DRE N0 consolidado para grupo: ${empresaSelecionadaObj.grupo_empresa_id}`)
+      } else if (empresaSelecionada) {
+        // Empresa específica: usar empresa_id
+        params.append('empresa_id', empresaSelecionada)
+        console.log(`🔄 Carregando DRE N0 para empresa: ${empresaSelecionada}`)
+      }
+      
+      const url = `/dre-n0/?${params.toString()}`
+      const response = await api.get(url)
+      
+      if (response.data.success) {
+        const result: DreResponse = response.data
+        setData(result.data)
+        setMeses(result.meses)
+        setTrimestres(result.trimestres)
+        setAnos(result.anos)
+        setDataSource(result.source)
+        
+        if (result.anos && result.anos.length > 0) {
+          const ultimoAno = Math.max(...result.anos)
+          setFiltroAno(String(ultimoAno))
+        }
+      } else {
+        throw new Error("Resposta não foi bem-sucedida")
+      }
+    } catch (err: any) {
+      console.error('❌ Erro ao carregar DRE N0:', err)
+      setError(`Erro ao carregar dados: ${err.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const toggle = (nome: string) => {
     setOpenSections(prev => ({ ...prev, [nome]: !prev[nome] }))
@@ -145,25 +260,34 @@ export default function DreTablePostgreSQL() {
 
   // Função para buscar classificações de uma conta DRE N2
   const buscarClassificacoes = async (dreN2Name: string) => {
+    if (!empresaSelecionada) {
+      console.error("❌ Nenhuma empresa selecionada")
+      return []
+    }
+    
     try {
-      // Verificar se já está no cache
-      if (classificacoesCache[dreN2Name]) {
-        return classificacoesCache[dreN2Name]
+      // Verificar se já está no cache (incluindo empresa_id)
+      const cacheKey = `${dreN2Name}_${empresaSelecionada}`
+      if (classificacoesCache[cacheKey]) {
+        return classificacoesCache[cacheKey]
       }
 
-      const response = await api.get(`/dre-n0/classificacoes/${encodeURIComponent(dreN2Name)}`)
+      console.log(`🔍 Buscando classificações para ${dreN2Name} na empresa ${empresaSelecionada}`)
+      
+      const response = await api.get(`/dre-n0/classificacoes/${encodeURIComponent(dreN2Name)}?empresa_id=${empresaSelecionada}`)
       
       if (response.data.success) {
         const classificacoes = response.data.data
         
-        // Adicionar ao cache
+        // Adicionar ao cache com chave única por empresa
         setClassificacoesCache(prev => ({
           ...prev,
-          [dreN2Name]: classificacoes
+          [cacheKey]: classificacoes
         }))
         
         return classificacoes
       } else {
+        console.log(`⚠️ Nenhuma classificação encontrada para ${dreN2Name}`)
         return []
       }
     } catch (error) {
@@ -724,6 +848,50 @@ export default function DreTablePostgreSQL() {
       <CardContent>
         {/* Controles */}
         <div className="flex flex-wrap items-center gap-4 mb-4 p-4 bg-muted/30 rounded-lg">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">Grupo Empresarial:</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  {gruposEmpresa.find(g => g.id === grupoEmpresaSelecionado)?.nome || "Selecione um grupo"}
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {gruposEmpresa.map(grupo => (
+                  <DropdownMenuItem
+                    key={grupo.id}
+                    onClick={() => setGrupoEmpresaSelecionado(grupo.id)}
+                  >
+                    {grupo.nome}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">Empresa:</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  {empresas.find(e => e.id === empresaSelecionada)?.nome || "Selecione uma empresa"}
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {empresas.map(empresa => (
+                  <DropdownMenuItem
+                    key={empresa.id}
+                    onClick={() => setEmpresaSelecionada(empresa.id)}
+                  >
+                    {empresa.nome}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">Período:</span>
             <DropdownMenu>

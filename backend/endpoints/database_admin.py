@@ -818,8 +818,8 @@ async def view_table_data(table_name: str, limit: int = 100):
                     COUNT(emissao) as with_emissao,
                     COUNT(competencia) as with_competencia,
                     COUNT(vencimento) as with_vencimento,
-                    COUNT(dfc_n1_id) as with_dfc_n1,
-                    COUNT(dfc_n2_id) as with_dfc_n2,
+                    COUNT(de_para_id) as with_de_para,
+                    COUNT(empresa_id) as with_empresa,
                     COUNT(origem) as with_origem
                 FROM financial_data
             """
@@ -828,13 +828,13 @@ async def view_table_data(table_name: str, limit: int = 100):
             
             extra_stats = f"""
                 <div style="background: #e8f4f8; padding: 15px; border-radius: 5px; margin: 15px 0;">
-                    <h3>📊 Estatísticas das Novas Colunas</h3>
+                    <h3>📊 Estatísticas das Colunas Principais</h3>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
                         <div>📅 <strong>Emissão:</strong> {stats[1]}/{stats[0]} registros</div>
                         <div>📅 <strong>Competência:</strong> {stats[2]}/{stats[0]} registros</div>
                         <div>📅 <strong>Vencimento:</strong> {stats[3]}/{stats[0]} registros</div>
-                        <div>🏗️ <strong>DFC N1:</strong> {stats[4]}/{stats[0]} registros</div>
-                        <div>🏗️ <strong>DFC N2:</strong> {stats[5]}/{stats[0]} registros</div>
+                        <div>🔗 <strong>De/Para:</strong> {stats[4]}/{stats[0]} registros</div>
+                        <div>🏢 <strong>Empresa:</strong> {stats[5]}/{stats[0]} registros</div>
                         <div>📍 <strong>Origem:</strong> {stats[6]}/{stats[0]} registros</div>
                     </div>
                 </div>
@@ -1138,23 +1138,7 @@ def get_db():
 # ENDPOINTS DE CADASTRO
 # ============================================================================
 
-@router.get("/cadastro/grupos-empresa", response_model=List[Dict[str, Any]])
-async def listar_grupos_empresa(db: Session = Depends(get_db)):
-    """Lista todos os grupos empresariais"""
-    try:
-        grupos = db.query(GrupoEmpresa).filter(GrupoEmpresa.is_active == True).all()
-        return [
-            {
-                "id": grupo.id,
-                "nome": grupo.nome,
-                "descricao": grupo.descricao,
-                "empresas_count": len(grupo.empresas),
-                "created_at": grupo.created_at.isoformat() if grupo.created_at else None
-            }
-            for grupo in grupos
-        ]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao listar grupos: {str(e)}")
+
 
 @router.post("/cadastro/grupos-empresa")
 async def criar_grupo_empresa(
@@ -1188,24 +1172,97 @@ async def criar_grupo_empresa(
         raise HTTPException(status_code=500, detail=f"Erro ao criar grupo: {str(e)}")
 
 @router.get("/cadastro/empresas", response_model=List[Dict[str, Any]])
-async def listar_empresas(db: Session = Depends(get_db)):
-    """Lista todas as empresas"""
+async def listar_empresas(grupo_empresa_id: Optional[str] = Query(None, description="Filtrar empresas por grupo")):
+    """Lista todas as empresas, opcionalmente filtradas por grupo empresarial"""
     try:
-        empresas = db.query(Empresa).filter(Empresa.is_active == True).all()
-        return [
-            {
-                "id": empresa.id,
-                "nome": empresa.nome,
-                "grupo_empresa": empresa.grupo_empresa.nome if empresa.grupo_empresa else None,
-                "cnpj": empresa.cnpj,
-                "razao_social": empresa.razao_social,
-                "categorias_count": len(empresa.categorias),
-                "created_at": empresa.created_at.isoformat() if empresa.created_at else None
-            }
-            for empresa in empresas
-        ]
+        engine = get_engine()
+        connection = engine.raw_connection()
+        cursor = connection.cursor()
+        
+        if grupo_empresa_id:
+            # Filtrar por grupo específico
+            cursor.execute("""
+                SELECT id, nome 
+                FROM empresas 
+                WHERE is_active = true AND grupo_empresa_id = %s
+                ORDER BY nome
+            """, (grupo_empresa_id,))
+        else:
+            # Todas as empresas
+            cursor.execute("""
+                SELECT id, nome 
+                FROM empresas 
+                WHERE is_active = true 
+                ORDER BY nome
+            """)
+        
+        empresas = cursor.fetchall()
+        
+        # Fechar recursos
+        cursor.close()
+        connection.close()
+        
+        resultado = []
+        
+        if grupo_empresa_id:
+            # Adicionar opção "Consolidado" para o grupo
+            resultado.append({
+                "id": f"{grupo_empresa_id}_consolidado",
+                "nome": "Consolidado",
+                "tipo": "consolidado",
+                "grupo_empresa_id": grupo_empresa_id
+            })
+            
+            # Adicionar empresas do grupo
+            for empresa in empresas:
+                resultado.append({
+                    "id": str(empresa[0]),  # id
+                    "nome": str(empresa[1]),  # nome
+                    "tipo": "empresa"
+                })
+        else:
+            # Todas as empresas (sem opção consolidada)
+            for empresa in empresas:
+                resultado.append({
+                    "id": str(empresa[0]),  # id
+                    "nome": str(empresa[1]),  # nome
+                    "tipo": "empresa"
+                })
+        
+        return resultado
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao listar empresas: {str(e)}")
+
+@router.get("/cadastro/grupos-empresa", response_model=List[Dict[str, Any]])
+async def listar_grupos_empresa():
+    """Lista todos os grupos empresariais"""
+    try:
+        # Usar conexão direta para evitar conflitos do SQLAlchemy
+        engine = get_engine()
+        connection = engine.raw_connection()
+        cursor = connection.cursor()
+        
+        cursor.execute("""
+            SELECT id, nome 
+            FROM grupos_empresa 
+            WHERE is_active = true 
+            ORDER BY nome
+        """)
+        grupos = cursor.fetchall()
+        
+        # Fechar recursos
+        cursor.close()
+        connection.close()
+        
+        return [
+            {
+                "id": str(grupo[0]),  # id
+                "nome": str(grupo[1])  # nome
+            }
+            for grupo in grupos
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao listar grupos empresariais: {str(e)}")
 
 @router.post("/cadastro/empresas")
 async def criar_empresa(
@@ -1938,12 +1995,17 @@ async def execute_backup():
         import sys
         import os
         
-        # Caminho para o script de backup
-        script_path = os.path.join(os.path.dirname(__file__), "..", "create_backup_with_date.py")
+        # Caminho para o script de backup na pasta scripts
+        backend_dir = os.path.dirname(os.path.dirname(__file__))
+        script_path = os.path.join(backend_dir, "scripts", "create_backup_with_date.py")
         
-        # Executar o script
+        # Verificar se o script existe
+        if not os.path.exists(script_path):
+            raise HTTPException(status_code=500, detail=f"Script de backup não encontrado em: {script_path}")
+        
+        # Executar o script a partir do diretório backend
         result = subprocess.run([sys.executable, script_path], 
-                              capture_output=True, text=True, cwd=os.path.dirname(script_path))
+                              capture_output=True, text=True, cwd=backend_dir)
         
         if result.returncode == 0:
             # Backup bem-sucedido

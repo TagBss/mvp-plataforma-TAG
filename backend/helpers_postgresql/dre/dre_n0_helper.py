@@ -234,7 +234,7 @@ class DreN0Helper:
     
     @staticmethod
     def fetch_dre_n0_data(connection: Connection) -> List[Any]:
-        """Busca dados da view DRE N0"""
+        """Busca dados da view DRE N0 (todas as empresas)"""
         query = text("""
             SELECT 
                 dre_n0_id,
@@ -259,6 +259,80 @@ class DreN0Helper:
         """)
         
         result = connection.execute(query)
+        return result.fetchall()
+
+    @staticmethod
+    def fetch_dre_n0_data_by_empresa(connection: Connection, empresa_id: str) -> List[Any]:
+        """Busca dados da view DRE N0 filtrados por empresa específica"""
+        query = text("""
+            SELECT 
+                dre_n0_id,
+                nome_conta,
+                tipo_operacao,
+                ordem,
+                descricao,
+                origem,
+                empresa,
+                valores_mensais,
+                valores_trimestrais,
+                valores_anuais,
+                orcamentos_mensais,
+                orcamentos_trimestrais,
+                orcamentos_anuais,
+                orcamento_total,
+                valor_total,
+                -- COLUNAS DE AV REMOVIDAS - frontend calcula tudo
+                source
+            FROM v_dre_n0_completo
+            WHERE empresa_id = :empresa_id
+            ORDER BY ordem
+        """)
+        
+        result = connection.execute(query, {"empresa_id": empresa_id})
+        return result.fetchall()
+
+    @staticmethod
+    def fetch_dre_n0_data_by_grupo_empresa(connection: Connection, grupo_empresa_id: str) -> List[Any]:
+        """Busca dados da view DRE N0 filtrados por grupo empresarial"""
+        # Primeiro buscar empresas do grupo
+        empresas_query = text("""
+            SELECT id FROM empresas 
+            WHERE grupo_empresa_id = :grupo_empresa_id 
+            AND is_active = true
+        """)
+        
+        empresas_result = connection.execute(empresas_query, {"grupo_empresa_id": grupo_empresa_id})
+        empresas_ids = [row[0] for row in empresas_result.fetchall()]
+        
+        if not empresas_ids:
+            return []
+        
+        # Depois buscar dados DRE N0 das empresas do grupo
+        query = text("""
+            SELECT 
+                dre_n0_id,
+                nome_conta,
+                tipo_operacao,
+                ordem,
+                descricao,
+                origem,
+                empresa,
+                valores_mensais,
+                valores_trimestrais,
+                valores_anuais,
+                orcamentos_mensais,
+                orcamentos_trimestrais,
+                orcamentos_anuais,
+                orcamento_total,
+                valor_total,
+                -- COLUNAS DE AV REMOVIDAS - frontend calcula tudo
+                source
+            FROM v_dre_n0_completo
+            WHERE empresa_id = ANY(:empresas_ids)
+            ORDER BY ordem
+        """)
+        
+        result = connection.execute(query, {"empresas_ids": empresas_ids})
         return result.fetchall()
     
     @staticmethod
