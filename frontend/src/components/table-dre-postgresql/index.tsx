@@ -86,15 +86,16 @@ export default function DreTablePostgreSQL() {
   
   // 🆕 NOVO ESTADO: Empresa e Grupo Empresarial selecionados
   const [empresaSelecionada, setEmpresaSelecionada] = useState<string>("")
+  const [empresasSelecionadas, setEmpresasSelecionadas] = useState<string[]>([])
   const [grupoEmpresaSelecionado, setGrupoEmpresaSelecionado] = useState<string>("")
-  const [empresas, setEmpresas] = useState<Array<{id: string, nome: string, tipo?: string, grupo_empresa_id?: string}>>([])
-  const [gruposEmpresa, setGruposEmpresa] = useState<Array<{id: string, nome: string, tipo?: string, grupo_empresa_id?: string}>>([])
+  const [empresas, setEmpresas] = useState<Array<{id: string, nome: string, grupo_empresa_id?: string}>>([])
+  const [gruposEmpresa, setGruposEmpresa] = useState<Array<{id: string, nome: string}>>([])
 
   // 🆕 NOVO: Carregar lista de empresas e grupos empresariais
   useEffect(() => {
     const carregarDados = async () => {
       try {
-        // Carregar grupos empresariais
+        // Carregar grupos empresariais apenas
         const gruposResponse = await api.get("/admin/cadastro/grupos-empresa")
         if (gruposResponse.data && Array.isArray(gruposResponse.data)) {
           const gruposFormatados = gruposResponse.data.map((grupo: any) => ({
@@ -102,20 +103,6 @@ export default function DreTablePostgreSQL() {
             nome: grupo.nome
           }))
           setGruposEmpresa(gruposFormatados)
-          // Selecionar primeiro grupo por padrão
-          if (gruposFormatados.length > 0) {
-            setGrupoEmpresaSelecionado(gruposFormatados[0].id)
-          }
-        }
-
-        // Carregar empresas (todas inicialmente)
-        const empresasResponse = await api.get("/admin/cadastro/empresas")
-        if (empresasResponse.data && Array.isArray(empresasResponse.data)) {
-          const empresasFormatadas = empresasResponse.data.map((emp: any) => ({
-            id: emp.id,
-            nome: emp.nome
-          }))
-          setEmpresas(empresasFormatadas)
         }
       } catch (error) {
         console.error("❌ Erro ao carregar dados:", error)
@@ -125,62 +112,88 @@ export default function DreTablePostgreSQL() {
     carregarDados()
   }, [])
 
-  // 🆕 NOVO: Recarregar dados quando empresa mudar
+  // ✅ CORREÇÃO: Selecionar primeiro grupo automaticamente quando grupos forem carregados
   useEffect(() => {
-    if (empresaSelecionada) {
+    if (gruposEmpresa.length > 0 && !grupoEmpresaSelecionado) {
+      console.log(`🔄 Selecionando primeiro grupo automaticamente: ${gruposEmpresa[0].nome}`)
+      setGrupoEmpresaSelecionado(gruposEmpresa[0].id)
+    }
+  }, [gruposEmpresa, grupoEmpresaSelecionado])
+
+  // ✅ CORREÇÃO: Garantir que uma empresa seja selecionada quando empresas estiverem disponíveis
+  useEffect(() => {
+    console.log(`🔄 useEffect empresas: ${empresas.length} empresas, selecionadas: ${empresasSelecionadas.length}, grupo: ${grupoEmpresaSelecionado}`)
+    
+    // Só selecionar automaticamente se não houver grupo selecionado e nenhuma empresa selecionada
+    if (empresas.length > 0 && empresasSelecionadas.length === 0 && !grupoEmpresaSelecionado) {
+      console.log(`🔄 Selecionando primeira empresa automaticamente: ${empresas[0].nome}`)
+      setEmpresaSelecionada(empresas[0].id)
+      setEmpresasSelecionadas([empresas[0].id])
+    }
+  }, [empresas, empresasSelecionadas.length, grupoEmpresaSelecionado])
+
+  // 🆕 NOVO: Recarregar dados quando empresas selecionadas mudarem
+  useEffect(() => {
+    console.log(`🔄 useEffect empresasSelecionadas mudou: ${empresasSelecionadas.length} empresas`)
+    
+    if (empresasSelecionadas.length > 0) {
+      console.log(`✅ Empresas selecionadas: ${empresasSelecionadas.join(', ')}`)
       // Limpar cache de classificações ao trocar filtros
       setClassificacoesCache({})
       setExpandedItems({})
       
       // Recarregar dados DRE N0 para os filtros selecionados
       carregarDreN0()
+    } else {
+      console.log(`❌ Nenhuma empresa selecionada, limpando dados`)
+      // Limpar dados quando nenhuma empresa estiver selecionada
+      setData([])
+      setMeses([])
+      setTrimestres([])
+      setAnos([])
+      setDataSource("")
+      setError(null)
+      setLoading(false)
     }
-  }, [empresaSelecionada])
+  }, [empresasSelecionadas])
 
   // 🆕 NOVO: Filtrar empresas quando grupo empresarial mudar
   useEffect(() => {
     const filtrarEmpresasPorGrupo = async () => {
       if (grupoEmpresaSelecionado) {
         try {
+          console.log(`🔄 Filtrando empresas para o grupo: ${grupoEmpresaSelecionado}`)
+          
           // Buscar empresas do grupo selecionado
           const empresasResponse = await api.get(`/admin/cadastro/empresas?grupo_empresa_id=${grupoEmpresaSelecionado}`)
           if (empresasResponse.data && Array.isArray(empresasResponse.data)) {
             const empresasFormatadas = empresasResponse.data.map((emp: any) => ({
               id: emp.id,
               nome: emp.nome,
-              tipo: emp.tipo,
               grupo_empresa_id: emp.grupo_empresa_id
             }))
             setEmpresas(empresasFormatadas)
             
-            // Selecionar "Consolidado" por padrão se disponível
-            const consolidado = empresasFormatadas.find(emp => emp.tipo === 'consolidado')
-            if (consolidado) {
-              setEmpresaSelecionada(consolidado.id)
-            } else if (empresasFormatadas.length > 0) {
+            // Sempre selecionar primeira empresa disponível
+            if (empresasFormatadas.length > 0) {
+              console.log(`🔄 Selecionando primeira empresa do grupo: ${empresasFormatadas[0].nome}`)
               setEmpresaSelecionada(empresasFormatadas[0].id)
+              setEmpresasSelecionadas([empresasFormatadas[0].id])
             } else {
+              console.log(`❌ Nenhuma empresa encontrada para o grupo`)
               setEmpresaSelecionada("")
+              setEmpresasSelecionadas([])
             }
           }
         } catch (error) {
           console.error("❌ Erro ao filtrar empresas por grupo:", error)
         }
       } else {
-        // Se nenhum grupo selecionado, carregar todas as empresas
-        try {
-          const empresasResponse = await api.get("/admin/cadastro/empresas")
-          if (empresasResponse.data && Array.isArray(empresasResponse.data)) {
-            const empresasFormatadas = empresasResponse.data.map((emp: any) => ({
-              id: emp.id,
-              nome: emp.nome
-            }))
-            setEmpresas(empresasFormatadas)
-            setEmpresaSelecionada("")
-          }
-        } catch (error) {
-          console.error("❌ Erro ao carregar todas as empresas:", error)
-        }
+        // Se nenhum grupo selecionado, limpar empresas
+        console.log(`❌ Nenhum grupo selecionado, limpando empresas`)
+        setEmpresas([])
+        setEmpresaSelecionada("")
+        setEmpresasSelecionadas([])
       }
     }
     
@@ -189,7 +202,12 @@ export default function DreTablePostgreSQL() {
 
   // 🆕 NOVO: Função para carregar DRE N0
   const carregarDreN0 = async () => {
-    if (!empresaSelecionada) return
+    console.log(`🔍 carregarDreN0 chamado com empresas: ${empresasSelecionadas.join(', ')}`)
+    
+    if (empresasSelecionadas.length === 0) {
+      console.log('❌ Nenhuma empresa selecionada, abortando carregamento')
+      return 
+    }
     
     setLoading(true)
     setError(null)
@@ -198,18 +216,16 @@ export default function DreTablePostgreSQL() {
       // Construir URL com filtros
       const params = new URLSearchParams()
       
-      // Verificar se é uma opção consolidada
-      const empresaSelecionadaObj = empresas.find(emp => emp.id === empresaSelecionada)
-      const isConsolidado = empresaSelecionadaObj?.tipo === 'consolidado'
-      
-      if (isConsolidado && empresaSelecionadaObj?.grupo_empresa_id) {
-        // Opção consolidada: usar grupo_empresa_id
-        params.append('grupo_empresa_id', empresaSelecionadaObj.grupo_empresa_id)
-        console.log(`🔄 Carregando DRE N0 consolidado para grupo: ${empresaSelecionadaObj.grupo_empresa_id}`)
-      } else if (empresaSelecionada) {
-        // Empresa específica: usar empresa_id
-        params.append('empresa_id', empresaSelecionada)
-        console.log(`🔄 Carregando DRE N0 para empresa: ${empresaSelecionada}`)
+      // 🆕 NOVO: Múltiplas empresas selecionadas
+      if (empresasSelecionadas.length > 1) {
+        // Múltiplas empresas: usar consolidação automática
+        const empresasIds = empresasSelecionadas.join(',')
+        params.append('empresa_id', empresasIds)
+        console.log(`🔄 Carregando DRE N0 para múltiplas empresas: ${empresasIds}`)
+      } else if (empresasSelecionadas.length === 1) {
+        // Uma empresa: usar empresa_id único
+        params.append('empresa_id', empresasSelecionadas[0])
+        console.log(`🔄 Carregando DRE N0 para empresa: ${empresasSelecionadas[0]}`)
       }
       
       const url = `/dre-n0/?${params.toString()}`
@@ -260,21 +276,22 @@ export default function DreTablePostgreSQL() {
 
   // Função para buscar classificações de uma conta DRE N2
   const buscarClassificacoes = async (dreN2Name: string) => {
-    if (!empresaSelecionada) {
+    if (empresasSelecionadas.length === 0) {
       console.error("❌ Nenhuma empresa selecionada")
       return []
     }
     
     try {
-      // Verificar se já está no cache (incluindo empresa_id)
-      const cacheKey = `${dreN2Name}_${empresaSelecionada}`
+      // 🆕 NOVO: Cache baseado em múltiplas empresas
+      const empresasIds = empresasSelecionadas.join(',')
+      const cacheKey = `${dreN2Name}_${empresasIds}`
       if (classificacoesCache[cacheKey]) {
         return classificacoesCache[cacheKey]
       }
 
-      console.log(`🔍 Buscando classificações para ${dreN2Name} na empresa ${empresaSelecionada}`)
+      console.log(`🔍 Buscando classificações para ${dreN2Name} nas empresas ${empresasIds}`)
       
-      const response = await api.get(`/dre-n0/classificacoes/${encodeURIComponent(dreN2Name)}?empresa_id=${empresaSelecionada}`)
+      const response = await api.get(`/dre-n0/classificacoes/${encodeURIComponent(dreN2Name)}?empresa_id=${empresasIds}`)
       
       if (response.data.success) {
         const classificacoes = response.data.data
@@ -871,23 +888,69 @@ export default function DreTablePostgreSQL() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Empresa:</span>
+            <span className="text-sm font-medium">Empresas:</span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm">
-                  {empresas.find(e => e.id === empresaSelecionada)?.nome || "Selecione uma empresa"}
+                  {empresasSelecionadas.length === 0 
+                    ? "Selecione empresas" 
+                    : empresasSelecionadas.length === 1
+                    ? empresas.find(e => e.id === empresasSelecionadas[0])?.nome || "1 empresa"
+                    : `${empresasSelecionadas.length} empresas selecionadas`
+                  }
                   <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                {empresas.map(empresa => (
-                  <DropdownMenuItem
-                    key={empresa.id}
-                    onClick={() => setEmpresaSelecionada(empresa.id)}
-                  >
-                    {empresa.nome}
-                  </DropdownMenuItem>
-                ))}
+              <DropdownMenuContent className="w-64">
+                <div className="p-2">
+                  <div className="mb-2 text-xs text-gray-500">
+                    Selecione uma ou mais empresas para consolidação automática
+                  </div>
+                  {empresas.map(empresa => (
+                    <DropdownMenuItem 
+                      key={empresa.id} 
+                      onClick={() => {
+                        const isSelected = empresasSelecionadas.includes(empresa.id)
+                        if (isSelected) {
+                          setEmpresasSelecionadas((prev: string[]) => prev.filter(id => id !== empresa.id))
+                        } else {
+                          setEmpresasSelecionadas((prev: string[]) => [...prev, empresa.id])
+                        }
+                      }}
+                    >
+                      <Checkbox
+                        checked={empresasSelecionadas.includes(empresa.id)}
+                        onCheckedChange={(checked: boolean) => {
+                          if (checked) {
+                            setEmpresasSelecionadas((prev: string[]) => [...prev, empresa.id])
+                          } else {
+                            setEmpresasSelecionadas((prev: string[]) => prev.filter(id => id !== empresa.id))
+                          }
+                        }}
+                        className="mr-2"
+                      />
+                      {empresa.nome}
+                    </DropdownMenuItem>
+                  ))}
+                  {empresas.length > 1 && (
+                    <div className="mt-2 pt-2 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs"
+                        onClick={() => {
+                          if (empresasSelecionadas.length === empresas.length) {
+                            setEmpresasSelecionadas([])
+                          } else {
+                            setEmpresasSelecionadas(empresas.map(e => e.id))
+                          }
+                        }}
+                      >
+                        {empresasSelecionadas.length === empresas.length ? "Desmarcar todas" : "Selecionar todas"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

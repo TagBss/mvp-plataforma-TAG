@@ -20,7 +20,7 @@ async def get_dre_n0(
     page: int = Query(1, ge=1, description="Número da página"),
     page_size: int = Query(50, ge=10, le=200, description="Itens por página"),
     include_all: bool = Query(False, description="Incluir todos os itens (ignora paginação)"),
-    empresa_id: Optional[str] = Query(None, description="ID da empresa para filtrar dados"),
+    empresa_id: Optional[str] = Query(None, description="ID da empresa para filtrar dados (pode ser múltiplo separado por vírgula)"),
     grupo_empresa_id: Optional[str] = Query(None, description="ID do grupo empresarial para filtrar dados")
 ):
     """Retorna dados da DRE Nível 0 usando a view v_dre_n0_completo com cache Redis e paginação"""
@@ -70,12 +70,20 @@ async def get_dre_n0(
             else:
                 print("✅ View DRE N0 já existe, usando view existente")
             
-            # Buscar dados da view DRE N0 (filtrado por grupo/empresa se fornecido)
-            if grupo_empresa_id:
+            # 🆕 NOVA LÓGICA: Seleção múltipla de empresas com consolidação automática
+            if empresa_id and ',' in empresa_id:
+                # Múltiplas empresas selecionadas - aplicar consolidação automática
+                empresa_ids = [id.strip() for id in empresa_id.split(',') if id.strip()]
+                print(f"🏢 Múltiplas empresas selecionadas: {empresa_ids}")
+                rows = DreN0Helper.fetch_dre_n0_data_by_multiple_empresas(connection, empresa_ids)
+            elif grupo_empresa_id:
+                # Grupo empresarial - usar consolidação por grupo
                 rows = DreN0Helper.fetch_dre_n0_data_by_grupo_empresa(connection, grupo_empresa_id)
             elif empresa_id:
+                # Empresa única - sem consolidação
                 rows = DreN0Helper.fetch_dre_n0_data_by_empresa(connection, empresa_id)
             else:
+                # Sem filtros - todos os dados
                 rows = DreN0Helper.fetch_dre_n0_data(connection)
             
             if not rows:
@@ -99,28 +107,35 @@ async def get_dre_n0(
             trimestres_ordenados = sorted(list(trimestres))
             anos_ordenados = sorted(list(anos), key=int)
             
+            # Construir resposta
             response_data = {
                 "success": True,
-                "pagination": pagination_meta,
+                "data": dados_paginados,
                 "meses": meses_ordenados,
                 "trimestres": trimestres_ordenados,
                 "anos": anos_ordenados,
-                "data": dados_paginados,
+                "total_items": len(dados_paginados),
+                "pagination": pagination_meta,
                 "source": f"v_dre_n0_completo - {len(dados_paginados)} contas (página {pagination_meta['current_page']}/{pagination_meta['total_pages']})",
-                "total_categorias": pagination_meta['total_items']
+                "cache_info": {
+                    "cache_hit": False,
+                    "execution_time": round(time.time() - start_time, 3)
+                }
             }
             
-            # Salvar no cache com TTL de 5 minutos
-            await cache.set(cache_key, response_data, ttl=300)
+            # Salvar no cache (se não for paginação)
+            if include_all:
+                await cache.set(cache_key, response_data, expire=300)  # 5 minutos
+                print(f"💾 Cache SET - DRE N0 salvo em cache")
             
-            execution_time = time.time() - start_time
-            print(f"✅ DRE N0 processada com sucesso: {len(dre_items)} contas em {execution_time:.3f}s")
+            print(f"✅ DRE N0 retornado em {time.time() - start_time:.3f}s")
             return response_data
             
     except Exception as e:
+        print(f"❌ Erro ao buscar DRE N0: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Erro ao processar DRE N0: {str(e)}"
+            detail=f"Erro interno ao buscar dados DRE N0: {str(e)}"
         )
 
 @router.get("/simples")

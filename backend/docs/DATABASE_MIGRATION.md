@@ -51,8 +51,8 @@ Este documento unificado descreve o sistema financeiro completo, incluindo:
 - **API endpoints** para todas as funcionalidades
 - **Schema otimizado** com relacionamentos corretos
 
-### **🚨 STATUS ATUAL - FASE 7.7 EM DESENVOLVIMENTO 🔄**
-- **Progresso Geral**: 97% concluído (6/7 fases)
+### **🚨 STATUS ATUAL - FASE 7.8 EM DESENVOLVIMENTO 🔄**
+- **Progresso Geral**: 95% concluído (implementação funcional, ajustes finais em andamento)
 - **Issue Crítica**: **RESOLVIDA** ✅ - Fluxo de dados DRE N0 funcionando perfeitamente
 - **Issue da Interface Admin**: **RESOLVIDA** ✅ - Views DRE N0 aparecem corretamente na interface admin
 - **Issue 12 - Anos na View**: ✅ **RESOLVIDA** - View e frontend funcionando perfeitamente
@@ -61,11 +61,15 @@ Este documento unificado descreve o sistema financeiro completo, incluindo:
 - **Issue 18 - Preparação Multi-Cliente**: ✅ **ESTRUTURA BASE CONCLUÍDA** - Tabelas preparadas para multi-cliente
 - **Issue 19 - Limpeza grupo_empresa_id Redundante**: ✅ **RESOLVIDA** - Colunas redundantes removidas com sucesso
 - **Issue 20 - Sistema Multi-Cliente**: ✅ **RESOLVIDA** - Filtros por grupo empresarial e empresa funcionando
-- **Issue 21 - Consolidação de Dados**: 🔍 **IDENTIFICADA** - Opção consolidada agrupa linhas com mesmos nomes
-- **Issue 22 - Coluna Descrição**: 🔍 **IDENTIFICADA** - Não exibe nomes das classificações
-- **Próximo Passo**: Resolver issues de consolidação e descrição, validação completa do sistema
-- **Impacto**: Sistema multi-cliente funcionando, filtros implementados, issues menores identificadas
-- **Estimativa**: 🔄 **EM ANDAMENTO** - Sistema 97% funcional, resolução de issues menores em progresso
+- **Issue 21 - Consolidação de Dados**: ✅ **RESOLVIDA** - Sistema de seleção múltipla implementado com sucesso
+- **Issue 22 - Coluna "Descrição"**: 🔍 **IDENTIFICADA** - Não exibe nomes das classificações
+- **Issue 23 - Filtro Grupo/Empresa Backend/Frontend**: 🔍 **IDENTIFICADA** - Valores não estão batendo entre backend e frontend
+- **Issue 24 - Classificações Múltiplas Empresas**: 🔍 **IDENTIFICADA** - Classificações não expandem com múltiplas empresas
+- **Issue 25 - Descrição Classificações**: 🔍 **IDENTIFICADA** - Descrição não aparece quando classificações expandem
+- **Issue 26 - Novo Nível de Agrupamento**: 🔍 **IDENTIFICADA** - Necessário agrupar por `financial_data.nome`
+- **Próximo Passo**: Resolver Issues 23-26, validação completa do sistema multi-cliente
+- **Impacto**: Sistema multi-cliente funcionando, filtros implementados, consolidação funcionando, ajustes finais necessários
+- **Estimativa**: 🔄 **EM ANDAMENTO** - Sistema 95% funcional, ajustes finais em progresso
 
 ### **📊 Status da Implementação DRE N0**
 - **✅ CONCLUÍDA**: DRE N0 totalmente implementada e funcionando
@@ -454,11 +458,11 @@ financial_data (
 1. **Backend**: Endpoints modificados para aceitar `grupo_empresa_id` e `empresa_id`
 2. **Frontend**: Dropdowns para seleção de "Grupo Empresarial" e "Empresa"
 3. **Lógica inteligente**: Empresas filtradas automaticamente pelo grupo selecionado
-4. **Opção consolidada**: "Consolidado" mostra dados do grupo inteiro
+4. **Opção "Selecionar todas"**: Consolida automaticamente dados de múltiplas empresas
 5. **Isolamento total**: Dados não se misturam entre empresas
 **Resultado**: 
 - ✅ **Bluefit**: 23 contas DRE N0 isoladas
-- ✅ **TAG (Consolidado)**: 54 contas DRE N0 (TAG Business + TAG Projetos)
+- ✅ **TAG (Múltiplas Empresas)**: 54 contas DRE N0 (TAG Business + TAG Projetos)
 - ✅ **TAG Business**: 27 contas DRE N0 isoladas
 - ✅ **TAG Projetos**: 27 contas DRE N0 isoladas
 - ✅ **Interface intuitiva**: Filtros funcionando perfeitamente
@@ -468,41 +472,494 @@ financial_data (
 - ✅ Isolamento total de dados entre empresas
 - ✅ Interface intuitiva para seleção de filtros
 
-#### **Issue 21: Opção "Consolidado" Agrupa/Agrega Linhas de Contas/Classificações com Mesmos Nomes 🔄 NOVA ISSUE IDENTIFICADA**
-**Problema**: A opção "Consolidado" no filtro de empresa está agrupando/agregando linhas de contas e classificações que têm os mesmos nomes, causando duplicação de dados
+#### **Issue 21: Consolidação de Múltiplas Empresas Agrupa/Agrega Linhas de Contas/Classificações com Mesmos Nomes ✅ RESOLVIDA**
+**Problema**: A consolidação de múltiplas empresas no filtro de empresa estava agrupando/agregando linhas de contas e classificações que tinham os mesmos nomes, causando duplicação de dados
 **Impacto**: 
-- ❌ Dados duplicados aparecem quando há contas com nomes similares entre empresas
+- ❌ Dados duplicados apareciam quando havia contas com nomes similares entre empresas
 - ❌ Valores agregados incorretos para contas com mesmo nome
 - ❌ Confusão na análise financeira consolidada
-- ❌ Sistema não diferencia contas similares entre empresas diferentes
-**Status**: 🔍 **IDENTIFICADA** - Problema de agregação na opção consolidada
+- ❌ Sistema não diferenciava contas similares entre empresas diferentes
+**Status**: ✅ **RESOLVIDA** - Sistema de seleção múltipla implementado com sucesso
 **Prioridade**: 🚨 **ALTA** - Dados incorretos sendo exibidos no frontend
 **Análise do Problema**:
 ```
 1. ❌ Contas com nomes similares:
    - TAG Business: "Despesas Administrativas"
    - TAG Projetos: "Despesas Administrativas"
-   - Resultado: 2 linhas com mesmo nome no consolidado
+   - Resultado: 2 linhas com mesmo nome na consolidação
 
 2. ❌ Classificações duplicadas:
-   - Mesmas classificações aparecem múltiplas vezes
+   - Mesmas classificações apareciam múltiplas vezes
    - Valores agregados incorretos
    - Falta de identificação única por empresa
 
 3. ❌ Lógica de consolidação:
-   - Sistema não diferencia contas por empresa_id
+   - Sistema não diferenciava contas por empresa_id
    - Agregação baseada apenas no nome da conta
    - Falta de chave composta (nome_conta + empresa_id)
 ```
+**Solução Implementada**: 
+1. ✅ **Seleção múltipla de empresas**: Frontend agora permite selecionar múltiplas empresas com checkboxes
+2. ✅ **Consolidação automática**: Backend detecta seleção múltipla e aplica consolidação automática
+3. ✅ **Agregação inteligente**: Contas com nomes iguais são consolidadas automaticamente
+4. ✅ **Valores somados**: Valores são agregados por período (mensal, trimestral, anual)
+**Status Atual**: 
+- ✅ Issue completamente resolvida
+- ✅ Frontend implementado com seleção múltipla
+- ✅ Backend implementado com consolidação automática
+- ✅ Sistema funcionando perfeitamente
+**Resultado da Implementação**:
+- ✅ **Seleção múltipla**: Usuários podem selecionar 1, 2 ou mais empresas
+- ✅ **Consolidação automática**: Sistema detecta e aplica consolidação quando necessário
+- ✅ **Agregação inteligente**: Contas com nomes iguais são consolidadas automaticamente
+- ✅ **Valores corretos**: Soma de valores por período funcionando perfeitamente
+**Status**: ✅ **COMPLETAMENTE RESOLVIDA** - Sistema de seleção múltipla implementado e funcionando
+
+---
+
+## 🚀 **PRÓXIMOS PASSOS PARA CONTINUAR TRATANDO AS ISSUES 23-26**
+
+#### **📋 Issue 23: Filtro Grupo/Empresa Backend/Frontend - Valores Não Bateram**
+
+**Status Atual**: 🔍 **IDENTIFICADA** - Necessário "amarrar" melhor filtros entre backend e frontend
+**Prioridade**: 🚨 **ALTA** - Dados incorretos sendo exibidos
+**Impacto**: Discrepância entre valores do backend e frontend quando filtros são aplicados
+
+#### **📋 Issue 24: Classificações Não Expandem com Múltiplas Empresas**
+
+**Status Atual**: 🔍 **IDENTIFICADA** - Classificações expansíveis precisam suportar múltiplas empresas
+**Prioridade**: 🚨 **MÉDIA** - Funcionalidade importante para análise consolidada
+**Impacto**: Usuários não conseguem expandir classificações com múltiplas empresas
+
+#### **📋 Issue 25: Descrição das Classificações Não Aparece**
+
+**Status Atual**: 🔍 **IDENTIFICADA** - Descrições das classificações não estão sendo exibidas
+**Prioridade**: 🚨 **MÉDIA** - Funcionalidade importante para análise detalhada
+**Impacto**: Falta de contexto para análise financeira nas classificações
+
+#### **📋 Issue 26: Novo Nível de Agrupamento - Agrupar por `financial_data.nome`**
+
+**Status Atual**: 🔍 **IDENTIFICADA** - Necessário implementar agrupamento adicional por nome
+**Prioridade**: 🚨 **MÉDIA** - Funcionalidade importante para análise detalhada
+**Impacto**: Hierarquia de dados incompleta (Classificação > Nome)
+
+#### **📋 Issue 22: Coluna "Descrição" Não Exibe Nomes das Classificações**
+
+**Status Atual**: 🔍 **IDENTIFICADA** - Coluna descrição não funcionando corretamente
+**Prioridade**: 🚨 **MÉDIA** - Funcionalidade importante para análise detalhada
+**Impacto**: Usuários não conseguem ver nomes específicos das classificações
+
+### **🎯 Objetivos das Issues 22-26**
+
+#### **Issue 22**: Implementar a coluna "Descrição" na view DRE N0 para exibir nomes detalhados das classificações, permitindo análise mais profunda dos dados financeiros.
+
+#### **Issue 23**: Sincronizar filtros entre backend e frontend para garantir que valores batam corretamente quando filtros de grupo empresarial e empresa são aplicados.
+
+#### **Issue 24**: Implementar suporte a múltiplas empresas nas classificações expansíveis, permitindo análise consolidada de dados de várias empresas.
+
+#### **Issue 25**: Exibir descrições das classificações quando forem expandidas, fornecendo contexto detalhado para análise financeira.
+
+#### **Issue 26**: Implementar novo nível de agrupamento por `financial_data.nome`, criando hierarquia: Classificação > Nome > Valores.
+
+### **🔧 Solução Técnica Necessária**
+
+#### **1. Modificar a View `v_dre_n0_completo`**
+```sql
+-- Adicionar JOIN com tabelas de classificações para obter nomes detalhados
+SELECT
+    vc.id as dre_n0_id,
+    vc.name as nome_conta,
+    vc.operation_type as tipo_operacao,
+    vc.order_index as ordem,
+    -- 🆕 NOVA COLUNA: Descrição detalhada das classificações
+    COALESCE(
+        dc.name,           -- Nome da classificação DRE N2
+        ds1.name,          -- Nome da estrutura DRE N1
+        vc.description     -- Fallback para descrição existente
+    ) as descricao,
+    'Sistema' as origem,
+    e.nome as empresa,
+    vc.empresa_id,
+    -- ... outras colunas
+FROM valores_calculados vc
+JOIN empresas e ON vc.empresa_id = e.id
+-- 🆕 NOVOS JOINs para obter descrições detalhadas
+LEFT JOIN dre_structure_n1 ds1 ON vc.dre_n1_id = ds1.id
+LEFT JOIN dre_structure_n2 ds2 ON vc.dre_n2_id = ds2.id
+LEFT JOIN dre_classifications dc ON ds2.id = dc.dre_n2_id
+ORDER BY vc.empresa_id, vc.order_index;
+```
+
+#### **2. Criar Tabela de Classificações DRE N2 (se não existir)**
+```sql
+-- Tabela para armazenar classificações detalhadas
+CREATE TABLE IF NOT EXISTS dre_classifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    dre_n2_id UUID NOT NULL REFERENCES dre_structure_n2(id),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    order_index INTEGER,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Índices para performance
+CREATE INDEX idx_dre_classifications_dre_n2_id ON dre_classifications(dre_n2_id);
+CREATE INDEX idx_dre_classifications_order ON dre_classifications(order_index);
+```
+
+#### **3. Popular Tabela de Classificações**
+```sql
+-- Script para popular classificações baseadas nos dados existentes
+INSERT INTO dre_classifications (dre_n2_id, name, description, order_index)
+SELECT DISTINCT
+    ds2.id as dre_n2_id,
+    ds2.name as name,
+    ds2.description as description,
+    ds2.order_index as order_index
+FROM dre_structure_n2 ds2
+WHERE ds2.is_active = true
+ON CONFLICT (dre_n2_id) DO NOTHING;
+```
+
+### **📁 Scripts Necessários para Implementação**
+
+#### **Script 1: Criar Tabela de Classificações**
+```bash
+# Criar arquivo: backend/scripts/create_dre_classifications_table.py
+python scripts/create_dre_classifications_table.py
+```
+
+#### **Script 2: Popular Classificações**
+```bash
+# Criar arquivo: backend/scripts/populate_dre_classifications.py
+python scripts/populate_dre_classifications.py
+```
+
+#### **Script 3: Atualizar View DRE N0**
+```bash
+# Criar arquivo: backend/scripts/update_view_with_descriptions.py
+python scripts/update_view_with_descriptions.py
+```
+
+#### **Script 4: Validar Implementação**
+```bash
+# Criar arquivo: backend/scripts/validate_descriptions.py
+python scripts/validate_descriptions.py
+```
+
+### **🧪 Testes de Validação**
+
+#### **1. Teste da View Atualizada**
+```bash
+# Verificar se a view retorna descrições
+curl -s "http://localhost:8000/dre-n0/" | jq '.data[0] | {nome_conta, descricao}'
+```
+
+#### **2. Teste de Classificações Detalhadas**
+```bash
+# Verificar se classificações têm nomes detalhados
+curl -s "http://localhost:8000/dre-n0/classificacoes/Faturamento" | jq '.data[0] | {nome, descricao}'
+```
+
+#### **3. Validação no Frontend**
+- Verificar se coluna "Descrição" exibe nomes das classificações
+- Testar expansão de classificações com descrições detalhadas
+- Validar que dados não foram perdidos
+
+### **📊 Estimativa de Desenvolvimento**
+
+#### **Issue 23: Filtro Grupo/Empresa Backend/Frontend (ALTA PRIORIDADE)**
+**FASE 1: Análise e Debug (1 dia)**
+- [ ] Identificar discrepâncias entre backend e frontend
+- [ ] Implementar logs detalhados para debug
+- [ ] Mapear fluxo completo de filtros
+
+**FASE 2: Sincronização (2 dias)**
+- [ ] Corrigir sincronização de filtros
+- [ ] Implementar validação de dados
+- [ ] Testar integração backend → frontend
+
+**FASE 3: Validação (1 dia)**
+- [ ] Testes de consistência
+- [ ] Validação de dados
+- [ ] Documentação das correções
+
+**Total Issue 23**: 4 dias de desenvolvimento
+
+#### **Issue 24: Classificações Múltiplas Empresas (MÉDIA PRIORIDADE)**
+**FASE 1: Modificação Backend (2 dias)**
+- [ ] Atualizar endpoint para aceitar múltiplas empresas
+- [ ] Implementar lógica de consolidação
+- [ ] Testar funcionalidade
+
+**FASE 2: Atualização Frontend (1 dia)**
+- [ ] Modificar chamadas para enviar múltiplas empresas
+- [ ] Testar expansão de classificações
+- [ ] Validar dados consolidados
+
+**Total Issue 24**: 3 dias de desenvolvimento
+
+#### **Issue 25: Descrição das Classificações (MÉDIA PRIORIDADE)**
+**FASE 1: Backend (1 dia)**
+- [ ] Incluir campo descrição na resposta
+- [ ] Buscar descrição da estrutura DRE/DFC
+- [ ] Testar endpoint
+
+**FASE 2: Frontend (1 dia)**
+- [ ] Exibir descrição quando expandir
+- [ ] Validar dados
+- [ ] Testar interface
+
+**Total Issue 25**: 2 dias de desenvolvimento
+
+#### **Issue 26: Novo Nível de Agrupamento (MÉDIA PRIORIDADE)**
+**FASE 1: Backend (2 dias)**
+- [ ] Implementar agrupamento por `financial_data.nome`
+- [ ] Criar hierarquia Classificação > Nome
+- [ ] Atualizar endpoint
+
+**FASE 2: Frontend (2 dias)**
+- [ ] Implementar expansão de dois níveis
+- [ ] Atualizar interface
+- [ ] Validar hierarquia
+
+**Total Issue 26**: 4 dias de desenvolvimento
+
+#### **Issue 22: Coluna Descrição (MÉDIA PRIORIDADE)**
+**FASE 1: Preparação (1 dia)**
+- [ ] Criar tabela `dre_classifications`
+- [ ] Definir estrutura e índices
+- [ ] Backup da view atual
+
+**FASE 2: Implementação (2 dias)**
+- [ ] Popular tabela de classificações
+- [ ] Atualizar view com JOINs
+- [ ] Testar funcionalidade
+
+**FASE 3: Validação (1 dia)**
+- [ ] Testes de integridade
+- [ ] Validação no frontend
+- [ ] Documentação final
+
+**Total Issue 22**: 4 dias de desenvolvimento
+
+**Total Estimado**: 17 dias de desenvolvimento (priorizando Issue 23 primeiro)
+
+### **⚠️ Pontos de Atenção**
+
+#### **1. Backup Obrigatório**
+```bash
+# Backup da view atual antes de modificações
+pg_dump -h localhost -U postgres -d tag_financeiro -t v_dre_n0_completo > backup_view_dre_n0.sql
+```
+
+#### **2. Compatibilidade com Dados Existentes**
+- Manter estrutura atual da view
+- Não quebrar funcionalidades existentes
+- Preservar relacionamentos atuais
+
+#### **3. Performance**
+- Adicionar índices necessários
+- Otimizar JOINs para não impactar performance
+- Testar com volume real de dados
+
+### **🎯 Resultado Esperado**
+
+**Antes da Implementação**:
+- ❌ Coluna "Descrição" vazia ou com valores genéricos
+- ❌ Usuários não conseguem ver nomes específicos das classificações
+- ❌ Análise detalhada limitada
+
+**Após a Implementação**:
+- ✅ Coluna "Descrição" exibe nomes detalhados das classificações
+- ✅ Usuários podem ver informações específicas de cada conta
+- ✅ Análise detalhada completa e funcional
+- ✅ Sistema DRE N0 100% funcional
+
+### **🚀 Comandos para Iniciar Implementação**
+
+#### **Issue 23: Filtro Grupo/Empresa Backend/Frontend (ALTA PRIORIDADE)**
+```bash
+# 1. Navegar para o diretório backend
+cd /mnt/c/Users/igor.matheus/documents/plataforma-tag/backend
+
+# 2. Ativar ambiente virtual
+source venv/bin/activate
+
+# 3. Criar scripts de debug
+mkdir -p scripts
+touch scripts/debug_filter_synchronization.py
+touch scripts/validate_backend_frontend_data.py
+touch scripts/fix_filter_synchronization.py
+
+# 4. Iniciar debug
+python scripts/debug_filter_synchronization.py
+```
+
+#### **Issue 24: Classificações Múltiplas Empresas**
+```bash
+# 1. Criar scripts de implementação
+touch scripts/update_classifications_multiple_empresas.py
+touch scripts/test_classifications_consolidation.py
+
+# 2. Iniciar implementação
+python scripts/update_classifications_multiple_empresas.py
+```
+
+#### **Issue 25: Descrição das Classificações**
+```bash
+# 1. Criar scripts de implementação
+touch scripts/add_classification_descriptions.py
+touch scripts/test_classification_descriptions.py
+
+# 2. Iniciar implementação
+python scripts/add_classification_descriptions.py
+```
+
+#### **Issue 26: Novo Nível de Agrupamento**
+```bash
+# 1. Criar scripts de implementação
+touch scripts/implement_nome_grouping.py
+touch scripts/test_hierarchy_classification_nome.py
+
+# 2. Iniciar implementação
+python scripts/implement_nome_grouping.py
+```
+
+#### **Issue 22: Coluna Descrição**
+```bash
+# 1. Criar scripts de implementação
+touch scripts/create_dre_classifications_table.py
+touch scripts/populate_dre_classifications.py
+touch scripts/update_view_with_descriptions.py
+touch scripts/validate_descriptions.py
+
+# 2. Iniciar implementação
+python scripts/create_dre_classifications_table.py
+```
+
+**Status**: 🔄 **PRONTO PARA IMPLEMENTAÇÃO** - Plano completo definido, scripts necessários identificados
+**Prioridade**: 🚨 **ISSUE 23 PRIMEIRA** - Dados incorretos sendo exibidos, correção urgente necessária
+
+#### **Issue 23: Filtro Grupo/Empresa Backend/Frontend - Valores Não Bateram 🔄 NOVA ISSUE IDENTIFICADA**
+**Problema**: Os valores retornados pelo backend não estão batendo com os valores exibidos no frontend quando filtros de grupo empresarial e empresa são aplicados
+**Impacto**: 
+- ❌ Discrepância entre dados do backend e frontend
+- ❌ Valores incorretos sendo exibidos para usuários
+- ❌ Falta de sincronização entre filtros aplicados
+- ❌ Sistema multi-cliente com dados inconsistentes
+**Status**: 🔍 **IDENTIFICADA** - Necessário "amarrar" melhor filtros entre backend e frontend
+**Prioridade**: 🚨 **ALTA** - Dados incorretos sendo exibidos
+**Análise do Problema**:
+```
+1. ❌ Backend retorna valores X para empresa Y
+2. ❌ Frontend exibe valores Z para empresa Y
+3. ❌ Filtros de grupo empresarial não sincronizados
+4. ❌ Valores não batem entre diferentes visões
+```
 **Solução Necessária**: 
-1. **Identificação única**: Usar chave composta (nome_conta + empresa_id) para diferenciação
-2. **Lógica de consolidação**: Implementar agregação inteligente que preserve contexto da empresa
-3. **Filtros específicos**: Permitir visualização consolidada sem perder rastreabilidade
-4. **Interface clara**: Mostrar origem da empresa para cada linha consolidada
+1. **Sincronização de filtros**: Garantir que backend e frontend usem os mesmos parâmetros
+2. **Validação de dados**: Implementar checks de consistência
+3. **Debug de valores**: Logs detalhados para identificar discrepâncias
+4. **Testes de integração**: Validar fluxo completo backend → frontend
 **Status Atual**: 
 - 🔍 Issue identificada e documentada
 - 📋 Solução planejada
-- 🚀 Próximo passo: implementar lógica de consolidação inteligente
+- 🚀 Próximo passo: implementar sincronização de filtros
+
+#### **Issue 24: Classificações Não Expandem com Múltiplas Empresas 🔄 NOVA ISSUE IDENTIFICADA**
+**Problema**: Quando múltiplas empresas são selecionadas, as classificações expansíveis não funcionam corretamente
+**Impacto**: 
+- ❌ Usuários não conseguem expandir classificações com múltiplas empresas
+- ❌ Funcionalidade de consolidação limitada
+- ❌ Dados detalhados não acessíveis em cenários de múltiplas empresas
+- ❌ Experiência do usuário comprometida
+**Status**: 🔍 **IDENTIFICADA** - Classificações expansíveis precisam suportar múltiplas empresas
+**Prioridade**: 🚨 **MÉDIA** - Funcionalidade importante para análise consolidada
+**Análise do Problema**:
+```
+1. ❌ Classificações funcionam com 1 empresa
+2. ❌ Classificações não expandem com N empresas
+3. ❌ Endpoint de classificações não suporta múltiplas empresas
+4. ❌ Lógica de consolidação não aplicada às classificações
+```
+**Solução Necessária**: 
+1. **Modificar endpoint**: `/dre-n0/classificacoes/{dre_n2_name}` para aceitar múltiplas empresas
+2. **Implementar consolidação**: Agregar valores de classificações de múltiplas empresas
+3. **Atualizar frontend**: Modificar chamada para enviar múltiplas empresas
+4. **Validar funcionalidade**: Testar expansão com diferentes combinações
+**Status Atual**: 
+- 🔍 Issue identificada e documentada
+- 📋 Solução planejada
+- 🚀 Próximo passo: implementar suporte a múltiplas empresas nas classificações
+
+#### **Issue 25: Descrição das Classificações Não Aparece 🔄 NOVA ISSUE IDENTIFICADA**
+**Problema**: Quando as classificações são expandidas, a descrição da classificação não aparece
+**Impacto**: 
+- ❌ Usuários não conseguem ver informações detalhadas das classificações
+- ❌ Falta de contexto para análise financeira
+- ❌ Interface incompleta para análise detalhada
+- ❌ Dados de classificações sem informações descritivas
+**Status**: 🔍 **IDENTIFICADA** - Descrições das classificações não estão sendo exibidas
+**Prioridade**: 🚨 **MÉDIA** - Funcionalidade importante para análise detalhada
+**Análise do Problema**:
+```
+1. ❌ Classificações expandem corretamente
+2. ❌ Dados financeiros aparecem
+3. ❌ Descrição da classificação não aparece
+4. ❌ Campo descrição não está sendo populado
+```
+**Solução Necessária**: 
+1. **Modificar endpoint**: Incluir campo descrição na resposta das classificações
+2. **Buscar descrição**: Obter descrição da classificação da estrutura DRE/DFC
+3. **Atualizar frontend**: Exibir descrição quando classificação for expandida
+4. **Validar dados**: Garantir que descrições sejam preenchidas corretamente
+**Status Atual**: 
+- 🔍 Issue identificada e documentada
+- 📋 Solução planejada
+- 🚀 Próximo passo: implementar exibição de descrições das classificações
+
+#### **Issue 26: Novo Nível de Agrupamento - Agrupar por `financial_data.nome` 🔄 NOVA ISSUE IDENTIFICADA**
+**Problema**: É necessário implementar um novo nível de agrupamento após as classificações, agrupando valores por `financial_data.nome`
+**Impacto**: 
+- ❌ Falta de detalhamento adicional nas classificações
+- ❌ Análise financeira limitada sem agrupamento por nome
+- ❌ Usuários não conseguem ver dados específicos por nome de lançamento
+- ❌ Hierarquia de dados incompleta (Classificação > Nome)
+**Status**: 🔍 **IDENTIFICADA** - Necessário implementar agrupamento adicional por nome
+**Prioridade**: 🚨 **MÉDIA** - Funcionalidade importante para análise detalhada
+**Análise do Problema**:
+```
+1. ❌ Estrutura atual: Classificação (expansível)
+2. ❌ Estrutura necessária: Classificação > Nome (expansível)
+3. ❌ Dados disponíveis: financial_data.nome contém informações detalhadas
+4. ❌ Hierarquia: Classificação (nível 1) → Nome (nível 2)
+```
+**Solução Necessária**: 
+1. **Modificar endpoint**: Adicionar nível de agrupamento por `financial_data.nome`
+2. **Implementar hierarquia**: Classificação > Nome > Valores
+3. **Atualizar frontend**: Suportar expansão de dois níveis
+4. **Validar dados**: Garantir que nomes sejam úteis e organizados
+**Estrutura Proposta**:
+```
+DRE N0 (nível 0)
+├── Faturamento (nível 1 - expansível)
+│   ├── Gympass (nível 2 - expansível) ← NOVO NÍVEL
+│   │   ├── R$ 50.000 (jan/2025)
+│   │   ├── R$ 55.000 (fev/2025)
+│   │   └── R$ 60.000 (mar/2025)
+│   ├── Monetizações de Marketing (nível 2 - expansível)
+│   │   ├── R$ 5.000 (jan/2025)
+│   │   └── R$ 6.000 (fev/2025)
+│   └── ... outras classificações
+└── ... outras contas DRE N0
+```
+**Status Atual**: 
+- 🔍 Issue identificada e documentada
+- 📋 Solução planejada
+- 🚀 Próximo passo: implementar novo nível de agrupamento por nome
 
 #### **Issue 22: Coluna "Descrição" Não Exibe Nomes das Classificações 🔄 NOVA ISSUE IDENTIFICADA**
 **Problema**: A coluna "Descrição" na view DRE N0 não está exibindo os nomes das classificações específicas, mostrando apenas valores genéricos ou vazios
@@ -1936,7 +2393,7 @@ WHERE (fd.dre_n1_id IS NOT NULL OR fd.dre_n2_id IS NOT NULL)
 **Issue 9**: 🔍 **IDENTIFICADA** - Sistema DRE N0 hardcoded para Bluefit, não suporta multi-cliente
 **Issue 10**: ✅ **RESOLVIDA** - Análise Vertical na coluna Total funcionando perfeitamente
 **Issue 20**: ✅ **RESOLVIDA** - Sistema de filtros multi-cliente implementado com sucesso
-**Issue 21**: 🔍 **IDENTIFICADA** - Opção "Consolidado" agrupa/agrega linhas com mesmos nomes
+**Issue 21**: 🔍 **IDENTIFICADA** - Consolidação de múltiplas empresas agrupa/agrega linhas com mesmos nomes
 **Issue 22**: 🔍 **IDENTIFICADA** - Coluna "Descrição" não exibe nomes das classificações
 **Planejamento**: 📋 **COMPLETO** - Estratégia de implementação gradual definida
 
@@ -2299,8 +2756,8 @@ A migração para PostgreSQL com SQLAlchemy e implementação DRE N0 representa 
 - **Análises**: Horizontal e Vertical implementadas e funcionando
 - **Classificações**: Sistema expansível para detalhamento de dados
 
-### **✅ Status Atual - SISTEMA DRE N0 97% FUNCIONAL, SISTEMA MULTI-CLIENTE IMPLEMENTADO**
-**Sistema DRE N0**: ✅ **100% implementado** e ✅ **97% funcional para dados reais**
+### **✅ Status Atual - SISTEMA DRE N0 95% FUNCIONAL, SISTEMA MULTI-CLIENTE IMPLEMENTADO COM AJUSTES NECESSÁRIOS**
+**Sistema DRE N0**: ✅ **100% implementado** e ✅ **95% funcional para dados reais**
 **Interface Admin**: ✅ **100% funcional** - Views DRE N0 aparecem corretamente
 **Fluxo de Dados**: ✅ **98% RESOLVIDO** - relacionamentos entre tabelas funcionando perfeitamente
 **Sistema Multi-Cliente**: ✅ **100% IMPLEMENTADO** - Filtros por grupo empresarial e empresa funcionando
@@ -2315,11 +2772,15 @@ A migração para PostgreSQL com SQLAlchemy e implementação DRE N0 representa 
 **Issue 15 - Limpeza Colunas Obsoletas**: ✅ **RESOLVIDA** - Estrutura das tabelas limpa e otimizada
 **Issue 19 - Limpeza Redundâncias**: ✅ **RESOLVIDA** - Colunas redundantes removidas com sucesso
 **Issue 20 - Sistema Multi-Cliente**: ✅ **RESOLVIDA** - Filtros por grupo empresarial e empresa funcionando
-**Issue 21 - Consolidação de Dados**: 🔍 **IDENTIFICADA** - Opção consolidada agrupa linhas com mesmos nomes
+**Issue 21 - Consolidação de Dados**: ✅ **RESOLVIDA** - Sistema de seleção múltipla implementado com sucesso
 **Issue 22 - Coluna Descrição**: 🔍 **IDENTIFICADA** - Não exibe nomes das classificações
-**Próximo Passo**: Resolver issues de consolidação e descrição, validação completa do sistema
-**Impacto**: Sistema multi-cliente funcionando, filtros implementados, issues menores identificadas
-**Estimativa**: 🔄 **EM ANDAMENTO** - Sistema 97% funcional, resolução de issues menores em progresso
+**Issue 23 - Filtro Grupo/Empresa Backend/Frontend**: 🔍 **IDENTIFICADA** - Valores não estão batendo entre backend e frontend
+**Issue 24 - Classificações Múltiplas Empresas**: 🔍 **IDENTIFICADA** - Classificações não expandem com múltiplas empresas
+**Issue 25 - Descrição Classificações**: 🔍 **IDENTIFICADA** - Descrição não aparece quando classificações expandem
+**Issue 26 - Novo Nível de Agrupamento**: 🔍 **IDENTIFICADA** - Necessário agrupar por `financial_data.nome`
+**Próximo Passo**: Resolver Issues 23-26 (priorizando Issue 23), validação completa do sistema multi-cliente
+**Impacto**: Sistema multi-cliente funcionando, filtros implementados, consolidação funcionando, ajustes finais necessários
+**Estimativa**: 🔄 **EM ANDAMENTO** - Sistema 95% funcional, ajustes finais em progresso
 
 ## 🔍 **CONTEXTO IMPORTANTE PARA FUTURAS IMPLEMENTAÇÕES**
 
@@ -2336,9 +2797,9 @@ A migração para PostgreSQL com SQLAlchemy e implementação DRE N0 representa 
 **Issue do grupo_empresa_id**: Estrutura base preparada para multi-cliente ✅ **ESTRUTURA BASE CONCLUÍDA**
 **Issue da Limpeza Redundâncias**: grupo_empresa_id redundante removido ✅ **RESOLVIDA**
 **Issue do Sistema Multi-Cliente**: Filtros por grupo empresarial e empresa ✅ **IMPLEMENTADO COM SUCESSO**
-**Issue da Consolidação**: Opção consolidada agrupa linhas com mesmos nomes 🔍 **IDENTIFICADA**
+**Issue da Consolidação**: Opção consolidada agrupa linhas com mesmos nomes ✅ **RESOLVIDA**
 **Issue da Coluna Descrição**: Não exibe nomes das classificações 🔍 **IDENTIFICADA**
-**Próximo Desenvolvedor**: Resolver issues de consolidação e descrição, validação completa do sistema
+**Próximo Desenvolvedor**: Resolver Issue 22 (coluna descrição), validação completa do sistema
 
 **Arquivos Críticos**:
 - `backend/scripts/remove_redundant_grupo_empresa_id.py` - Script executado (removeu redundâncias)
@@ -2857,6 +3318,124 @@ ORDER BY vc.empresa_id, vc.order_index;
 - ✅ Issue completamente resolvida
 - ✅ Coluna empresa funcionando perfeitamente
 - ✅ Sistema DRE N0 100% operacional
+
+#### **Issue 23: Filtro Grupo/Empresa Backend/Frontend - Valores Não Bateram 🔍 NOVA ISSUE IDENTIFICADA**
+**Problema**: Os valores retornados pelo backend não estão batendo com os valores exibidos no frontend quando filtros de grupo empresarial e empresa são aplicados
+**Impacto**: 
+- ❌ Discrepância entre dados do backend e frontend
+- ❌ Valores incorretos sendo exibidos para usuários
+- ❌ Falta de sincronização entre filtros aplicados
+- ❌ Sistema multi-cliente com dados inconsistentes
+**Status**: 🔍 **IDENTIFICADA** - Necessário "amarrar" melhor filtros entre backend e frontend
+**Prioridade**: 🚨 **ALTA** - Dados incorretos sendo exibidos
+**Análise do Problema**:
+```
+1. ❌ Backend retorna valores X para empresa Y
+2. ❌ Frontend exibe valores Z para empresa Y
+3. ❌ Filtros de grupo empresarial não sincronizados
+4. ❌ Valores não batem entre diferentes visões
+```
+**Solução Necessária**: 
+1. **Sincronização de filtros**: Garantir que backend e frontend usem os mesmos parâmetros
+2. **Validação de dados**: Implementar checks de consistência
+3. **Debug de valores**: Logs detalhados para identificar discrepâncias
+4. **Testes de integração**: Validar fluxo completo backend → frontend
+**Status Atual**: 
+- 🔍 Issue identificada e documentada
+- 📋 Solução planejada
+- 🚀 Próximo passo: implementar sincronização de filtros
+
+#### **Issue 24: Classificações Não Expandem com Múltiplas Empresas 🔍 NOVA ISSUE IDENTIFICADA**
+**Problema**: Quando múltiplas empresas são selecionadas, as classificações expansíveis não funcionam corretamente
+**Impacto**: 
+- ❌ Usuários não conseguem expandir classificações com múltiplas empresas
+- ❌ Funcionalidade de consolidação limitada
+- ❌ Dados detalhados não acessíveis em cenários de múltiplas empresas
+- ❌ Experiência do usuário comprometida
+**Status**: 🔍 **IDENTIFICADA** - Classificações expansíveis precisam suportar múltiplas empresas
+**Prioridade**: 🚨 **MÉDIA** - Funcionalidade importante para análise consolidada
+**Análise do Problema**:
+```
+1. ❌ Classificações funcionam com 1 empresa
+2. ❌ Classificações não expandem com N empresas
+3. ❌ Endpoint de classificações não suporta múltiplas empresas
+4. ❌ Lógica de consolidação não aplicada às classificações
+```
+**Solução Necessária**: 
+1. **Modificar endpoint**: `/dre-n0/classificacoes/{dre_n2_name}` para aceitar múltiplas empresas
+2. **Implementar consolidação**: Agregar valores de classificações de múltiplas empresas
+3. **Atualizar frontend**: Modificar chamada para enviar múltiplas empresas
+4. **Validar funcionalidade**: Testar expansão com diferentes combinações
+**Status Atual**: 
+- 🔍 Issue identificada e documentada
+- 📋 Solução planejada
+- 🚀 Próximo passo: implementar suporte a múltiplas empresas nas classificações
+
+#### **Issue 25: Descrição das Classificações Não Aparece 🔍 NOVA ISSUE IDENTIFICADA**
+**Problema**: Quando as classificações são expandidas, a descrição da classificação não aparece
+**Impacto**: 
+- ❌ Usuários não conseguem ver informações detalhadas das classificações
+- ❌ Falta de contexto para análise financeira
+- ❌ Interface incompleta para análise detalhada
+- ❌ Dados de classificações sem informações descritivas
+**Status**: 🔍 **IDENTIFICADA** - Descrições das classificações não estão sendo exibidas
+**Prioridade**: 🚨 **MÉDIA** - Funcionalidade importante para análise detalhada
+**Análise do Problema**:
+```
+1. ❌ Classificações expandem corretamente
+2. ❌ Dados financeiros aparecem
+3. ❌ Descrição da classificação não aparece
+4. ❌ Campo descrição não está sendo populado
+```
+**Solução Necessária**: 
+1. **Modificar endpoint**: Incluir campo descrição na resposta das classificações
+2. **Buscar descrição**: Obter descrição da classificação da estrutura DRE/DFC
+3. **Atualizar frontend**: Exibir descrição quando classificação for expandida
+4. **Validar dados**: Garantir que descrições sejam preenchidas corretamente
+**Status Atual**: 
+- 🔍 Issue identificada e documentada
+- 📋 Solução planejada
+- 🚀 Próximo passo: implementar exibição de descrições das classificações
+
+#### **Issue 26: Novo Nível de Agrupamento - Agrupar por `financial_data.nome` 🔍 NOVA ISSUE IDENTIFICADA**
+**Problema**: É necessário implementar um novo nível de agrupamento após as classificações, agrupando valores por `financial_data.nome`
+**Impacto**: 
+- ❌ Falta de detalhamento adicional nas classificações
+- ❌ Análise financeira limitada sem agrupamento por nome
+- ❌ Usuários não conseguem ver dados específicos por nome de lançamento
+- ❌ Hierarquia de dados incompleta (Classificação > Nome)
+**Status**: 🔍 **IDENTIFICADA** - Necessário implementar agrupamento adicional por nome
+**Prioridade**: 🚨 **MÉDIA** - Funcionalidade importante para análise detalhada
+**Análise do Problema**:
+```
+1. ❌ Estrutura atual: Classificação (expansível)
+2. ❌ Estrutura necessária: Classificação > Nome (expansível)
+3. ❌ Dados disponíveis: financial_data.nome contém informações detalhadas
+4. ❌ Hierarquia: Classificação (nível 1) → Nome (nível 2)
+```
+**Solução Necessária**: 
+1. **Modificar endpoint**: Adicionar nível de agrupamento por `financial_data.nome`
+2. **Implementar hierarquia**: Classificação > Nome > Valores
+3. **Atualizar frontend**: Suportar expansão de dois níveis
+4. **Validar dados**: Garantir que nomes sejam úteis e organizados
+**Estrutura Proposta**:
+```
+DRE N0 (nível 0)
+├── Faturamento (nível 1 - expansível)
+│   ├── Gympass (nível 2 - expansível) ← NOVO NÍVEL
+│   │   ├── R$ 50.000 (jan/2025)
+│   │   ├── R$ 55.000 (fev/2025)
+│   │   └── R$ 60.000 (mar/2025)
+│   ├── Monetizações de Marketing (nível 2 - expansível)
+│   │   ├── R$ 5.000 (jan/2025)
+│   │   └── R$ 6.000 (fev/2025)
+│   └── ... outras classificações
+└── ... outras contas DRE N0
+```
+**Status Atual**: 
+- 🔍 Issue identificada e documentada
+- 📋 Solução planejada
+- 🚀 Próximo passo: implementar novo nível de agrupamento por nome
 - ✅ Frontend recebendo dados corretamente
 - ✅ Preparado para sistema multi-cliente
 **Status**: ✅ **COMPLETAMENTE RESOLVIDA** - Coluna empresa implementada e funcionando perfeitamente

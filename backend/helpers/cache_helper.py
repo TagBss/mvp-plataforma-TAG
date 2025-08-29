@@ -25,7 +25,6 @@ def get_cached_df(filename="db_bluefit - Copia.xlsx"):
         or now - _df_cache["last_loaded"] > CACHE_TIMEOUT
     ):
         try:
-            print(f"📂 Carregando arquivo Excel: {filename}")
             start_time = time.time()
             
             # Otimizar leitura do Excel - especificar aba "base"
@@ -37,14 +36,11 @@ def get_cached_df(filename="db_bluefit - Copia.xlsx"):
             )
             
             end_time = time.time()
-            print(f"⏱️ Arquivo carregado em {end_time - start_time:.2f}s")
-            print(f"📊 Dados carregados: {len(df)} linhas, {len(df.columns)} colunas")
             
             _df_cache["df"] = df
             _df_cache["last_loaded"] = now
             _df_cache["last_mtime"] = mtime
         except Exception as e:
-            print(f"❌ Erro ao carregar Excel: {e}")
             _df_cache["df"] = None
     return _df_cache["df"]
 

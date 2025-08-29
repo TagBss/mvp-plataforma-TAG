@@ -1204,30 +1204,13 @@ async def listar_empresas(grupo_empresa_id: Optional[str] = Query(None, descript
         
         resultado = []
         
-        if grupo_empresa_id:
-            # Adicionar opção "Consolidado" para o grupo
+        # Adicionar empresas (com ou sem filtro de grupo)
+        for empresa in empresas:
             resultado.append({
-                "id": f"{grupo_empresa_id}_consolidado",
-                "nome": "Consolidado",
-                "tipo": "consolidado",
+                "id": str(empresa[0]),  # id
+                "nome": str(empresa[1]),  # nome
                 "grupo_empresa_id": grupo_empresa_id
             })
-            
-            # Adicionar empresas do grupo
-            for empresa in empresas:
-                resultado.append({
-                    "id": str(empresa[0]),  # id
-                    "nome": str(empresa[1]),  # nome
-                    "tipo": "empresa"
-                })
-        else:
-            # Todas as empresas (sem opção consolidada)
-            for empresa in empresas:
-                resultado.append({
-                    "id": str(empresa[0]),  # id
-                    "nome": str(empresa[1]),  # nome
-                    "tipo": "empresa"
-                })
         
         return resultado
     except Exception as e:

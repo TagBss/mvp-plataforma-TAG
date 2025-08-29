@@ -661,3 +661,152 @@ class DreN0Helper:
             # NOVAS COLUNAS: AV total dinâmica por período
             # COLUNAS DE AV REMOVIDAS - frontend calcula tudo dinamicamente
         }
+
+    @staticmethod
+    def fetch_dre_n0_data_by_multiple_empresas(connection: Connection, empresa_ids: List[str]) -> List[Any]:
+        """Busca dados da view DRE N0 filtrados por múltiplas empresas com CONSOLIDAÇÃO AUTOMÁTICA"""
+        if not empresa_ids:
+            return []
+        
+        print(f"🏢 Aplicando consolidação automática para {len(empresa_ids)} empresas: {empresa_ids}")
+        
+        # 🆕 NOVA LÓGICA: Consolidação automática por nome_conta para múltiplas empresas
+        query = text("""
+            WITH dados_empresas AS (
+                SELECT 
+                    dre_n0_id,
+                    nome_conta,
+                    tipo_operacao,
+                    ordem,
+                    descricao,
+                    origem,
+                    empresa,
+                    empresa_id,
+                    valores_mensais,
+                    valores_trimestrais,
+                    valores_anuais,
+                    orcamentos_mensais,
+                    orcamentos_trimestrais,
+                    orcamentos_anuais,
+                    orcamento_total,
+                    valor_total,
+                    source
+                FROM v_dre_n0_completo
+                WHERE empresa_id = ANY(:empresas_ids)
+            ),
+            dados_expandidos AS (
+                SELECT 
+                    nome_conta,
+                    tipo_operacao,
+                    ordem,
+                    descricao,
+                    origem,
+                    empresa,
+                    empresa_id,
+                    valores_mensais,
+                    valores_trimestrais,
+                    valores_anuais,
+                    orcamentos_mensais,
+                    orcamentos_trimestrais,
+                    orcamentos_anuais,
+                    orcamento_total,
+                    valor_total,
+                    source,
+                    
+                    -- 🆕 Extrair períodos e valores para consolidação
+                    (jsonb_each_text(valores_mensais)).key as periodo_mensal,
+                    (jsonb_each_text(valores_mensais)).value::numeric as valor_mensal,
+                    (jsonb_each_text(valores_trimestrais)).key as periodo_trimestral,
+                    (jsonb_each_text(valores_trimestrais)).value::numeric as valor_trimestral,
+                    (jsonb_each_text(valores_anuais)).key as periodo_anual,
+                    (jsonb_each_text(valores_anuais)).value::numeric as valor_anual
+                    
+                FROM dados_empresas
+                WHERE valores_mensais != '{}'::jsonb 
+                   OR valores_trimestrais != '{}'::jsonb 
+                   OR valores_anuais != '{}'::jsonb
+            ),
+            valores_consolidados AS (
+                SELECT 
+                    nome_conta,
+                    tipo_operacao,
+                    ordem,
+                    descricao,
+                    origem,
+                    periodo_mensal,
+                    SUM(COALESCE(valor_mensal, 0)) as valor_mensal_consolidado,
+                    periodo_trimestral,
+                    SUM(COALESCE(valor_trimestral, 0)) as valor_trimestral_consolidado,
+                    periodo_anual,
+                    SUM(COALESCE(valor_anual, 0)) as valor_anual_consolidado
+                FROM dados_expandidos
+                GROUP BY nome_conta, tipo_operacao, ordem, descricao, origem, 
+                         periodo_mensal, periodo_trimestral, periodo_anual
+            ),
+            consolidacao AS (
+                SELECT 
+                    nome_conta,
+                    tipo_operacao,
+                    ordem,
+                    descricao,
+                    origem,
+                    'Múltiplas Empresas' as empresa,
+                    'MULTIPLAS_EMPRESAS' as empresa_id,
+                    
+                    -- 🆕 CONSOLIDAR valores mensais por nome_conta
+                    jsonb_object_agg(
+                        periodo_mensal, 
+                        valor_mensal_consolidado
+                    ) FILTER (WHERE periodo_mensal IS NOT NULL) as valores_mensais,
+                    
+                    -- 🆕 CONSOLIDAR valores trimestrais por nome_conta
+                    jsonb_object_agg(
+                        periodo_trimestral, 
+                        valor_trimestral_consolidado
+                    ) FILTER (WHERE periodo_trimestral IS NOT NULL) as valores_trimestrais,
+                    
+                    -- 🆕 CONSOLIDAR valores anuais por nome_conta
+                    jsonb_object_agg(
+                        periodo_anual, 
+                        valor_anual_consolidado
+                    ) FILTER (WHERE periodo_anual IS NOT NULL) as valores_anuais,
+                    
+                    -- Orçamentos (zerados por enquanto)
+                    '{}'::jsonb as orcamentos_mensais,
+                    '{}'::jsonb as orcamentos_trimestrais,
+                    '{}'::jsonb as orcamentos_anuais,
+                    0 as orcamento_total,
+                    
+                    -- 🆕 CONSOLIDAR valor total por nome_conta (soma de todos os períodos)
+                    SUM(valor_mensal_consolidado) + SUM(valor_trimestral_consolidado) + SUM(valor_anual_consolidado) as valor_total,
+                    
+                    'CONSOLIDADO_MULTIPLAS_EMPRESAS' as source
+                    
+                FROM valores_consolidados
+                GROUP BY nome_conta, tipo_operacao, ordem, descricao, origem
+            )
+            SELECT 
+                -- 🆕 Usar hash do nome_conta como ID único para consolidação
+                'MULTIPLAS_' || MD5(nome_conta)::text as dre_n0_id,
+                nome_conta,
+                tipo_operacao,
+                ordem,
+                descricao,
+                origem,
+                empresa,
+                empresa_id,
+                valores_mensais,
+                valores_trimestrais,
+                valores_anuais,
+                orcamentos_mensais,
+                orcamentos_trimestrais,
+                orcamentos_anuais,
+                orcamento_total,
+                valor_total,
+                source
+            FROM consolidacao
+            ORDER BY ordem, nome_conta
+        """)
+        
+        result = connection.execute(query, {"empresas_ids": empresa_ids})
+        return result.fetchall()
