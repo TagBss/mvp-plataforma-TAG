@@ -25,6 +25,8 @@ class ClassificacoesHelper:
         query = text("""
             SELECT DISTINCT 
                 pc.nome_conta as classificacao,
+                pc.nome_conta as nome,  -- 🆕 NOVO: Campo 'nome' para o frontend
+                pc.nome_conta as descricao,  -- 🆕 NOVO: Campo 'descricao' para exibição
                 fd.valor_original,
                 TO_CHAR(fd.competencia, 'YYYY-MM') as periodo_mensal,
                 CONCAT(EXTRACT(YEAR FROM fd.competencia), '-Q', EXTRACT(QUARTER FROM fd.competencia)) as periodo_trimestral,
@@ -160,7 +162,9 @@ class ClassificacoesHelper:
             classificacao = row.classificacao
             if classificacao not in classificacoes_agrupadas:
                 classificacoes_agrupadas[classificacao] = {
-                    'classificacao': classificacao,
+                    'nome': row.nome,  # 🆕 CORREÇÃO: Usar campo 'nome' da query
+                    'classificacao': classificacao,  # 🔄 MANTIDO: Campo original para compatibilidade
+                    'descricao': row.descricao,  # 🆕 NOVO: Usar campo 'descricao' da query
                     'valores_mensais': {},
                     'valores_trimestrais': {},
                     'valores_anuais': {},
@@ -201,3 +205,133 @@ class ClassificacoesHelper:
         classificacoes.sort(key=lambda x: abs(x['valor_total']), reverse=True)
         
         return classificacoes, meses, trimestres, anos
+
+    @staticmethod
+    def fetch_nomes_por_classificacao(connection: Connection, dre_n2_name: str, nome_classificacao: str, empresa_id: str = None) -> List[Any]:
+        """Busca dados de nomes (lançamentos) para uma classificação específica - NOVO NÍVEL DE EXPANSÃO"""
+        
+        print(f"🔍 Buscando nomes para classificação: {nome_classificacao} em DRE N2: {dre_n2_name}")
+        if empresa_id:
+            print(f"🏢 Filtrando por empresa_id: {empresa_id}")
+        else:
+            print("⚠️ Nenhum empresa_id fornecido - retornando dados de todas as empresas")
+        
+        # FLUXO: financial_data → de_para → plano_de_contas → classificacao_dre_n2 → nome
+        # NOVO NÍVEL: Agora buscamos por financial_data.nome para cada classificação
+        query = text("""
+            SELECT DISTINCT 
+                fd.nome as nome_lancamento,
+                fd.valor_original,
+                TO_CHAR(fd.competencia, 'YYYY-MM') as periodo_mensal,
+                CONCAT(EXTRACT(YEAR FROM fd.competencia), '-Q', EXTRACT(QUARTER FROM fd.competencia)) as periodo_trimestral,
+                EXTRACT(YEAR FROM fd.competencia)::text as periodo_anual,
+                fd.classificacao,
+                fd.observacao,
+                fd.documento,
+                fd.banco,
+                fd.conta_corrente
+            FROM financial_data fd
+            JOIN de_para dp ON fd.classificacao = dp.descricao_origem
+                AND dp.empresa_id = fd.empresa_id  -- ✅ ISOLAMENTO CRÍTICO
+            JOIN plano_de_contas pc ON dp.descricao_destino = pc.conta_pai
+                AND pc.empresa_id = fd.empresa_id  -- ✅ ISOLAMENTO CRÍTICO
+            WHERE pc.classificacao_dre_n2 LIKE '%' || :dre_n2_name || '%'
+            AND pc.nome_conta = :nome_classificacao  -- ✅ FILTRO POR CLASSIFICAÇÃO ESPECÍFICA
+            AND fd.nome IS NOT NULL 
+            AND fd.nome::text <> ''
+            AND fd.nome::text <> 'nan'
+            AND fd.valor_original IS NOT NULL 
+            AND fd.competencia IS NOT NULL
+            """ + ("AND fd.empresa_id = :empresa_id" if empresa_id else "") + """
+            ORDER BY fd.nome, TO_CHAR(fd.competencia, 'YYYY-MM')
+        """)
+        
+        # Preparar parâmetros da query
+        params = {
+            "dre_n2_name": dre_n2_name,
+            "nome_classificacao": nome_classificacao
+        }
+        if empresa_id:
+            params["empresa_id"] = empresa_id
+        
+        result = connection.execute(query, params)
+        dados = result.fetchall()
+        
+        print(f"📊 Encontrados {len(dados)} nomes únicos para classificação {nome_classificacao} em {dre_n2_name}")
+        if empresa_id:
+            print(f"🏢 Filtrados por empresa_id: {empresa_id}")
+        
+        # Mostrar alguns nomes encontrados para debug
+        if dados:
+            nomes_unicos = list(set([row.nome_lancamento for row in dados]))
+            print(f"🔍 Nomes encontrados: {nomes_unicos[:3]}...")
+        
+        return dados
+
+    @staticmethod
+    def process_nomes_por_classificacao(rows: List[Any], faturamento_rows: List[Any]) -> List[Dict]:
+        """Processa nomes por classificação e retorna dados estruturados - NOVO NÍVEL DE EXPANSÃO"""
+        
+        if not rows:
+            return [], set(), set(), set()
+        
+        # Processar nomes
+        nomes = []
+        meses = set()
+        trimestres = set()
+        anos = set()
+        
+        # Agrupar por nome (lançamento)
+        nomes_agrupados = {}
+        for row in rows:
+            nome_lancamento = row.nome_lancamento
+            if nome_lancamento not in nomes_agrupados:
+                nomes_agrupados[nome_lancamento] = {
+                    'nome': nome_lancamento,  # 🆕 CORREÇÃO: Campo 'nome' para o frontend
+                    'nome_lancamento': nome_lancamento,  # 🔄 MANTIDO: Campo original para compatibilidade
+                    'classificacao': row.classificacao,
+                    'descricao': nome_lancamento,  # 🆕 NOVO: Campo 'descricao' para exibição
+                    'valores_mensais': {},
+                    'valores_trimestrais': {},
+                    'valores_anuais': {},
+                    'total_lancamentos': 0,
+                    'valor_total': 0,
+                    'observacao': row.observacao,
+                    'documento': row.documento,
+                    'banco': row.banco,
+                    'conta_corrente': row.conta_corrente
+                }
+            
+            # Adicionar valores por período
+            periodo_mensal = row.periodo_mensal
+            periodo_trimestral = row.periodo_trimestral
+            periodo_anual = row.periodo_anual
+            valor = float(row.valor_original) if row.valor_original else 0
+            
+            # Mensal
+            if periodo_mensal not in nomes_agrupados[nome_lancamento]['valores_mensais']:
+                nomes_agrupados[nome_lancamento]['valores_mensais'][periodo_mensal] = 0
+            nomes_agrupados[nome_lancamento]['valores_mensais'][periodo_mensal] += valor
+            meses.add(periodo_mensal)
+            
+            # Trimestral
+            if periodo_trimestral not in nomes_agrupados[nome_lancamento]['valores_trimestrais']:
+                nomes_agrupados[nome_lancamento]['valores_trimestrais'][periodo_trimestral] = 0
+            nomes_agrupados[nome_lancamento]['valores_trimestrais'][periodo_trimestral] += valor
+            trimestres.add(periodo_trimestral)
+            
+            # Anual
+            if periodo_anual not in nomes_agrupados[nome_lancamento]['valores_anuais']:
+                nomes_agrupados[nome_lancamento]['valores_anuais'][periodo_anual] = 0
+            nomes_agrupados[nome_lancamento]['valores_anuais'][periodo_anual] += valor
+            anos.add(periodo_anual)
+            
+            # Totais
+            nomes_agrupados[nome_lancamento]['total_lancamentos'] += 1
+            nomes_agrupados[nome_lancamento]['valor_total'] += valor
+        
+        # Converter para lista e ordenar por valor total
+        nomes = list(nomes_agrupados.values())
+        nomes.sort(key=lambda x: abs(x['valor_total']), reverse=True)
+        
+        return nomes, meses, trimestres, anos

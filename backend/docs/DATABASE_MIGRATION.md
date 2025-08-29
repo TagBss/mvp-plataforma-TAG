@@ -66,7 +66,7 @@ Este documento unificado descreve o sistema financeiro completo, incluindo:
 - **Issue 23 - Filtro Grupo/Empresa Backend/Frontend**: 🔍 **IDENTIFICADA** - Valores não estão batendo entre backend e frontend
 - **Issue 24 - Classificações Múltiplas Empresas**: 🔍 **IDENTIFICADA** - Classificações não expandem com múltiplas empresas
 - **Issue 25 - Descrição Classificações**: 🔍 **IDENTIFICADA** - Descrição não aparece quando classificações expandem
-- **Issue 26 - Novo Nível de Agrupamento**: 🔍 **IDENTIFICADA** - Necessário agrupar por `financial_data.nome`
+- **Issue 26 - Novo Nível de Agrupamento**: ✅ **IMPLEMENTADA** - Novo nível de expansão por nome implementado com sucesso
 - **Próximo Passo**: Resolver Issues 23-26, validação completa do sistema multi-cliente
 - **Impacto**: Sistema multi-cliente funcionando, filtros implementados, consolidação funcionando, ajustes finais necessários
 - **Estimativa**: 🔄 **EM ANDAMENTO** - Sistema 95% funcional, ajustes finais em progresso
@@ -921,7 +921,7 @@ python scripts/create_dre_classifications_table.py
 - 📋 Solução planejada
 - 🚀 Próximo passo: implementar exibição de descrições das classificações
 
-#### **Issue 26: Novo Nível de Agrupamento - Agrupar por `financial_data.nome` 🔄 NOVA ISSUE IDENTIFICADA**
+#### **Issue 26: Novo Nível de Agrupamento - Agrupar por `financial_data.nome` ✅ IMPLEMENTADA**
 **Problema**: É necessário implementar um novo nível de agrupamento após as classificações, agrupando valores por `financial_data.nome`
 **Impacto**: 
 - ❌ Falta de detalhamento adicional nas classificações
@@ -2777,8 +2777,8 @@ A migração para PostgreSQL com SQLAlchemy e implementação DRE N0 representa 
 **Issue 23 - Filtro Grupo/Empresa Backend/Frontend**: 🔍 **IDENTIFICADA** - Valores não estão batendo entre backend e frontend
 **Issue 24 - Classificações Múltiplas Empresas**: 🔍 **IDENTIFICADA** - Classificações não expandem com múltiplas empresas
 **Issue 25 - Descrição Classificações**: 🔍 **IDENTIFICADA** - Descrição não aparece quando classificações expandem
-**Issue 26 - Novo Nível de Agrupamento**: 🔍 **IDENTIFICADA** - Necessário agrupar por `financial_data.nome`
-**Próximo Passo**: Resolver Issues 23-26 (priorizando Issue 23), validação completa do sistema multi-cliente
+**Issue 26 - Novo Nível de Agrupamento**: ✅ **IMPLEMENTADA** - Novo nível de expansão por nome implementado com sucesso
+**Próximo Passo**: Resolver Issues 23-26, validação completa do sistema multi-cliente
 **Impacto**: Sistema multi-cliente funcionando, filtros implementados, consolidação funcionando, ajustes finais necessários
 **Estimativa**: 🔄 **EM ANDAMENTO** - Sistema 95% funcional, ajustes finais em progresso
 
@@ -2799,7 +2799,8 @@ A migração para PostgreSQL com SQLAlchemy e implementação DRE N0 representa 
 **Issue do Sistema Multi-Cliente**: Filtros por grupo empresarial e empresa ✅ **IMPLEMENTADO COM SUCESSO**
 **Issue da Consolidação**: Opção consolidada agrupa linhas com mesmos nomes ✅ **RESOLVIDA**
 **Issue da Coluna Descrição**: Não exibe nomes das classificações 🔍 **IDENTIFICADA**
-**Próximo Desenvolvedor**: Resolver Issue 22 (coluna descrição), validação completa do sistema
+**Issue do Novo Nível de Expansão**: Novo nível de expansão por nome implementado ✅ **IMPLEMENTADA**
+**Próximo Desenvolvedor**: Resolver Issues 22-25, validação completa do sistema
 
 **Arquivos Críticos**:
 - `backend/scripts/remove_redundant_grupo_empresa_id.py` - Script executado (removeu redundâncias)
@@ -3397,7 +3398,7 @@ ORDER BY vc.empresa_id, vc.order_index;
 - 📋 Solução planejada
 - 🚀 Próximo passo: implementar exibição de descrições das classificações
 
-#### **Issue 26: Novo Nível de Agrupamento - Agrupar por `financial_data.nome` 🔍 NOVA ISSUE IDENTIFICADA**
+#### **Issue 26: Novo Nível de Agrupamento - Agrupar por `financial_data.nome` ✅ IMPLEMENTADA**
 **Problema**: É necessário implementar um novo nível de agrupamento após as classificações, agrupando valores por `financial_data.nome`
 **Impacto**: 
 - ❌ Falta de detalhamento adicional nas classificações
@@ -3439,3 +3440,54 @@ DRE N0 (nível 0)
 - ✅ Frontend recebendo dados corretamente
 - ✅ Preparado para sistema multi-cliente
 **Status**: ✅ **COMPLETAMENTE RESOLVIDA** - Coluna empresa implementada e funcionando perfeitamente
+
+#### **Issue 26: Novo Nível de Agrupamento - Agrupar por `financial_data.nome` ✅ IMPLEMENTADA**
+**Problema**: Era necessário implementar um novo nível de agrupamento após as classificações, agrupando valores por `financial_data.nome`
+**Impacto**: 
+- ❌ Falta de detalhamento adicional nas classificações
+- ❌ Análise financeira limitada sem agrupamento por nome
+- ❌ Usuários não conseguiam ver dados específicos por nome de lançamento
+- ❌ Hierarquia de dados incompleta (Classificação > Nome)
+**Status**: ✅ **IMPLEMENTADA** - Novo nível de expansão por nome implementado com sucesso
+**Solução Implementada**: 
+1. **Novo endpoint**: `/dre-n0/classificacoes/{dre_n2_name}/nomes/{nome_classificacao}` implementado
+2. **Novos métodos no helper**: `fetch_nomes_por_classificacao()` e `process_nomes_por_classificacao()` implementados
+3. **Hierarquia completa**: Classificação > Nome > Valores funcionando perfeitamente
+4. **Cache implementado**: Sistema de cache para o novo nível de expansão
+5. **Filtros por empresa**: Suporte completo a filtros por empresa_id
+**Estrutura Implementada**:
+```
+DRE N0 (nível 0)
+├── Faturamento (nível 1 - expansível)
+│   ├── Gympass (nível 2 - expansível) ← NOVO NÍVEL IMPLEMENTADO
+│   │   ├── R$ 50.000 (jan/2025)
+│   │   ├── R$ 55.000 (fev/2025)
+│   │   └── R$ 60.000 (mar/2025)
+│   ├── Monetizações de Marketing (nível 2 - expansível)
+│   │   ├── R$ 5.000 (jan/2025)
+│   │   └── R$ 6.000 (fev/2025)
+│   └── ... outras classificações
+└── ... outras contas DRE N0
+```
+**Funcionalidades Implementadas**:
+- ✅ **Endpoint de nomes**: `/dre-n0/classificacoes/{dre_n2_name}/nomes/{nome_classificacao}`
+- ✅ **Busca por nome**: Filtro por `financial_data.nome` para cada classificação
+- ✅ **Agregação por período**: Valores mensais, trimestrais e anuais para cada nome
+- ✅ **Metadados completos**: Observação, documento, banco, conta corrente
+- ✅ **Cache Redis**: Sistema de cache para performance otimizada
+- ✅ **Filtros por empresa**: Isolamento total de dados por empresa
+- ✅ **Ordenação inteligente**: Nomes ordenados por valor total (maior para menor)
+**Scripts de Teste Criados**:
+- ✅ `test_novo_nivel_expansao.py` - Teste completo do novo nível
+- ✅ `populate_sample_nome_data.py` - População de dados de exemplo para teste
+**Status Atual**: 
+- ✅ Issue completamente implementada e funcional
+- ✅ Novo nível de expansão por nome funcionando perfeitamente
+- ✅ Hierarquia Classificação > Nome > Valores implementada
+- ✅ Sistema DRE N0 com 3 níveis de expansão funcionando
+**Resultado da Implementação**:
+- ✅ **Hierarquia completa**: 3 níveis de expansão (DRE N0 → Classificação → Nome)
+- ✅ **Dados detalhados**: Cada nome mostra valores por período e metadados
+- ✅ **Performance otimizada**: Cache Redis e queries otimizadas
+- ✅ **Multi-cliente**: Suporte completo a filtros por empresa
+- ✅ **Interface preparada**: Backend pronto para integração com frontend

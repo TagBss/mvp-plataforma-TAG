@@ -689,6 +689,88 @@ async def get_classificacoes_dre_n2(
             detail=f"Erro ao buscar classificações para {dre_n2_name}: {str(e)}"
         )
 
+@router.get("/classificacoes/{dre_n2_name}/nomes/{nome_classificacao}")
+async def get_nomes_por_classificacao(
+    dre_n2_name: str,
+    nome_classificacao: str,
+    empresa_id: Optional[str] = Query(None, description="ID da empresa para filtrar dados")
+):
+    """Retorna os nomes (lançamentos) de uma classificação específica - NOVO NÍVEL DE EXPANSÃO"""
+    
+    start_time = time.time()
+    print(f"🔍 Buscando nomes para classificação: {nome_classificacao} em DRE N2: {dre_n2_name}")
+    if empresa_id:
+        print(f"🏢 Filtrando por empresa_id: {empresa_id}")
+    
+    try:
+        # Tentar buscar do cache primeiro (se não houver filtro de empresa)
+        cache = await get_cache()
+        cache_key = f"nomes:{dre_n2_name}:{nome_classificacao}"
+        if empresa_id:
+            cache_key += f":empresa_{empresa_id}"
+        cached_result = await cache.get(cache_key)
+        
+        if cached_result:
+            print(f"⚡ Cache HIT - Nomes retornados em {time.time() - start_time:.3f}s")
+            return cached_result
+        
+        print(f"🔄 Cache MISS - Executando query nomes...")
+        
+        engine = get_engine()
+        
+        with engine.connect() as connection:
+            # Usar helper de nomes com filtro de empresa
+            rows = ClassificacoesHelper.fetch_nomes_por_classificacao(connection, dre_n2_name, nome_classificacao, empresa_id)
+            
+            if not rows:
+                return {
+                    "success": False,
+                    "message": f"Nenhum nome encontrado para classificação {nome_classificacao} em {dre_n2_name}" + (f" na empresa {empresa_id}" if empresa_id else ""),
+                    "data": [],
+                    "dre_n2": dre_n2_name,
+                    "nome_classificacao": nome_classificacao,
+                    "empresa_id": empresa_id
+                }
+            
+            # Buscar dados de faturamento para análise vertical com filtro de empresa
+            faturamento_rows = ClassificacoesHelper.fetch_faturamento_data(connection, empresa_id)
+            
+            # Processar nomes
+            nomes, meses, trimestres, anos = ClassificacoesHelper.process_nomes_por_classificacao(rows, faturamento_rows)
+            
+            # Ordenar períodos
+            meses_ordenados = sorted(list(meses))
+            trimestres_ordenados = sorted(list(trimestres))
+            anos_ordenados = sorted(list(anos))
+            
+            response_data = {
+                "success": True,
+                "dre_n2": dre_n2_name,
+                "nome_classificacao": nome_classificacao,
+                "empresa_id": empresa_id,
+                "meses": meses_ordenados,
+                "trimestres": trimestres_ordenados,
+                "anos": anos_ordenados,
+                "data": nomes,
+                "total_nomes": len(nomes)
+            }
+            
+            # Salvar no cache com TTL de 5 minutos
+            await cache.set(cache_key, response_data, ttl=300)
+            
+            execution_time = time.time() - start_time
+            print(f"✅ Nomes processados com sucesso: {len(nomes)} itens em {execution_time:.3f}s")
+            if empresa_id:
+                print(f"🏢 Filtradas por empresa_id: {empresa_id}")
+            return response_data
+            
+    except Exception as e:
+        print(f"❌ Erro: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao buscar nomes para classificação {nome_classificacao} em {dre_n2_name}: {str(e)}"
+        )
+
 @router.post("/cache/invalidate")
 async def invalidate_cache():
     """Invalida todo o cache relacionado ao DRE"""

@@ -30,6 +30,8 @@ type DreItem = {
   orcamentos_anuais?: Record<string, number>
   orcamento_total?: number
   classificacoes?: DreItem[]
+  // 🆕 NOVO: Campo para nomes (lançamentos) de uma classificação
+  nomes?: DreItem[]
   descricao?: string // Adicionado para a nova renderização
   // Análise Horizontal e Vertical (campos padrão)
   analise_horizontal_mensal?: Record<string, number | string>
@@ -82,6 +84,8 @@ export default function DreTablePostgreSQL() {
   const [dataSource, setDataSource] = useState<string>("")
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
   const [classificacoesCache, setClassificacoesCache] = useState<Record<string, DreItem[]>>({})
+  // 🆕 NOVO: Cache para nomes (lançamentos) de classificações
+  const [nomesCache, setNomesCache] = useState<Record<string, DreItem[]>>({})
   const [showValoresZerados, setShowValoresZerados] = useState<boolean>(false)
   
   // 🆕 NOVO ESTADO: Empresa e Grupo Empresarial selecionados
@@ -274,6 +278,45 @@ export default function DreTablePostgreSQL() {
     setAllExpanded(novoEstado)
   }
 
+  // 🆕 NOVO: Função para buscar nomes (lançamentos) de uma classificação
+  const buscarNomes = async (dreN2Name: string, nomeClassificacao: string) => {
+    if (empresasSelecionadas.length === 0) {
+      console.error("❌ Nenhuma empresa selecionada")
+      return []
+    }
+    
+    try {
+      // Cache baseado em múltiplas empresas e classificação
+      const empresasIds = empresasSelecionadas.join(',')
+      const cacheKey = `${dreN2Name}_${nomeClassificacao}_${empresasIds}`
+      if (nomesCache[cacheKey]) {
+        return nomesCache[cacheKey]
+      }
+
+      console.log(`🔍 Buscando nomes para classificação ${nomeClassificacao} em ${dreN2Name} nas empresas ${empresasIds}`)
+      
+      const response = await api.get(`/dre-n0/classificacoes/${encodeURIComponent(dreN2Name)}/nomes/${encodeURIComponent(nomeClassificacao)}?empresa_id=${empresasIds}`)
+      
+      if (response.data.success) {
+        const nomes = response.data.data
+        
+        // Adicionar ao cache com chave única
+        setNomesCache(prev => ({
+          ...prev,
+          [cacheKey]: nomes
+        }))
+        
+        return nomes
+      } else {
+        console.log(`⚠️ Nenhum nome encontrado para classificação ${nomeClassificacao}`)
+        return []
+      }
+    } catch (error) {
+      console.error(`❌ Erro ao buscar nomes para classificação ${nomeClassificacao}:`, error)
+      return []
+    }
+  }
+
   // Função para buscar classificações de uma conta DRE N2
   const buscarClassificacoes = async (dreN2Name: string) => {
     if (empresasSelecionadas.length === 0) {
@@ -311,6 +354,69 @@ export default function DreTablePostgreSQL() {
       console.error(`❌ Erro ao buscar classificações para ${dreN2Name}:`, error)
       return []
     }
+  }
+
+  // Função para expandir/colapsar classificação com nomes
+  const toggleExpansaoNomes = async (dreN2Name: string, classificacao: DreItem) => {
+    const cacheKey = `${dreN2Name}_${classificacao.nome}`
+    const isExpanded = nomesCache[cacheKey] !== undefined
+    
+    if (!isExpanded) {
+      // Expandir: buscar nomes
+      console.log(`🔽 Expandindo nomes para classificação: ${classificacao.nome}`)
+      const nomes = await buscarNomes(dreN2Name, classificacao.nome)
+      console.log(`📊 Nomes recebidos:`, nomes)
+      
+      // Atualizar a classificação com os nomes
+      setData(prevData => 
+        prevData.map(d => 
+          d.nome === dreN2Name && d.classificacoes
+            ? {
+                ...d,
+                classificacoes: d.classificacoes.map(c => 
+                  c.nome === classificacao.nome 
+                    ? { ...c, nomes } 
+                    : c
+                )
+              }
+            : d
+        )
+      )
+      
+      // Atualizar cache
+      setNomesCache(prev => ({
+        ...prev,
+        [cacheKey]: nomes
+      }))
+    } else {
+      // Colapsar: remover nomes
+      console.log(`🔼 Recolhendo nomes para classificação: ${classificacao.nome}`)
+      
+      // Atualizar a classificação removendo os nomes
+      setData(prevData => 
+        prevData.map(d => 
+          d.nome === dreN2Name && d.classificacoes
+            ? {
+                ...d,
+                classificacoes: d.classificacoes.map(c => 
+                  c.nome === classificacao.nome 
+                    ? { ...c, nomes: undefined } 
+                    : c
+                )
+              }
+            : d
+        )
+      )
+      
+      // Remover do cache
+      setNomesCache(prev => {
+        const newCache = { ...prev }
+        delete newCache[cacheKey]
+        return newCache
+      })
+    }
+    
+    console.log(`✅ Estado de expansão de nomes para ${classificacao.nome}: ${!isExpanded}`)
   }
 
   // Função para expandir todas as classificações
@@ -1306,122 +1412,156 @@ export default function DreTablePostgreSQL() {
                           )
                           
                           return (
-                            <TableRow key={`${item.nome}-${classificacao.nome}`} className="bg-muted">
-                              <TableCell className="py-2 md:sticky md:left-0 md:z-20 bg-muted border-r border-border pl-8">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm text-muted-foreground">
-                                    {classificacao.nome}
-                                  </span>
-                                </div>
-                              </TableCell>
+                                                         <React.Fragment key={`${item.nome}-${classificacao.nome}`}>
+                              <TableRow>
+                                <TableCell className="py-2 md:sticky md:left-0 md:z-20 bg-muted border-r border-border pl-8">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm text-muted-foreground">
+                                      {classificacao.nome}
+                                    </span>
+                                    {/* 🆕 NOVO: Botão para expandir nomes da classificação */}
+                                    <button
+                                      onClick={() => toggleExpansaoNomes(item.nome, classificacao)}
+                                      className="p-1 hover:bg-muted/50 rounded transition-colors"
+                                      title={classificacao.nomes ? "Colapsar nomes" : "Expandir nomes"}
+                                    >
+                                      <ChevronDown 
+                                        className={`h-3 w-3 transition-transform ${
+                                          classificacao.nomes ? 'rotate-180' : ''
+                                        }`} 
+                                      />
+                                    </button>
+                                  </div>
+                                </TableCell>
 
-                              {periodosFiltrados.map(p => {
-                                const valor = calcularValor(classificacao, p)
-                                const orcamento = calcularOrcamento(classificacao, p)
-                                const analiseHorizontal = calcularAnaliseHorizontal(classificacao, p)
-                                const analiseVertical = calcularAnaliseVertical(classificacao, p)
-                                
-                                return (
-                                  <React.Fragment key={`${p}-class`}>
-                                    <TableCell className="text-right py-2">
-                                      {renderValor(valor)}
-                                    </TableCell>
-                                    {showOrcado && (
+                                {periodosFiltrados.map(p => {
+                                  const valor = calcularValor(classificacao, p)
+                                  const orcamento = calcularOrcamento(classificacao, p)
+                                  const analiseHorizontal = calcularAnaliseHorizontal(classificacao, p)
+                                  const analiseVertical = calcularAnaliseVertical(classificacao, p)
+                                  
+                                  return (
+                                    <React.Fragment key={`${p}-class`}>
                                       <TableCell className="text-right py-2">
-                                        {renderValorOrcamento(orcamento)}
+                                        {renderValor(valor)}
                                       </TableCell>
-                                    )}
-                                    {showDiferenca && (
-                                      <TableCell className="text-right py-2">
-                                        {renderValorDiferenca(valor, orcamento)}
-                                      </TableCell>
-                                    )}
-                                    {showAnaliseVertical && (
-                                      <TableCell className="text-center py-2 border-l">
-                                        {renderAnaliseVertical(analiseVertical)}
-                                      </TableCell>
-                                    )}
-                                    {showAnaliseHorizontal && (
-                                      <TableCell className="text-center py-2 border-l">
-                                        {renderAnaliseHorizontal(analiseHorizontal)}
-                                      </TableCell>
-                                    )}
-                                  </React.Fragment>
-                                )
-                              })}
+                                      {showOrcado && (
+                                        <TableCell className="text-right py-2">
+                                          {renderValorOrcamento(orcamento)}
+                                        </TableCell>
+                                      )}
+                                      {showDiferenca && (
+                                        <TableCell className="text-right py-2">
+                                          {renderValorDiferenca(valor, orcamento)}
+                                        </TableCell>
+                                      )}
+                                      {showAnaliseVertical && (
+                                        <TableCell className="text-center py-2 border-l">
+                                          {renderAnaliseVertical(analiseVertical)}
+                                        </TableCell>
+                                      )}
+                                      {showAnaliseHorizontal && (
+                                        <TableCell className="text-center py-2 border-l">
+                                          {renderAnaliseHorizontal(analiseHorizontal)}
+                                        </TableCell>
+                                      )}
+                                    </React.Fragment>
+                                  )
+                                })}
 
-                              <TableCell className="text-right font-medium py-2">
-                                {renderValor(totalClass)}
-                              </TableCell>
-                              {showOrcado && (
                                 <TableCell className="text-right font-medium py-2">
-                                  {renderValorOrcamento(0)}
+                                  {renderValor(totalClass)}
                                 </TableCell>
-                              )}
-                              {showDiferenca && (
-                                <TableCell className="text-right font-medium py-2">
-                                  {renderValorDiferenca(totalClass, 0)}
-                                </TableCell>
-                              )}
-                              {showAnaliseVertical && (
-                                <TableCell className="text-center font-medium py-2 border-l">
-                                  {(() => {
-                                    // REUTILIZAR LÓGICA EXISTENTE: Calcular AV total usando a mesma lógica das outras colunas
-                                    let avValue = '0.0%';
-                                    
-                                    // Buscar dados de faturamento para calcular a base
-                                    const faturamentoItem = data.find(item => item.nome === 'Faturamento');
-                                    if (!faturamentoItem) return '0.0%';
-                                    
-                                    // Calcular total da classificação para o período selecionado
-                                    let totalClassificacao = 0;
-                                    if (periodo === 'mes') {
-                                      totalClassificacao = periodosFiltrados.reduce((sum, mes) => {
-                                        return sum + (classificacao.valores_mensais?.[mes] || 0);
-                                      }, 0);
-                                    } else if (periodo === 'trimestre') {
-                                      totalClassificacao = periodosFiltrados.reduce((sum, tri) => {
-                                        return sum + (classificacao.valores_trimestrais?.[tri] || 0);
-                                      }, 0);
-                                    } else if (periodo === 'ano') {
-                                      totalClassificacao = periodosFiltrados.reduce((sum, ano) => {
-                                        return sum + (classificacao.valores_anuais?.[ano] || 0);
-                                      }, 0);
-                                    }
-                                    
-                                    // CORREÇÃO: Para a coluna Total, usar o TOTAL do faturamento (soma de todos os períodos)
-                                    // não o faturamento de um período específico
-                                    let totalFaturamento = 0;
-                                    if (periodo === 'mes') {
-                                      totalFaturamento = periodosFiltrados.reduce((sum, mes) => {
-                                        return sum + (faturamentoItem.valores_mensais?.[mes] || 0);
-                                      }, 0);
-                                    } else if (periodo === 'trimestre') {
-                                      totalFaturamento = periodosFiltrados.reduce((sum, tri) => {
-                                        return sum + (faturamentoItem.valores_trimestrais?.[tri] || 0);
-                                      }, 0);
-                                    } else if (periodo === 'ano') {
-                                      totalFaturamento = periodosFiltrados.reduce((sum, ano) => {
-                                        return sum + (faturamentoItem.valores_anuais?.[ano] || 0);
-                                      }, 0);
-                                    }
-                                    
-                                    // CORREÇÃO: Para coluna Total, usar totalFaturamento (soma de todos os períodos)
-                                    // não faturamentoPeriodo (apenas um período)
-                                    if (totalFaturamento > 0) {
-                                        const avPercentual = (totalClassificacao / totalFaturamento) * 100;
-                                        avValue = `${avPercentual.toFixed(1)}%`;
-                                    } else {
-                                        // Quando faturamento total é zero, retornar "-"
-                                        avValue = '-';
-                                    }
-                                    
-                                    return avValue;
-                                  })()}
-                                </TableCell>
-                              )}
+                                {showOrcado && (
+                                  <TableCell className="text-right font-medium py-2">
+                                    {renderValorOrcamento(0)}
+                                  </TableCell>
+                                )}
+                                {showDiferenca && (
+                                  <TableCell className="text-right font-medium py-2">
+                                    {renderValorDiferenca(totalClass, 0)}
+                                  </TableCell>
+                                )}
+                                {showAnaliseVertical && (
+                                  <TableCell className="text-center font-medium py-2 border-l">
+                                    {(() => {
+                                      const faturamentoItem = data.find(item => item.nome === 'Faturamento');
+                                      if (!faturamentoItem) return '0.0%';
+                                      
+                                      let totalClassificacao = 0;
+                                      if (periodo === 'mes') {
+                                        totalClassificacao = periodosFiltrados.reduce((sum, mes) => {
+                                          return sum + (classificacao.valores_mensais?.[mes] || 0);
+                                        }, 0);
+                                      } else if (periodo === 'trimestre') {
+                                        totalClassificacao = periodosFiltrados.reduce((sum, tri) => {
+                                          return sum + (classificacao.valores_trimestrais?.[tri] || 0);
+                                        }, 0);
+                                      } else if (periodo === 'ano') {
+                                        totalClassificacao = periodosFiltrados.reduce((sum, ano) => {
+                                          return sum + (classificacao.valores_anuais?.[ano] || 0);
+                                        }, 0);
+                                      }
+                                      
+                                      let totalFaturamento = 0;
+                                      if (periodo === 'mes') {
+                                        totalFaturamento = periodosFiltrados.reduce((sum, mes) => {
+                                          return sum + (faturamentoItem.valores_mensais?.[mes] || 0);
+                                        }, 0);
+                                      } else if (periodo === 'trimestre') {
+                                        totalFaturamento = periodosFiltrados.reduce((sum, tri) => {
+                                          return sum + (faturamentoItem.valores_trimestrais?.[tri] || 0);
+                                        }, 0);
+                                      } else if (periodo === 'ano') {
+                                        totalFaturamento = periodosFiltrados.reduce((sum, ano) => {
+                                          return sum + (faturamentoItem.valores_anuais?.[ano] || 0);
+                                        }, 0);
+                                      }
+                                      
+                                      if (totalFaturamento > 0) {
+                                          const avPercentual = (totalClassificacao / totalFaturamento) * 100;
+                                          return `${avPercentual.toFixed(1)}%`;
+                                      } else {
+                                          return '-';
+                                      }
+                                    })()}
+                                  </TableCell>
+                                )}
 
-                            </TableRow>
+                              </TableRow>
+
+                                                             {/* Renderizar nomes expandidos */}
+                               {classificacao?.nomes && classificacao.nomes.length > 0 && (
+                                 classificacao.nomes.map((nome: any, index: number) => (
+                                   <TableRow key={`nome-${index}`} className="bg-gray-50/30">
+                                     <TableCell className="py-1 md:sticky md:left-0 md:z-30 bg-gray-50 border-r border-border pl-12 text-left">
+                                       <span className="text-xs text-gray-600">
+                                         {nome.nome}
+                                       </span>
+                                     </TableCell>
+
+                                       {periodosFiltrados.map(p => (
+                                         <TableCell key={`${p}-nome`} className="text-right py-1">
+                                           <span className="text-xs">
+                                             {renderValor(calcularValor(nome, p))}
+                                           </span>
+                                         </TableCell>
+                                       ))}
+
+                                       <TableCell className="text-right font-medium py-1">
+                                         <span className="text-xs">
+                                           {renderValor(calcularTotal(
+                                             periodo === "mes" ? nome.valores_mensais :
+                                             periodo === "trimestre" ? nome.valores_trimestrais :
+                                             nome.valores_anuais
+                                           ))}
+                                         </span>
+                                       </TableCell>
+                                     </TableRow>
+                                   ))
+                               )}
+
+                            </React.Fragment>
                           )
                         })
                       )}
