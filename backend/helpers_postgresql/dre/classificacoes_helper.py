@@ -22,6 +22,23 @@ class ClassificacoesHelper:
         # FLUXO CORRIGIDO: financial_data → de_para → plano_de_contas → classificacao_dre_n2
         # CORREÇÃO CRÍTICA: Adicionar empresa_id em TODOS os JOINs para isolamento total
         # PROBLEMA IDENTIFICADO: Dados se misturavam entre empresas
+        # 🆕 NOVA CORREÇÃO: Suportar múltiplas empresas separadas por vírgula
+        
+        # Verificar se empresa_id contém múltiplas empresas
+        if empresa_id and ',' in empresa_id:
+            # Múltiplas empresas - usar IN
+            empresa_ids = [id.strip() for id in empresa_id.split(',') if id.strip()]
+            empresa_filter = "AND fd.empresa_id = ANY(:empresa_ids)"
+            params = {"dre_n2_name": dre_n2_name, "empresa_ids": empresa_ids}
+        elif empresa_id:
+            # Uma empresa - usar igual
+            empresa_filter = "AND fd.empresa_id = :empresa_id"
+            params = {"dre_n2_name": dre_n2_name, "empresa_id": empresa_id}
+        else:
+            # Nenhuma empresa - sem filtro
+            empresa_filter = ""
+            params = {"dre_n2_name": dre_n2_name}
+        
         query = text("""
             SELECT DISTINCT 
                 pc.nome_conta as classificacao,
@@ -42,14 +59,9 @@ class ClassificacoesHelper:
             AND fd.classificacao::text <> 'nan'
             AND fd.valor_original IS NOT NULL 
             AND fd.competencia IS NOT NULL
-            """ + ("AND fd.empresa_id = :empresa_id" if empresa_id else "") + """
+            """ + empresa_filter + """
             ORDER BY pc.nome_conta, TO_CHAR(fd.competencia, 'YYYY-MM')
         """)
-        
-        # Preparar parâmetros da query
-        params = {"dre_n2_name": dre_n2_name}
-        if empresa_id:
-            params["empresa_id"] = empresa_id
         
         result = connection.execute(query, params)
         dados = result.fetchall()
@@ -75,6 +87,23 @@ class ClassificacoesHelper:
         
         # CORREÇÃO CRÍTICA: Adicionar empresa_id em TODOS os JOINs para isolamento total
         # CORREÇÃO DO FILTRO: Usar padrão correto encontrado no debug
+        # 🆕 NOVA CORREÇÃO: Suportar múltiplas empresas separadas por vírgula
+        
+        # Verificar se empresa_id contém múltiplas empresas
+        if empresa_id and ',' in empresa_id:
+            # Múltiplas empresas - usar IN
+            empresa_ids = [id.strip() for id in empresa_id.split(',') if id.strip()]
+            empresa_filter = "AND fd.empresa_id = ANY(:empresa_ids)"
+            params = {"empresa_ids": empresa_ids}
+        elif empresa_id:
+            # Uma empresa - usar igual
+            empresa_filter = "AND fd.empresa_id = :empresa_id"
+            params = {"empresa_id": empresa_id}
+        else:
+            # Nenhuma empresa - sem filtro
+            empresa_filter = ""
+            params = {}
+        
         faturamento_query = text("""
             SELECT 
                 TO_CHAR(fd.competencia, 'YYYY-MM') as periodo_mensal,
@@ -89,17 +118,12 @@ class ClassificacoesHelper:
             WHERE pc.classificacao_dre_n2 LIKE '%( + ) Faturamento%'  -- ✅ FILTRO CORRIGIDO
             AND fd.valor_original IS NOT NULL 
             AND fd.competencia IS NOT NULL
-            """ + ("AND fd.empresa_id = :empresa_id" if empresa_id else "") + """
+            """ + empresa_filter + """
             GROUP BY 
                 TO_CHAR(fd.competencia, 'YYYY-MM'),
                 CONCAT(EXTRACT(YEAR FROM fd.competencia), '-Q', EXTRACT(QUARTER FROM fd.competencia)),
                 EXTRACT(YEAR FROM fd.competencia)
         """)
-        
-        # Preparar parâmetros da query
-        params = {}
-        if empresa_id:
-            params["empresa_id"] = empresa_id
         
         faturamento_result = connection.execute(faturamento_query, params)
         return faturamento_result.fetchall()
@@ -203,6 +227,10 @@ class ClassificacoesHelper:
         # Converter para lista e ordenar por valor total
         classificacoes = list(classificacoes_agrupadas.values())
         classificacoes.sort(key=lambda x: abs(x['valor_total']), reverse=True)
+        
+        # 🆕 CORREÇÃO: Adicionar campo 'valor' para compatibilidade com frontend
+        for classificacao in classificacoes:
+            classificacao['valor'] = classificacao['valor_total']
         
         return classificacoes, meses, trimestres, anos
 

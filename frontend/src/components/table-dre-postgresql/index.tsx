@@ -1186,7 +1186,7 @@ export default function DreTablePostgreSQL() {
               {/* Primeira linha do cabeçalho - períodos */}
               <TableRow>
                 <TableHead
-                  rowSpan={2} 
+                  rowSpan={(showOrcado || showDiferenca || showAnaliseVertical || showAnaliseHorizontal) ? 2 : 1} 
                   className="min-w-[300px] md:sticky md:left-0 md:z-10 bg-background border-r font-semibold"
                 >
                   Descrição
@@ -1207,56 +1207,57 @@ export default function DreTablePostgreSQL() {
                   Total
                 </TableHead>
               </TableRow>
-              {/* Segunda linha do cabeçalho - Real, Orçado, Dif., AV */}
-              <TableRow>
-                {periodosFiltrados.map((p) => (
-                  <React.Fragment key={`${p}-sub`}>
-                    <TableHead className="text-right min-w-[120px] bg-secondary/30">
-                      Real
+              {/* Segunda linha do cabeçalho - Real, Orçado, Dif., AV - Só aparece quando há indicadores adicionais */}
+              {(showOrcado || showDiferenca || showAnaliseVertical || showAnaliseHorizontal) && (
+                <TableRow>
+                  {periodosFiltrados.map((p) => (
+                    <React.Fragment key={`${p}-sub`}>
+                      <TableHead className="text-right min-w-[120px] bg-secondary/30">
+                        Real
+                      </TableHead>
+                      {showOrcado && (
+                        <TableHead className="text-right min-w-[120px] bg-muted/20">
+                          Orçado
+                        </TableHead>
+                      )}
+                      {showDiferenca && (
+                        <TableHead className="text-right min-w-[120px] bg-muted/20">
+                          Dif.
+                        </TableHead>
+                      )}
+                      {showAnaliseVertical && (
+                        <TableHead className="text-center min-w-[80px] bg-muted/20 border-l">
+                          AV
+                        </TableHead>
+                      )}
+                      {showAnaliseHorizontal && (
+                        <TableHead className="text-center min-w-[80px] bg-muted/20 border-l">
+                          AH
+                        </TableHead>
+                      )}
+                    </React.Fragment>
+                  ))}
+                  {/* Colunas do Total */}
+                  <TableHead className="text-right min-w-[120px] bg-secondary/30">
+                    Real
+                  </TableHead>
+                  {showOrcado && (
+                    <TableHead className="text-right min-w-[120px] bg-muted/20">
+                      Orçado
                     </TableHead>
-                    {showOrcado && (
-                      <TableHead className="text-right min-w-[120px] bg-muted/20">
-                        Orçado
-                      </TableHead>
-                    )}
-                    {showDiferenca && (
-                      <TableHead className="text-right min-w-[120px] bg-muted/20">
-                        Dif.
-                      </TableHead>
-                    )}
-                    {showAnaliseVertical && (
-                      <TableHead className="text-center min-w-[80px] bg-muted/20 border-l">
-                        AV
-                      </TableHead>
-                    )}
-                    {showAnaliseHorizontal && (
-                      <TableHead className="text-center min-w-[80px] bg-muted/20 border-l">
-                        AH
-                      </TableHead>
-                    )}
-                  </React.Fragment>
-                ))}
-                {/* Colunas do Total */}
-                <TableHead className="text-right min-w-[120px] bg-secondary/30">
-                  Real
-                </TableHead>
-                {showOrcado && (
-                  <TableHead className="text-right min-w-[120px] bg-muted/20">
-                    Orçado
-                  </TableHead>
-                )}
-                {showDiferenca && (
-                  <TableHead className="text-right min-w-[120px] bg-muted/20">
-                    Dif.
-                  </TableHead>
-                )}
-                {showAnaliseVertical && (
-                  <TableHead className="text-center min-w-[80px] bg-muted/20 border-l">
-                    AV
-                  </TableHead>
-                )}
-
-              </TableRow>
+                  )}
+                  {showDiferenca && (
+                    <TableHead className="text-right min-w-[120px] bg-muted/20">
+                      Dif.
+                    </TableHead>
+                  )}
+                  {showAnaliseVertical && (
+                    <TableHead className="text-center min-w-[80px] bg-muted/20 border-l">
+                      AV
+                    </TableHead>
+                  )}
+                </TableRow>
+              )}
             </TableHeader>
             <TableBody>
               {data && data.length > 0 ? (
@@ -1533,9 +1534,9 @@ export default function DreTablePostgreSQL() {
                                                              {/* Renderizar nomes expandidos */}
                                {classificacao?.nomes && classificacao.nomes.length > 0 && (
                                  classificacao.nomes.map((nome: any, index: number) => (
-                                   <TableRow key={`nome-${index}`} className="bg-gray-50/30">
-                                     <TableCell className="py-1 md:sticky md:left-0 md:z-30 bg-gray-50 border-r border-border pl-12 text-left">
-                                       <span className="text-xs text-gray-600">
+                                   <TableRow key={`nome-${index}`} className="bg-muted/20">
+                                     <TableCell className="py-1 md:sticky md:left-0 md:z-30 bg-muted/30 border-r border-border pl-12 text-left">
+                                       <span className="text-xs text-muted-foreground">
                                          {nome.nome}
                                        </span>
                                      </TableCell>
