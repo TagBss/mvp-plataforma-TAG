@@ -15,7 +15,7 @@ SET timezone = 'America/Sao_Paulo';
 -- Configurações de performance
 ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';
 ALTER SYSTEM SET track_activity_query_size = 2048;
-ALTER SYSTEM SET pg_stat_statements.track = 'all';
+-- ALTER SYSTEM SET pg_stat_statements.track = 'all'; -- Comentado pois causa erro no PostgreSQL 15
 
 -- Log de inicialização
 DO $$

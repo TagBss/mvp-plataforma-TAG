@@ -9,13 +9,19 @@ WORKDIR /app
 # Copiar package files
 COPY package*.json ./
 
-# Instalar dependências
-RUN npm ci --only=production
+# Instalar dependências (incluindo dev dependencies para build)
+RUN npm ci
 
 # Copiar código fonte
 COPY . .
 
-# Build da aplicação
+# Build da aplicação com variáveis de ambiente
+ARG VITE_API_URL
+ARG VITE_APP_NAME
+ARG VITE_APP_ENVIRONMENT
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_APP_NAME=$VITE_APP_NAME
+ENV VITE_APP_ENVIRONMENT=$VITE_APP_ENVIRONMENT
 RUN npm run build
 
 # Stage 2: Production
@@ -30,9 +36,9 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copiar configuração do nginx
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Criar usuário não-root
-RUN addgroup -g 1001 -S nginx && \
-    adduser -S nginx -u 1001
+# Usar usuário nginx existente (já criado na imagem nginx:alpine)
+# RUN addgroup -g 1001 -S nginx && \
+#     adduser -S nginx -u 1001
 
 # Mudar ownership
 RUN chown -R nginx:nginx /usr/share/nginx/html && \
@@ -48,11 +54,11 @@ RUN touch /var/run/nginx.pid && \
 USER nginx
 
 # Expor porta
-EXPOSE 3000
+EXPOSE 80
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000 || exit 1
+    CMD curl -f http://localhost:80 || exit 1
 
 # Comando para servir arquivos estáticos
 CMD ["nginx", "-g", "daemon off;"]

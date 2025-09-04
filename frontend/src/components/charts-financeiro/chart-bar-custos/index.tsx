@@ -96,7 +96,6 @@ export function ChartCustosFinanceiro({ data }: { data?: Record<string, number> 
         />
         <Bar
           dataKey="valor"
-          layout="vertical"
           fill="#3b82f6"
           radius={4}
         >

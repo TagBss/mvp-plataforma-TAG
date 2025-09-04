@@ -1,0 +1,151 @@
+services:
+  # 🗄️ Banco de Dados PostgreSQL - Development
+  postgres:
+    image: postgres:15-alpine
+    container_name: plataforma-tag-postgres-dev
+    environment:
+      POSTGRES_DB: tag_financeiro_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./backend/scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - plataforma-tag-dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 🔴 Cache Redis - Development
+  redis:
+    image: redis:7-alpine
+    container_name: plataforma-tag-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - plataforma-tag-dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 🐍 Backend Python/FastAPI - Development
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: plataforma-tag-backend-dev
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/tag_financeiro_dev
+      - REDIS_URL=redis://redis:6379
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - DEBUG=true
+      - ENVIRONMENT=development
+      - JWT_SECRET_KEY=dev_secret_key_not_secure
+      - JWT_ALGORITHM=HS256
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend_dev_uploads:/app/uploads
+      - backend_dev_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - plataforma-tag-dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ⚛️ Frontend React - Development
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: plataforma-tag-frontend-dev
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_APP_NAME=Plataforma TAG (Dev)
+      - VITE_APP_ENVIRONMENT=development
+      - NODE_ENV=development
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - plataforma-tag-dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: npm run dev
+
+  # 🗄️ pgAdmin 4 - Development
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: plataforma-tag-pgadmin-dev
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@tag-dev.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'True'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'True'
+      PGADMIN_CONFIG_MASTER_PASSWORD: "'admin123'"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_dev_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - plataforma-tag-dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/misc/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+  backend_dev_uploads:
+    driver: local
+  backend_dev_logs:
+    driver: local
+  pgadmin_dev_data:
+    driver: local
+
+networks:
+  plataforma-tag-dev-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16

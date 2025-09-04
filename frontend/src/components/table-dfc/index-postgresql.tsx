@@ -74,12 +74,12 @@ export default function DfcTablePostgreSQL() {
           data: dfcData.contas_dfc.map(([nome, sinal]) => ({
             tipo: sinal === '+' ? 'entrada' : 'saida',
             nome,
-            valores_mensais: dfcData.total_real_por_mes,
-            valores_trimestrais: dfcData.total_real_por_tri,
-            valores_anuais: dfcData.total_real_por_ano,
-            orcamentos_mensais: dfcData.total_orc_por_mes,
-            orcamentos_trimestrais: dfcData.total_orc_por_tri,
-            orcamentos_anuais: dfcData.total_orc_por_ano,
+            valores_mensais: (dfcData.total_real_por_mes as any)[nome] || {},
+            valores_trimestrais: (dfcData.total_real_por_tri as any)[nome] || {},
+            valores_anuais: (dfcData.total_real_por_ano as any)[nome] || {},
+            orcamentos_mensais: (dfcData.total_orc_por_mes as any)[nome] || {},
+            orcamentos_trimestrais: (dfcData.total_orc_por_tri as any)[nome] || {},
+            orcamentos_anuais: (dfcData.total_orc_por_ano as any)[nome] || {},
           }))
         };
 

@@ -60,11 +60,44 @@ def get_cached_df(filename="db_bluefit - Copia.xlsx"):
 
 app = FastAPI()
 
+# CORS Configuration based on environment
+import os
+from typing import List
+
+def get_cors_origins() -> List[str]:
+    """Get CORS origins based on environment"""
+    cors_origins = os.getenv("CORS_ORIGINS", "")
+    if cors_origins:
+        return [origin.strip() for origin in cors_origins.split(",")]
+    
+    # Default origins based on environment
+    environment = os.getenv("ENVIRONMENT", "development")
+    if environment == "production":
+        return [
+            "https://seu-frontend.vercel.app",
+            "https://plataforma-tag.com",
+            "https://www.plataforma-tag.com"
+        ]
+    elif environment == "staging":
+        return [
+            "http://localhost:5174",
+            "https://staging-frontend.vercel.app",
+            "https://staging-backend.onrender.com"
+        ]
+    else:  # development
+        return [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://localhost:8080",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:3000"
+        ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

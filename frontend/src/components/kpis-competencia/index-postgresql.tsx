@@ -107,7 +107,7 @@ export default function DashCompetenciaPostgreSQL() {
         const dreLinhas: DreLinha[] = dreDataTransformed.contas_dre.map(([nome, sinal]) => ({
           nome,
           valor: dreDataTransformed.total_geral_real[nome] || 0,
-          valores_mensais: dreDataTransformed.total_real_por_mes,
+          valores_mensais: dreDataTransformed.total_real_por_mes[nome] || {},
           horizontal_mensais: {}, // Será calculado se necessário
         }));
 

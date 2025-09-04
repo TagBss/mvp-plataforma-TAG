@@ -1,0 +1,136 @@
+services:
+  # 🗄️ Banco de Dados PostgreSQL - Production
+  postgres:
+    image: postgres:15-alpine
+    container_name: plataforma-tag-postgres-prod
+    environment:
+      POSTGRES_DB: tag_financeiro_prod
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      - ./backend/scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - plataforma-tag-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 🔴 Cache Redis - Production
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_prod_data:/data
+    networks:
+      - plataforma-tag-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 🐍 Backend Python/FastAPI - Production
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: plataforma-tag-backend-prod
+    environment:
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/tag_financeiro_prod
+      - REDIS_URL=redis://redis:6379
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - DEBUG=false
+      - ENVIRONMENT=production
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=HS256
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - LOG_LEVEL=INFO
+    volumes:
+      - backend_prod_uploads:/app/uploads
+      - backend_prod_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - plataforma-tag-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+
+  # ⚛️ Frontend React - Production (Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: plataforma-tag-frontend-prod
+    environment:
+      - VITE_API_URL=${API_URL}
+      - VITE_APP_NAME=Plataforma TAG
+      - VITE_APP_ENVIRONMENT=production
+      - NODE_ENV=production
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - plataforma-tag-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 🌐 Nginx - Production (Proxy Reverso)
+  nginx:
+    image: nginx:alpine
+    container_name: plataforma-tag-nginx-prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - nginx_prod_logs:/var/log/nginx
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - plataforma-tag-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_prod_data:
+    driver: local
+  redis_prod_data:
+    driver: local
+  backend_prod_uploads:
+    driver: local
+  backend_prod_logs:
+    driver: local
+  nginx_prod_logs:
+    driver: local
+
+networks:
+  plataforma-tag-prod-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.23.0.0/16
