@@ -4,18 +4,18 @@ Helper para cache Redis com TTL e invalidação inteligente
 import json
 import hashlib
 from typing import Any, Optional, Union
-import aioredis
+import redis.asyncio as redis
 from datetime import datetime, timedelta
 
 class RedisCache:
     def __init__(self, redis_url: str = "redis://localhost:6379"):
         self.redis_url = redis_url
-        self.redis: Optional[aioredis.Redis] = None
+        self.redis: Optional[redis.Redis] = None
         
     async def connect(self):
         """Conecta ao Redis"""
         if not self.redis:
-            self.redis = aioredis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
+            self.redis = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
             await self.redis.ping()
             print("✅ Redis conectado com sucesso")
     

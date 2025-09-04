@@ -1,0 +1,116 @@
+# 🚀 Docker Compose para Produção
+# Use com: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+version: '3.8'
+
+services:
+  # 🐍 Backend - Configurações de Produção
+  backend:
+    environment:
+      - DEBUG=False
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARNING
+    restart: always
+    # Remover volumes de desenvolvimento
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
+    # Comando de produção (sem reload)
+    command: gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+    # Health check mais rigoroso
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # ⚛️ Frontend - Build de Produção
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    environment:
+      - NODE_ENV=production
+      - VITE_API_URL=https://api.plataforma-tag.com
+    # Comando de produção
+    command: npm run preview -- --host 0.0.0.0 --port 3000
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # 🗄️ PostgreSQL - Configurações de Produção
+  postgres:
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    # Configurações de performance
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+    # Backup automático
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - ./scripts/backup:/backup
+    restart: always
+
+  # 🔴 Redis - Configurações de Produção
+  redis:
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    restart: always
+
+  # 🌐 Nginx - Ativado em Produção
+  nginx:
+    profiles: []  # Remove o profile para ativar em produção
+    restart: always
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 📊 Monitoramento (Opcional)
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: plataforma-tag-prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+  #   networks:
+  #     - plataforma-tag-network
+  #   restart: always
+
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: plataforma-tag-grafana
+  #   ports:
+  #     - "3001:3000"
+  #   environment:
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #   networks:
+  #     - plataforma-tag-network
+  #   restart: always
+
+volumes:
+  grafana_data:
+    driver: local
+

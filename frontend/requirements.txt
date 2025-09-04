@@ -1,0 +1,30 @@
+# Frontend React (Vite) - Requirements para Windows
+# Este arquivo contém as dependências necessárias para rodar o frontend no Windows
+
+# Node.js (versão recomendada)
+# Baixar do site oficial: https://nodejs.org/
+# Versão recomendada: Node.js 18.x ou superior
+
+# NPM (vem com Node.js)
+# Versão: 9.x ou superior
+
+# Dependências principais do projeto (já estão no package.json)
+# Para instalar: npm install
+
+# Dependências de desenvolvimento
+# Para instalar: npm install --save-dev
+
+# Scripts disponíveis:
+# npm run dev - Executa o servidor de desenvolvimento
+# npm run build - Gera build de produção
+# npm run preview - Visualiza o build de produção
+# npm run lint - Executa o linter
+
+# Comandos para Windows:
+# 1. Instalar Node.js do site oficial
+# 2. Abrir PowerShell/CMD como administrador
+# 3. Navegar até a pasta frontend: cd frontend
+# 4. Instalar dependências: npm install
+# 5. Executar projeto: npm run dev
+
+# Porta padrão: http://localhost:5173

@@ -290,15 +290,18 @@ export default function DreTablePostgreSQL() {
       const empresasIds = empresasSelecionadas.join(',')
       const cacheKey = `${dreN2Name}_${nomeClassificacao}_${empresasIds}`
       if (nomesCache[cacheKey]) {
+        console.log(`📋 Usando cache para nomes de ${nomeClassificacao}`)
         return nomesCache[cacheKey]
       }
 
       console.log(`🔍 Buscando nomes para classificação ${nomeClassificacao} em ${dreN2Name} nas empresas ${empresasIds}`)
       
       const response = await api.get(`/dre-n0/classificacoes/${encodeURIComponent(dreN2Name)}/nomes/${encodeURIComponent(nomeClassificacao)}?empresa_id=${empresasIds}`)
+      console.log(`📡 Resposta da API para nomes:`, response.data)
       
       if (response.data.success) {
         const nomes = response.data.data
+        console.log(`📊 Nomes processados:`, nomes)
         
         // Adicionar ao cache com chave única
         setNomesCache(prev => ({
@@ -329,15 +332,18 @@ export default function DreTablePostgreSQL() {
       const empresasIds = empresasSelecionadas.join(',')
       const cacheKey = `${dreN2Name}_${empresasIds}`
       if (classificacoesCache[cacheKey]) {
+        console.log(`📋 Usando cache para ${dreN2Name}`)
         return classificacoesCache[cacheKey]
       }
 
       console.log(`🔍 Buscando classificações para ${dreN2Name} nas empresas ${empresasIds}`)
       
       const response = await api.get(`/dre-n0/classificacoes/${encodeURIComponent(dreN2Name)}?empresa_id=${empresasIds}`)
+      console.log(`📡 Resposta da API:`, response.data)
       
       if (response.data.success) {
         const classificacoes = response.data.data
+        console.log(`📊 Classificações processadas:`, classificacoes)
         
         // Adicionar ao cache com chave única por empresa
         setClassificacoesCache(prev => ({
@@ -358,7 +364,8 @@ export default function DreTablePostgreSQL() {
 
   // Função para expandir/colapsar classificação com nomes
   const toggleExpansaoNomes = async (dreN2Name: string, classificacao: DreItem) => {
-    const cacheKey = `${dreN2Name}_${classificacao.nome}`
+    const empresasIds = empresasSelecionadas.join(',')
+    const cacheKey = `${dreN2Name}_${classificacao.nome}_${empresasIds}`
     const isExpanded = nomesCache[cacheKey] !== undefined
     
     if (!isExpanded) {
@@ -433,30 +440,17 @@ export default function DreTablePostgreSQL() {
         novasExpansoes[item.nome] = true
         
         // Buscar classificações se ainda não estiverem no cache
-        if (!classificacoesCache[item.nome]) {
+        const cacheKey = `${item.nome}_${empresasSelecionadas.join(',')}`
+        if (!classificacoesCache[cacheKey]) {
           try {
             const classificacoes = await buscarClassificacoes(item.nome)
-            novasClassificacoes[item.nome] = classificacoes
+            novasClassificacoes[cacheKey] = classificacoes
           } catch (error) {
             console.error(`❌ Erro ao buscar classificações para ${item.nome}:`, error)
           }
         } else {
-          novasClassificacoes[item.nome] = classificacoesCache[item.nome]
+          novasClassificacoes[cacheKey] = classificacoesCache[cacheKey]
         }
-      }
-      
-      // Atualizar estado de expansão
-      setExpandedItems(novasExpansoes)
-      
-      // Atualizar dados com classificações
-      if (Object.keys(novasClassificacoes).length > 0) {
-        setData(prevData => 
-          prevData.map(d => 
-            novasClassificacoes[d.nome] 
-              ? { ...d, classificacoes: novasClassificacoes[d.nome] }
-              : d
-          )
-        )
       }
     }
     
@@ -466,11 +460,12 @@ export default function DreTablePostgreSQL() {
     // Atualizar dados com classificações
     if (Object.keys(novasClassificacoes).length > 0) {
       setData(prevData => 
-        prevData.map(d => 
-          novasClassificacoes[d.nome] 
-            ? { ...d, classificacoes: novasClassificacoes[d.nome] }
+        prevData.map(d => {
+          const cacheKey = `${d.nome}_${empresasSelecionadas.join(',')}`
+          return novasClassificacoes[cacheKey] 
+            ? { ...d, classificacoes: novasClassificacoes[cacheKey] }
             : d
-        )
+        })
       )
     }
     
@@ -497,6 +492,7 @@ export default function DreTablePostgreSQL() {
       // Expandir: buscar classificações
       console.log(`🔽 Expandindo classificações para: ${item.nome}`)
       const classificacoes = await buscarClassificacoes(item.nome)
+      console.log(`📊 Classificações recebidas:`, classificacoes)
       
       // Atualizar o item com as classificações
       setData(prevData => 
@@ -508,9 +504,10 @@ export default function DreTablePostgreSQL() {
       )
       
       // Atualizar cache
+      const cacheKey = `${item.nome}_${empresasSelecionadas.join(',')}`
       setClassificacoesCache(prev => ({
         ...prev,
-        [item.nome]: classificacoes
+        [cacheKey]: classificacoes
       }))
     }
     
@@ -901,20 +898,29 @@ export default function DreTablePostgreSQL() {
                    periodo === "trimestre" ? item.valores_trimestrais :
                    item.valores_anuais;
     
-    if (!valores) return false;
+    if (!valores) {
+      console.log(`⚠️ Item ${item.nome} não tem valores para período ${periodo}`)
+      return false;
+    }
     
     // Verificar se há pelo menos um valor não-zerado (> 0.01 para evitar problemas de precisão)
-    return periodosFiltrados.some(p => {
+    const hasValues = periodosFiltrados.some(p => {
       const valor = valores[p] || 0;
       return Math.abs(valor) > 0.01;
     });
+    
+    if (!hasValues) {
+      console.log(`⚠️ Item ${item.nome} não tem valores não-zerados nos períodos filtrados`)
+    }
+    
+    return hasValues;
   };
 
   if (loading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>DRE Nível 0 - Demonstração do Resultado do Exercício</CardTitle>
+          <CardTitle>DRE - Demonstração do Resultado do Exercício</CardTitle>
           <CardDescription>Carregando dados do PostgreSQL...</CardDescription>
         </CardHeader>
         <CardContent>
@@ -932,7 +938,7 @@ export default function DreTablePostgreSQL() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>DRE Nível 0 - Demonstração do Resultado do Exercício</CardTitle>
+          <CardTitle>DRE - Demonstração do Resultado do Exercício</CardTitle>
           <CardDescription>Erro ao carregar dados</CardDescription>
         </CardHeader>
         <CardContent>
@@ -954,13 +960,9 @@ export default function DreTablePostgreSQL() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>DRE Nível 0 - Demonstração do Resultado do Exercício</CardTitle>
             <CardDescription>
-              Estrutura principal da DRE com totalizadores agregados - Dados do PostgreSQL
-              {dataSource && <span className="ml-2 text-blue-600">({dataSource})</span>}
+              Estrutura principal da DRE com totalizadores agregados
             </CardDescription>
-          </div>
           <div className="flex items-center gap-2">
             <Button onClick={exportExcel} variant="outline" size="sm">
               Exportar Excel
@@ -1404,19 +1406,31 @@ export default function DreTablePostgreSQL() {
                       </TableRow>
 
                       {/* Renderizar classificações expandidas */}
-                      {item.expandivel && expandedItems[item.nome] && item.classificacoes && Array.isArray(item.classificacoes) && item.classificacoes.length > 0 && (
-                        item.classificacoes.filter(classificacao => temValoresZerados(classificacao)).map(classificacao => {
-                          const totalClass = calcularTotal(
-                            periodo === "mes" ? classificacao.valores_mensais :
-                            periodo === "trimestre" ? classificacao.valores_trimestrais :
-                            classificacao.valores_anuais
-                          )
-                          
-                          return (
-                                                         <React.Fragment key={`${item.nome}-${classificacao.nome}`}>
-                              <TableRow>
-                                <TableCell className="py-2 md:sticky md:left-0 md:z-20 bg-muted border-r border-border pl-8">
-                                  <div className="flex items-center gap-2">
+                      {(() => {
+                        const shouldRender = item.expandivel && expandedItems[item.nome] && item.classificacoes && Array.isArray(item.classificacoes) && item.classificacoes.length > 0
+                        console.log(`🔍 Condições de renderização para ${item.nome}:`, {
+                          expandivel: item.expandivel,
+                          expanded: expandedItems[item.nome],
+                          hasClassificacoes: !!item.classificacoes,
+                          isArray: Array.isArray(item.classificacoes),
+                          length: item.classificacoes?.length,
+                          shouldRender
+                        })
+                        
+                        if (shouldRender) {
+                          console.log(`🔍 Renderizando classificações para ${item.nome}:`, item.classificacoes)
+                          return item.classificacoes?.filter(classificacao => temValoresZerados(classificacao)).map(classificacao => {
+                            const totalClass = calcularTotal(
+                              periodo === "mes" ? classificacao.valores_mensais :
+                              periodo === "trimestre" ? classificacao.valores_trimestrais :
+                              classificacao.valores_anuais
+                            )
+                            
+                            return (
+                              <React.Fragment key={`${item.nome}-${classificacao.nome}`}>
+                                <TableRow>
+                                  <TableCell className="py-2 md:sticky md:left-0 md:z-20 bg-muted border-r border-border pl-8">
+                                    <div className="flex items-center gap-2">
                                     <span className="text-sm text-muted-foreground">
                                       {classificacao.nome}
                                     </span>
@@ -1565,7 +1579,10 @@ export default function DreTablePostgreSQL() {
                             </React.Fragment>
                           )
                         })
-                      )}
+                        } else {
+                          return null
+                        }
+                      })()}
                     </React.Fragment>
                   )
                 })

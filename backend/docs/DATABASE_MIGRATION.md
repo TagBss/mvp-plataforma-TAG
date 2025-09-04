@@ -1,8 +1,8 @@
-# 🗄️ Sistema Financeiro - Migração PostgreSQL + DRE N0 - DOCUMENTAÇÃO UNIFICADA ✅
+# 🗄️ Sistema Financeiro - Migração PostgreSQL + DRE N0 - DOCUMENTAÇÃO PRINCIPAL ✅
 
 ## 📋 Visão Geral
 
-Este documento unificado descreve o sistema financeiro completo, incluindo:
+Este documento principal descreve o sistema financeiro base, incluindo:
 - **Migração completa** do Excel para PostgreSQL com SQLAlchemy
 - **Implementação DRE Nível 0** com todas as funcionalidades
 - **Dados financeiros** (aba 'base')
@@ -11,6 +11,11 @@ Este documento unificado descreve o sistema financeiro completo, incluindo:
 - **Tabelas de mapeamento** (aba 'de_para')
 - **Sistema de cadastro** com identificação única por UUID
 - **Status atual** e issues críticas identificadas
+
+## 📚 Documentações Relacionadas
+
+- **`MULTI_CLIENT_SYSTEM.md`** ← **Sistema Multi-Cliente** (Issues 18-27)
+- **`relatorio_validacao_dre_n2_tag.md`** ← **Validação DRE N2 TAG** (Issue 27)
 
 ## 🔄 **RESUMO DA UNIFICAÇÃO DAS DOCUMENTAÇÕES**
 
@@ -51,54 +56,17 @@ Este documento unificado descreve o sistema financeiro completo, incluindo:
 - **API endpoints** para todas as funcionalidades
 - **Schema otimizado** com relacionamentos corretos
 
-### **🚨 STATUS ATUAL - FASE 7.8 CONCLUÍDA ✅**
-- **Progresso Geral**: 100% concluído (implementação funcional completa)
+### **🚨 STATUS ATUAL - SISTEMA BASE FUNCIONAL ✅**
+- **Progresso Geral**: 100% concluído (sistema base funcionando perfeitamente)
 - **Issue Crítica**: **RESOLVIDA** ✅ - Fluxo de dados DRE N0 funcionando perfeitamente
 - **Issue da Interface Admin**: **RESOLVIDA** ✅ - Views DRE N0 aparecem corretamente na interface admin
 - **Issue 12 - Anos na View**: ✅ **RESOLVIDA** - View e frontend funcionando perfeitamente
 - **Issue 13 - AV Faturamento**: ✅ **RESOLVIDA** - Análise Vertical funcionando corretamente
 - **Issue 17 - Sistema de Backups**: ✅ **RESOLVIDA** - Novos backups criados em 25/08/2025
-- **Issue 18 - Preparação Multi-Cliente**: ✅ **ESTRUTURA BASE CONCLUÍDA** - Tabelas preparadas para multi-cliente
-- **Issue 19 - Limpeza grupo_empresa_id Redundante**: ✅ **RESOLVIDA** - Colunas redundantes removidas com sucesso
-- **Issue 20 - Sistema Multi-Cliente**: ✅ **RESOLVIDA** - Filtros por grupo empresarial e empresa funcionando
-- **Issue 21 - Consolidação de Dados**: ✅ **RESOLVIDA** - Sistema de seleção múltipla implementado com sucesso
-- **Issue 22 - Coluna "Descrição"**: ✅ **RESOLVIDA** - Descrições das classificações implementadas
-- **Issue 23 - Filtro Grupo/Empresa Backend/Frontend**: ✅ **RESOLVIDA** - Sincronização de filtros implementada
-- **Issue 24 - Classificações Múltiplas Empresas**: ✅ **RESOLVIDA** - Classificações funcionando com múltiplas empresas
-- **Issue 25 - Descrição Classificações**: ✅ **RESOLVIDA** - Descrições aparecem quando classificações expandem
-- **Issue 26 - Novo Nível de Agrupamento**: ✅ **IMPLEMENTADA** - Novo nível de expansão por nome implementado com sucesso
-- **Status**: ✅ **SISTEMA 100% FUNCIONAL** - Todas as issues resolvidas, sistema completo e operacional
-- **Impacto**: Sistema multi-cliente funcionando, filtros implementados, consolidação funcionando, novo nível de expansão ativo
-- **Estimativa**: ✅ **CONCLUÍDO** - Sistema 100% funcional, todas as funcionalidades implementadas
+- **Sistema Multi-Cliente**: 📚 **DOCUMENTADO** - Ver `MULTI_CLIENT_SYSTEM.md` para Issues 18-27
+- **Status**: ✅ **SISTEMA BASE 100% FUNCIONAL** - Sistema principal estável e operacional
 
-## 🎉 Status da Implementação
 
-### **✅ CONCLUÍDO COM SUCESSO**
-- **Sistema de cadastro completo** com UUIDs únicos
-- **Migração de dados** do Excel para PostgreSQL
-- **Interface administrativa** integrada ao sistema existente
-- **API endpoints** para todas as funcionalidades
-- **Schema otimizado** com relacionamentos corretos
-
-### **🚨 STATUS ATUAL - FASE 7.8 EM DESENVOLVIMENTO 🔄**
-- **Progresso Geral**: 95% concluído (implementação funcional, ajustes finais em andamento)
-- **Issue Crítica**: **RESOLVIDA** ✅ - Fluxo de dados DRE N0 funcionando perfeitamente
-- **Issue da Interface Admin**: **RESOLVIDA** ✅ - Views DRE N0 aparecem corretamente na interface admin
-- **Issue 12 - Anos na View**: ✅ **RESOLVIDA** - View e frontend funcionando perfeitamente
-- **Issue 13 - AV Faturamento**: ⏳ **PENDENTE** - Linha Faturamento retorna 100% quando valor é zero
-- **Issue 17 - Sistema de Backups**: ✅ **RESOLVIDA** - Novos backups criados em 25/08/2025
-- **Issue 18 - Preparação Multi-Cliente**: ✅ **ESTRUTURA BASE CONCLUÍDA** - Tabelas preparadas para multi-cliente
-- **Issue 19 - Limpeza grupo_empresa_id Redundante**: ✅ **RESOLVIDA** - Colunas redundantes removidas com sucesso
-- **Issue 20 - Sistema Multi-Cliente**: ✅ **RESOLVIDA** - Filtros por grupo empresarial e empresa funcionando
-- **Issue 21 - Consolidação de Dados**: ✅ **RESOLVIDA** - Sistema de seleção múltipla implementado com sucesso
-- **Issue 22 - Coluna "Descrição"**: 🔍 **IDENTIFICADA** - Não exibe nomes das classificações
-- **Issue 23 - Filtro Grupo/Empresa Backend/Frontend**: 🔍 **IDENTIFICADA** - Valores não estão batendo entre backend e frontend
-- **Issue 24 - Classificações Múltiplas Empresas**: 🔍 **IDENTIFICADA** - Classificações não expandem com múltiplas empresas
-- **Issue 25 - Descrição Classificações**: 🔍 **IDENTIFICADA** - Descrição não aparece quando classificações expandem
-- **Issue 26 - Novo Nível de Agrupamento**: ✅ **IMPLEMENTADA** - Novo nível de expansão por nome implementado com sucesso
-- **Próximo Passo**: Resolver Issues 23-26, validação completa do sistema multi-cliente
-- **Impacto**: Sistema multi-cliente funcionando, filtros implementados, consolidação funcionando, ajustes finais necessários
-- **Estimativa**: 🔄 **EM ANDAMENTO** - Sistema 95% funcional, ajustes finais em progresso
 
 ### **📊 Status da Implementação DRE N0**
 - **✅ CONCLUÍDA**: DRE N0 totalmente implementada e funcionando
@@ -475,31 +443,24 @@ financial_data (
 - 📋 Solução planejada
 - 🚀 Próximo passo: implementar sistema multi-cliente dinâmico
 
-#### **Issue 20: Sistema de Filtros Multi-Cliente Implementado com Sucesso ✅ NOVA ISSUE RESOLVIDA**
-**Problema**: Sistema não tinha filtros para grupo empresarial e empresa, impedindo visualização isolada de dados por cliente
-**Impacto**: 
-- ❌ Dados de diferentes empresas se misturavam no frontend
-- ❌ Não era possível visualizar dados consolidados por grupo
-- ❌ Falta de isolamento entre TAG Business e TAG Projetos
-- ❌ Interface não permitia seleção de filtros específicos
-**Status**: ✅ **RESOLVIDA** - Sistema multi-cliente implementado com sucesso
-**Solução Implementada**: 
-1. **Backend**: Endpoints modificados para aceitar `grupo_empresa_id` e `empresa_id`
-2. **Frontend**: Dropdowns para seleção de "Grupo Empresarial" e "Empresa"
-3. **Lógica inteligente**: Empresas filtradas automaticamente pelo grupo selecionado
-4. **Opção "Selecionar todas"**: Consolida automaticamente dados de múltiplas empresas
-5. **Isolamento total**: Dados não se misturam entre empresas
-**Resultado**: 
-- ✅ **Bluefit**: 23 contas DRE N0 isoladas
-- ✅ **TAG (Múltiplas Empresas)**: 54 contas DRE N0 (TAG Business + TAG Projetos)
-- ✅ **TAG Business**: 27 contas DRE N0 isoladas
-- ✅ **TAG Projetos**: 27 contas DRE N0 isoladas
-- ✅ **Interface intuitiva**: Filtros funcionando perfeitamente
-**Status Atual**: 
-- ✅ Sistema multi-cliente 100% funcional
-- ✅ Filtros por grupo empresarial e empresa funcionando
-- ✅ Isolamento total de dados entre empresas
-- ✅ Interface intuitiva para seleção de filtros
+## 🏢 Sistema Multi-Cliente
+
+**Status**: ✅ **IMPLEMENTADO** - Sistema multi-cliente totalmente funcional
+
+Para documentação completa das Issues 18-27 relacionadas ao sistema multi-cliente, consulte:
+**📚 `MULTI_CLIENT_SYSTEM.md`** - Documentação detalhada do sistema multi-cliente
+
+### **Resumo das Issues Multi-Cliente Resolvidas:**
+- ✅ **Issue 18**: Preparação Multi-Cliente
+- ✅ **Issue 19**: Limpeza grupo_empresa_id Redundante  
+- ✅ **Issue 20**: Sistema de Filtros Multi-Cliente
+- ✅ **Issue 21**: Consolidação de Dados
+- ✅ **Issue 22**: Coluna "Descrição"
+- ✅ **Issue 23**: Filtro Grupo/Empresa Backend/Frontend
+- ✅ **Issue 24**: Classificações Múltiplas Empresas
+- ✅ **Issue 25**: Descrição Classificações
+- ✅ **Issue 26**: Novo Nível de Agrupamento
+- 🔍 **Issue 27**: Valores DRE N2 TAG (CRÍTICA - Ver documentação específica)
 
 #### **Issue 21: Consolidação de Múltiplas Empresas Agrupa/Agrega Linhas de Contas/Classificações com Mesmos Nomes ✅ RESOLVIDA**
 **Problema**: A consolidação de múltiplas empresas no filtro de empresa estava agrupando/agregando linhas de contas e classificações que tinham os mesmos nomes, causando duplicação de dados
@@ -2824,9 +2785,10 @@ A migração para PostgreSQL com SQLAlchemy e implementação DRE N0 representa 
 **Issue 24 - Classificações Múltiplas Empresas**: 🔍 **IDENTIFICADA** - Classificações não expandem com múltiplas empresas
 **Issue 25 - Descrição Classificações**: 🔍 **IDENTIFICADA** - Descrição não aparece quando classificações expandem
 **Issue 26 - Novo Nível de Agrupamento**: ✅ **IMPLEMENTADA** - Novo nível de expansão por nome implementado com sucesso
-**Próximo Passo**: Resolver Issues 23-26, validação completa do sistema multi-cliente
-**Impacto**: Sistema multi-cliente funcionando, filtros implementados, consolidação funcionando, ajustes finais necessários
-**Estimativa**: 🔄 **EM ANDAMENTO** - Sistema 95% funcional, ajustes finais em progresso
+**Issue 27 - Valores DRE N2 TAG**: 🔍 **CRÍTICA** - Valores DRE N2 não batem para empresas TAG (diferença -3.6%)
+**Próximo Passo**: Resolver Issue 27 (valores DRE N2 TAG), investigar e corrigir view para TAG Business Solutions
+**Impacto**: Sistema multi-cliente funcionando, mas valores DRE N2 incorretos para empresas TAG
+**Estimativa**: 🔄 **EM ANDAMENTO** - Sistema 95% funcional, correção urgente dos valores TAG necessária
 
 ## 🔍 **CONTEXTO IMPORTANTE PARA FUTURAS IMPLEMENTAÇÕES**
 
@@ -3486,6 +3448,49 @@ DRE N0 (nível 0)
 - ✅ Frontend recebendo dados corretamente
 - ✅ Preparado para sistema multi-cliente
 **Status**: ✅ **COMPLETAMENTE RESOLVIDA** - Coluna empresa implementada e funcionando perfeitamente
+
+#### **Issue 27: Valores DRE N2 Não Batem para Empresas TAG 🔍 ISSUE CRÍTICA IDENTIFICADA**
+**Problema**: Os valores DRE N2 para empresas TAG (TAG Business Solutions e TAG Projetos) não batem com os valores calculados diretamente do fluxo de dados, enquanto os valores da Bluefit estão corretos
+**Impacto**: 
+- ❌ **TAG Business Solutions**: Diferença de -3.6% nos valores DRE N2
+- ❌ **TAG Projetos**: Diferença de -0.0% (mínima, aceitável)
+- ✅ **Bluefit T8**: Valores corretos, diferença de apenas 0.1%
+- ❌ **Análise financeira comprometida** para empresas TAG
+- ❌ **Relatórios incorretos** para clientes TAG
+- ❌ **Decisões baseadas em dados incorretos**
+**Status**: 🔍 **CRÍTICA** - Valores incorretos para empresas TAG, Bluefit funcionando corretamente
+**Prioridade**: 🚨 **URGENTE** - Crítica para o negócio (dados financeiros incorretos)
+**Análise Detalhada do Problema**:
+```
+1. ✅ Bluefit T8: Valores DRE N2 corretos (diferença 0.1% - aceitável)
+2. ❌ TAG Business Solutions: Diferença significativa de -3.6%
+3. ❌ TAG Projetos: Diferença mínima de -0.0% (aceitável)
+4. ❌ Problema específico: TAG Business Solutions com discrepância maior
+```
+**Investigação Realizada**:
+1. **Verificação do fluxo de dados**: `financial_data` → `de_para` → `plano_de_contas` → `dre_structure_n2`
+2. **Análise da view**: `v_dre_n0_completo` está usando `dre_n0_id` corretamente
+3. **Comparação granular**: Identificadas duas contas específicas com discrepâncias:
+   - `( - ) Despesas Financeiras`: DRE R$ -122,083.83 vs View R$ -123,696.57 (Diferença: R$ -1,612.74)
+   - `( - ) Despesas Administrativas`: DRE R$ -1,757,733.69 vs View R$ -1,777,233.66 (Diferença: R$ -19,499.97)
+4. **Soma das diferenças**: R$ -21,112.71 (exatamente a diferença total de -3.6%)
+**Possíveis Causas**:
+1. **Problema na view**: `v_dre_n0_completo` pode ter JOIN incorreto para TAG Business Solutions
+2. **Dados duplicados**: Possível duplicação de registros na view para TAG Business
+3. **Filtros incorretos**: View pode não estar filtrando corretamente por `empresa_id`
+4. **Mapeamento incorreto**: `dre_n0_id` pode estar mapeando para contas erradas
+**Solução Necessária**: 
+1. **Investigar view**: Verificar JOINs e filtros na `v_dre_n0_completo` para TAG Business Solutions
+2. **Validar mapeamentos**: Confirmar se `dre_n0_id` está correto para todas as contas TAG
+3. **Verificar duplicações**: Identificar se há registros duplicados na view
+4. **Corrigir discrepâncias**: Ajustar view ou dados para que valores batam
+5. **Testar correções**: Validar que Bluefit continue funcionando após correções
+**Status Atual**: 
+- 🔍 Issue identificada e investigada
+- 📊 Análise granular concluída
+- 🎯 Contas específicas identificadas
+- 🚀 Próximo passo: investigar e corrigir view para TAG Business Solutions
+**Nota**: A diferença de 3.6% é significativa para um sistema financeiro e precisa ser corrigida urgentemente.
 
 #### **Issue 26: Novo Nível de Agrupamento - Agrupar por `financial_data.nome` ✅ IMPLEMENTADA**
 **Problema**: Era necessário implementar um novo nível de agrupamento após as classificações, agrupando valores por `financial_data.nome`
