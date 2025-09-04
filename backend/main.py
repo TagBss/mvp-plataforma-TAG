@@ -8,7 +8,6 @@ from endpoints.dre import router as dre_router
 from endpoints.dfc import router as dfc_router
 from endpoints.financial_data_sqlalchemy import router as financial_data_router
 from endpoints.financial_data_specialized import router as financial_data_specialized_router
-from endpoints.database_admin import router as database_admin_router
 from endpoints.dre_postgresql import router as dre_postgresql_router
 from endpoints.dre_postgresql_simple import router as dre_postgresql_simple_router
 from endpoints.dre_postgresql_debug import router as dre_postgresql_debug_router
@@ -75,7 +74,6 @@ app.include_router(dre_router, tags=["DRE"])
 app.include_router(dfc_router, tags=["DFC"])
 app.include_router(financial_data_router, tags=["financial-data"])
 app.include_router(financial_data_specialized_router, tags=["financial-data-specialized"])
-app.include_router(database_admin_router, tags=["database-admin"])
 app.include_router(dre_postgresql_router, tags=["dre-postgresql"])
 app.include_router(dre_postgresql_simple_router, tags=["dre-postgresql-simple"])
 app.include_router(dre_postgresql_debug_router, tags=["dre-postgresql-debug"])

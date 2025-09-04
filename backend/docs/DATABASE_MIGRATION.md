@@ -1576,7 +1576,7 @@ curl -s "http://localhost:8000/dre-n0/recreate-view"
 ### **🔍 Troubleshooting das Issues Atuais (Fase 7.5)**
 
 #### **Issue 6: Views DRE N0 Não Aparecem na Interface Admin 🔍 IDENTIFICADA**
-**Sintoma**: Interface admin `/admin/database` mostra 0 tabelas e 0 views, mesmo com views DRE N0 criadas
+**Sintoma**: Interface admin antiga `/admin/database` foi removida - agora usando pgAdmin
 **Diagnóstico**: 
 - Views existem no banco (confirmado via `pg_views` e `information_schema.views`) ✅
 - Query admin retorna 19 tabelas + 7 views (confirmado via debug) ✅
@@ -2979,7 +2979,7 @@ python check_fk_data_status.py
 python debug_admin_table_info.py
 
 # Testar interface admin via navegador
-curl http://localhost:8000/admin/database
+# Interface admin antiga removida - agora usar pgAdmin em http://localhost:5050
 
 # Verificar se views existem no banco
 python -c "
@@ -3190,7 +3190,7 @@ python debug_structure.py
 ### **🚨 NOVA ISSUE IDENTIFICADA - FASE 7.5**
 
 #### **Issue 6: Views DRE N0 Não Aparecem na Interface Admin ✅ RESOLVIDA**
-**Problema**: As views DRE N0 (`v_dre_n0_completo`, `v_dre_n0_simples`, `v_dre_n0_por_periodo`) foram criadas no banco mas não apareciam na interface admin `/admin/database`
+**Problema**: As views DRE N0 (`v_dre_n0_completo`, `v_dre_n0_simples`, `v_dre_n0_por_periodo`) foram criadas no banco - agora visíveis no pgAdmin
 **Impacto**: Usuários não conseguiam visualizar ou acessar as views DRE N0 através da interface administrativa
 **Status**: ✅ **RESOLVIDA** - Views aparecem corretamente na interface admin
 **Diagnóstico**: 

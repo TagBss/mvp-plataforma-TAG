@@ -120,6 +120,32 @@ services:
     profiles:
       - production
 
+  # 🗄️ pgAdmin 4 - Interface Web para PostgreSQL
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: plataforma-tag-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@tag.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'True'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'True'
+      PGADMIN_CONFIG_MASTER_PASSWORD: "'admin123'"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - plataforma-tag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/misc/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   postgres_data:
     driver: local
@@ -129,6 +155,8 @@ volumes:
     driver: local
   backend_logs:
     driver: local
+  pgadmin_data:
+    driver: local
 
 networks:
   plataforma-tag-network:
@@ -136,4 +164,3 @@ networks:
     ipam:
       config:
         - subnet: 172.20.0.0/16
-
