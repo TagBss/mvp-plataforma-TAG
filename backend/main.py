@@ -4,6 +4,7 @@ import pandas as pd
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
+import redis
 from endpoints.dre import router as dre_router
 from endpoints.dfc import router as dfc_router
 from endpoints.financial_data_sqlalchemy import router as financial_data_router
@@ -16,6 +17,25 @@ from endpoints.dre_n0_postgresql import router as dre_n0_postgresql_router
 from endpoints.backup_admin import router as backup_admin_router
 from auth import auth_router
 
+
+# --- CONFIGURAÇÃO DO REDIS ---
+def get_redis_client():
+    """Cria conexão Redis do Render"""
+    REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
+    
+    try:
+        redis_client = redis.from_url(
+            REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=5,
+            socket_timeout=5,
+            retry_on_timeout=True,
+            health_check_interval=30
+        )
+        return redis_client
+    except Exception as e:
+        print(f"❌ Erro ao conectar Redis: {e}")
+        return None
 
 # --- CACHE GLOBAL PARA O DATAFRAME ---
 _df_cache = {
