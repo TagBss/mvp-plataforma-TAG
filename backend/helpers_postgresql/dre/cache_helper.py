@@ -3,13 +3,15 @@ Helper para cache Redis com TTL e invalidação inteligente
 """
 import json
 import hashlib
+import os
 from typing import Any, Optional, Union
 import redis.asyncio as redis
 from datetime import datetime, timedelta
 
 class RedisCache:
-    def __init__(self, redis_url: str = "redis://localhost:6379"):
-        self.redis_url = redis_url
+    def __init__(self, redis_url: str = None):
+        # Usar REDIS_URL do ambiente ou padrão localhost
+        self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379")
         self.redis: Optional[redis.Redis] = None
         
     async def connect(self):

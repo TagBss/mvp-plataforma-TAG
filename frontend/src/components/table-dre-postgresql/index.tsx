@@ -140,25 +140,12 @@ export default function DreTablePostgreSQL() {
   useEffect(() => {
     console.log(`🔄 useEffect empresasSelecionadas mudou: ${empresasSelecionadas.length} empresas`)
     
-    if (empresasSelecionadas.length > 0) {
-      console.log(`✅ Empresas selecionadas: ${empresasSelecionadas.join(', ')}`)
-      // Limpar cache de classificações ao trocar filtros
-      setClassificacoesCache({})
-      setExpandedItems({})
-      
-      // Recarregar dados DRE N0 para os filtros selecionados
-      carregarDreN0()
-    } else {
-      console.log(`❌ Nenhuma empresa selecionada, limpando dados`)
-      // Limpar dados quando nenhuma empresa estiver selecionada
-      setData([])
-      setMeses([])
-      setTrimestres([])
-      setAnos([])
-      setDataSource("")
-      setError(null)
-      setLoading(false)
-    }
+    // Limpar cache de classificações ao trocar filtros
+    setClassificacoesCache({})
+    setExpandedItems({})
+    
+    // Sempre recarregar dados DRE N0 (com ou sem filtros de empresa)
+    carregarDreN0()
   }, [empresasSelecionadas])
 
   // 🆕 NOVO: Filtrar empresas quando grupo empresarial mudar
@@ -208,11 +195,6 @@ export default function DreTablePostgreSQL() {
   const carregarDreN0 = async () => {
     console.log(`🔍 carregarDreN0 chamado com empresas: ${empresasSelecionadas.join(', ')}`)
     
-    if (empresasSelecionadas.length === 0) {
-      console.log('❌ Nenhuma empresa selecionada, abortando carregamento')
-      return 
-    }
-    
     setLoading(true)
     setError(null)
     
@@ -230,6 +212,9 @@ export default function DreTablePostgreSQL() {
         // Uma empresa: usar empresa_id único
         params.append('empresa_id', empresasSelecionadas[0])
         console.log(`🔄 Carregando DRE N0 para empresa: ${empresasSelecionadas[0]}`)
+      } else {
+        // Nenhuma empresa selecionada: carregar dados gerais
+        console.log(`🔄 Carregando DRE N0 sem filtros de empresa`)
       }
       
       const url = `/dre-n0/?${params.toString()}`

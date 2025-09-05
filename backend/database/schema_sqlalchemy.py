@@ -66,7 +66,7 @@ class DFCStructureN2(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     dfc_n2_id = Column(Integer, unique=True, nullable=False)  # ID da planilha Excel
-    dfc_n1_id = Column(Integer, ForeignKey('dfc_structure_n1.dfc_n1_id'), nullable=False)
+    dfc_n1_id = Column(Integer, ForeignKey('dfc_structure_n1.id'), nullable=False)
     name = Column(String(200), nullable=False)  # Nome da conta
     operation_type = Column(String(10), default="=")  # Tipo de operação: +, -, =, +/-
     description = Column(Text)
@@ -84,7 +84,7 @@ class DFCClassification(Base):
     __tablename__ = "dfc_classifications"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    dfc_n2_id = Column(Integer, ForeignKey('dfc_structure_n2.dfc_n2_id'), nullable=False)
+    dfc_n2_id = Column(Integer, ForeignKey('dfc_structure_n2.id'), nullable=False)
     name = Column(String(200), nullable=False)  # Nome da classificação
     description = Column(Text)
     order_index = Column(Integer, default=0)
@@ -121,7 +121,7 @@ class DREStructureN1(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     dre_n1_id = Column(Integer, unique=True, nullable=False)  # ID da planilha Excel
-    dre_n0_id = Column(Integer, ForeignKey('dre_structure_n0.dre_n0_id'), nullable=True)  # Relacionamento com N0
+    dre_n0_id = Column(Integer, ForeignKey('dre_structure_n0.id'), nullable=True)  # Relacionamento com N0
     name = Column(String(200), nullable=False)  # Nome do totalizador
     operation_type = Column(String(10), default="=")  # Tipo de operação: +, -, =, +/-
     description = Column(Text)
@@ -140,7 +140,7 @@ class DREStructureN2(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     dre_n2_id = Column(Integer, unique=True, nullable=False)  # ID da planilha Excel
-    dre_n1_id = Column(Integer, ForeignKey('dre_structure_n1.dre_n1_id'), nullable=False)
+    dre_n1_id = Column(Integer, ForeignKey('dre_structure_n1.id'), nullable=False)
     name = Column(String(200), nullable=False)  # Nome da conta
     operation_type = Column(String(10), default="=")  # Tipo de operação: +, -, =, +/-
     description = Column(Text)
@@ -158,7 +158,7 @@ class DREClassification(Base):
     __tablename__ = "dre_classifications"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    dre_n2_id = Column(Integer, ForeignKey('dre_structure_n2.dre_n2_id'), nullable=False)
+    dre_n2_id = Column(Integer, ForeignKey('dre_structure_n2.id'), nullable=False)
     name = Column(String(200), nullable=False)  # Nome da classificação
     description = Column(Text)
     order_index = Column(Integer, default=0)

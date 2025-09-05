@@ -21,11 +21,16 @@ COPY . .
 
 # Criar usuário não-root para segurança
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
+    adduser -S reactjs -u 1001 -G nodejs
 
 # Mudar ownership dos arquivos
-RUN chown -R nextjs:nodejs /app
-USER nextjs
+RUN chown -R reactjs:nodejs /app
+
+# Garantir que o usuário reactjs tenha acesso ao npm
+RUN chmod -R 755 /usr/local/bin/npm && \
+    chmod -R 755 /usr/local/lib/node_modules
+
+USER reactjs
 
 # Expor porta
 EXPOSE 5173
