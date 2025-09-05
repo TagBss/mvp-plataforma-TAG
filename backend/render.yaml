@@ -26,7 +26,7 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: CORS_ORIGINS
-        value: https://seu-frontend.vercel.app,https://plataforma-tag.com
+        value: https://mvp-plataforma-tag.vercel.app,https://mvp-plataforma-tag-3s9u.onrender.com
 
 databases:
   - name: plataforma-tag-postgres

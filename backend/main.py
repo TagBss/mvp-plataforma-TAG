@@ -74,9 +74,8 @@ def get_cors_origins() -> List[str]:
     environment = os.getenv("ENVIRONMENT", "development")
     if environment == "production":
         return [
-            "https://seu-frontend.vercel.app",
-            "https://plataforma-tag.com",
-            "https://www.plataforma-tag.com"
+            "https://mvp-plataforma-tag.vercel.app",
+            "https://mvp-plataforma-tag-3s9u.onrender.com"
         ]
     elif environment == "staging":
         return [
